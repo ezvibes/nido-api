@@ -103,11 +103,11 @@ This flow outlines the precise sequence of events when a new user signs up.
 
 ---
 
-## Future Architectural Patterns
+## Core Implemented Patterns
 
 ### @CurrentUser Decorator
 
-To streamline development and avoid repetitive database queries in controllers, a custom NestJS decorator, `@CurrentUser()`, will be implemented. This will allow easy access to the fully populated Postgres `User` entity within any controller method.
+To streamline development and avoid repetitive database queries, a custom NestJS decorator, `@CurrentUser()`, has been implemented. This allows easy access to the fully populated Postgres `User` entity within any controller method.
 
 **Example Usage:**
 ```typescript
@@ -117,3 +117,32 @@ getProfile(@CurrentUser() user: UserEntity) {
   return user;
 }
 ```
+
+---
+
+## User Profile Management
+
+### Status: Implemented (MVP v1)
+
+A basic user profile page has been created to allow users to manage their data.
+
+**Flow:**
+1.  **Web App:** After logging in, the user navigates to the `/profile` page.
+2.  **Web App:** The frontend uses the stored user state to display current information.
+3.  **Web App:** The user updates their name in an input field.
+4.  **Web App & Nido API:** On submission, the client sends a `PATCH /user` request with the updated name.
+5.  **NIDO API:** The backend receives the request, validates it, and updates the `name` field for the corresponding user in the Postgres database.
+
+---
+
+## Next Steps: Concerts Feature
+
+### Status: Planned
+
+The next major feature is to display a list of concerts relevant to the user on the homepage after they have logged in.
+
+**High-Level Plan:**
+1.  **Frontend:** Build out the `MyConcerts.vue` component to be a container for a list of concert cards.
+2.  **Backend:** Create a new module for Concerts (`/concerts`) with a controller, service, and entity.
+3.  **Backend:** Implement a `GET /concerts` endpoint that retrieves a list of concerts for the currently authenticated user.
+4.  **Frontend:** Update the `HomePage.vue` to call the `GET /concerts` endpoint and pass the data to the `MyConcerts.vue` component for rendering.

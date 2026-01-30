@@ -20,6 +20,9 @@ export class User {
   @Column({ nullable: true })
   picture?: string;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  name?: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

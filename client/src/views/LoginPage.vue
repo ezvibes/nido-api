@@ -18,6 +18,13 @@
         <button class="btn btn-primary" @click="handleSignUp">Sign Up</button>
         <button class="btn btn-secondary" @click="handleSignIn">Sign In</button>
       </div>
+
+      <hr class="divider" />
+
+      <button class="btn btn-google" @click="signInWithGoogle">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google logo" />
+        Sign in with Google
+      </button>
     </form>
   </div>
 </template>
@@ -29,7 +36,7 @@ import { useAuth } from '../composables/useAuth';
 const email = ref('');
 const password = ref('');
 
-const { signUpWithEmail, signInWithEmail } = useAuth();
+const { signUpWithEmail, signInWithEmail, signInWithGoogle } = useAuth();
 
 const handleSignUp = () => {
   signUpWithEmail(email.value, password.value);
@@ -108,6 +115,10 @@ const handleSignIn = () => {
   cursor: pointer;
   transition: all 0.2s ease-in-out;
   letter-spacing: 0.025em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
 .btn-primary {
@@ -128,5 +139,26 @@ const handleSignIn = () => {
 .btn-secondary:hover {
   background-color: var(--background);
   border-color: #D1D5DB;
+}
+
+.divider {
+  margin: 2rem 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.btn-google {
+  background-color: #fff;
+  color: #4b5563;
+  border-color: #d1d5db;
+}
+
+.btn-google:hover {
+  background-color: #f9fafb;
+}
+
+.btn-google img {
+  width: 1.25rem;
+  height: 1.25rem;
 }
 </style>

@@ -3,6 +3,8 @@ import {
   Post,
   UseGuards,
   BadRequestException,
+  Patch,
+  Body,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { User } from './entities/user.entity';
@@ -10,8 +12,9 @@ import { FirebaseAuthGuard } from '../auth/firebase-auth/firebase-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
-@Controller('auth')
+@Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
@@ -28,6 +31,15 @@ export class UserController {
 
     const createUserDto: CreateUserDto = { uid, email, picture };
     return this.userService.findOrCreate(createUserDto);
+  }
+
+  @Patch('profile')
+  @UseGuards(FirebaseAuthGuard)
+  async updateProfile(
+    @CurrentUser() user: DecodedIdToken,
+    @Body() updateUserDto: UpdateUserDto,
+  ): Promise<User> {
+    return this.userService.update(user.uid, updateUserDto);
   }
 }
 

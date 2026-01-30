@@ -1,37 +1,43 @@
-# Nido API
+# Nido API & Client
 
-This is the backend API for Nido, a NestJS-based application.
+This repository contains the full-stack application for Nido, which includes a NestJS backend API and a Vue.js frontend client.
+
+## Project Structure
+
+The project is organized into two main parts:
+
+-   `src/`: The NestJS backend API. This handles business logic, database interactions, and authentication.
+-   `client/`: The Vue.js frontend application. This is the user-facing interface that consumes the Nido API.
+
+---
 
 ## Getting Started
 
-Follow these steps to get the development environment up and running.
+Follow these steps to get the complete development environment up and running.
 
-### 1. Start the Database
+### 1. Start the Backend API
 
-The project uses a PostgreSQL database running in a Docker container.
+First, set up and run the NestJS server.
 
-```bash
-docker-compose up -d
-```
+#### **Prerequisites**
 
-This command will start the PostgreSQL container in detached mode.
+-   A PostgreSQL database. You can run one easily using Docker:
+    ```bash
+    docker-compose up -d
+    ```
+-   A `.env` file in the project root. Create it if it doesn't exist:
+    ```
+    DB_HOST=localhost
+    DB_PORT=5432
+    DB_USER=user
+    DB_PASSWORD=password
+    DB_NAME=nido
+    ```
 
-### 2. Configure Environment Variables
-
-Create a `.env` file in the root of the project with the following content:
-
-```
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=user
-DB_PASSWORD=password
-DB_NAME=nido
-```
-
-### 3. Install Dependencies and Run the API
+#### **Installation & Execution**
 
 ```bash
-# Install dependencies
+# Install backend dependencies
 $ npm install
 
 # Run the API in development mode
@@ -40,15 +46,30 @@ $ npm run start:dev
 
 The API will be running at `http://localhost:3001`.
 
-### 4. Test the "Hello World" Endpoint
+### 2. Start the Frontend Client
 
-You can test that the API is running by sending a request to the root endpoint:
+In a separate terminal, set up and run the Vue.js client.
 
 ```bash
-curl http://localhost:3001
+# Navigate to the client directory
+$ cd client
+
+# Install frontend dependencies
+$ npm install
+
+# Run the client in development mode
+$ npm run dev
 ```
 
-This should return "Hello World!".
+The frontend will be available at `http://localhost:5173`.
+
+---
+
+## Configuration
+
+### CORS
+
+The backend is configured to accept cross-origin requests only from the frontend client. This is defined in `src/main.ts`. Any changes to the client's address (`http://localhost:5173`) must be reflected there.
 
 ## User Signup Flow
 
@@ -58,21 +79,16 @@ The user authentication and data synchronization are handled via Firebase and a 
 
 1.  **Client-Side Authentication**: A user signs up or logs in on the client application using Firebase Authentication.
 2.  **ID Token**: Upon successful authentication, the client receives a Firebase ID token.
-3.  **API Sync**: The client sends a `POST` request to the `/auth/sync` endpoint of this API, including the user's details in the request body.
+3.  **API Sync**: The client sends a `POST` request to the `/users/sync` endpoint of this API.
 
-### `POST /auth/sync`
+### `POST /users/sync`
 
-This endpoint is responsible for creating a new user in the database or retrieving an existing one. It expects a JSON body with the following `CreateUserDto` structure:
+This endpoint is responsible for creating a new user in the database or retrieving an existing one.
 
-```typescript
-{
-  "email": "user@example.com",
-  "uid": "FIREBASE_USER_ID",
-  "picture": "http://example.com/profile.jpg" // Optional
-}
-```
+It requires a valid Firebase ID Token in the `Authorization` header:
+`Authorization: Bearer <FIREBASE_ID_TOKEN>`
 
-The service layer then uses the `uid` to find a user. If the user doesn't exist, a new one is created.
+The user details (uid, email, picture) are extracted directly from the token.
 
 ## License
 

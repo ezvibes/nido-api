@@ -7,10 +7,12 @@ import {
   signOut as firebaseSignOut,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  updateProfile,
   type User
 } from 'firebase/auth';
-import { googleProvider } from '../firebase';
-import { syncUserToBackend } from './useApi';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, } from 'firebase/storage';
+import { googleProvider, storage } from '../firebase';
+import { syncUserToBackend, updateUserProfile } from './useApi';
 import router from '../router';
 
 // A reactive object to hold the user's state
@@ -30,18 +32,12 @@ export function useAuth() {
     if (firebaseUser && !isSyncing) {
       isSyncing = true;
       try {
-        console.log('Auth state changed, syncing user...');
         const token = await firebaseUser.getIdToken();
         await syncUserToBackend(token);
       } catch (error) {
         console.error('Failed to sync user on auth change:', error);
       } finally {
         isSyncing = false;
-      }
-      
-      // After login, redirect to home if not already there
-      if (router.currentRoute.value.path !== '/') {
-        router.push('/');
       }
     }
   });
@@ -82,11 +78,70 @@ export function useAuth() {
     }
   };
 
+  const updateUserProfile = async (payload: {
+    displayName?: string;
+    photoURL?: string;
+  }) => {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      try {
+        const token = await currentUser.getIdToken();
+        await updateProfile(currentUser, payload);
+
+        // Prepare the payload for your backend API
+        const apiPayload: { name?: string; picture?: string } = {};
+        if (payload.displayName) {
+          apiPayload.name = payload.displayName;
+        }
+        if (payload.photoURL) {
+          apiPayload.picture = payload.photoURL;
+        }
+
+        await updateUserProfile(token, apiPayload);
+        // Optionally, force refresh the token to get updated claims
+        await currentUser.getIdToken(true);
+        user.value = auth.currentUser; // Refresh user state
+        alert('Profile updated successfully!');
+      } catch (error) {
+        console.error('Error updating profile:', error);
+        alert('Failed to update profile.');
+      }
+    }
+  };
+
+  const updateProfilePicture = async (file: File) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      alert('You must be logged in to update your profile picture.');
+      return;
+    }
+
+    const fileRef = storageRef(
+      storage,
+      `profilePictures/${currentUser.uid}/${file.name}`
+    );
+
+    try {
+      const snapshot = await uploadBytes(fileRef, file);
+      const photoURL = await getDownloadURL(snapshot.ref);
+
+      await updateUserProfile({ photoURL });
+
+      // Refresh user state
+      user.value = auth.currentUser;
+    } catch (error) {
+      console.error('Error updating profile picture:', error);
+      alert('Failed to update profile picture.');
+    }
+  };
+
   return {
     user,
     signInWithGoogle,
     signUpWithEmail,
     signInWithEmail,
     signOut,
+    updateUserProfile,
+    updateProfilePicture,
   };
 }

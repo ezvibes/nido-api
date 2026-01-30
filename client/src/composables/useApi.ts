@@ -11,16 +11,32 @@ const apiClient = axios.create({
  */
 export async function syncUserToBackend(token: string) {
   try {
-    const response = await apiClient.post('/auth/sync', null, {
+    const response = await apiClient.post('/users/sync', null, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
-    console.log('User synced successfully:', response.data);
     return response.data;
   } catch (error) {
     console.error('Error syncing user to backend:', error);
     // Handle specific errors if needed
+    throw error;
+  }
+}
+
+export async function updateUserProfile(
+  token: string,
+  payload: { name?: string; picture?: string }
+) {
+  try {
+    const response = await apiClient.patch('/users/profile', payload, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error updating user profile:', error);
     throw error;
   }
 }

@@ -11,6 +11,7 @@ const { user, signOut } = useAuth();
         <router-link to="/" class="logo-link"><h1 class="logo">Ez Vibes</h1></router-link>
         <nav v-if="user">
           <span class="user-email">{{ user.email }}</span>
+          <router-link to="/profile" class="nav-link">Profile</router-link>
           <a href="#" @click.prevent="signOut" class="nav-link">Sign Out</a>
         </nav>
         <nav v-else>

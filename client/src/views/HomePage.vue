@@ -1,6 +1,12 @@
 <template>
   <div class="home-container">
-    <div class="hero-section">
+    <!-- Show MyConcerts if user is logged in -->
+    <div v-if="user">
+      <MyConcerts />
+    </div>
+
+    <!-- Show Hero Section if user is not logged in -->
+    <div v-else class="hero-section">
       <h1 class="headline">EZ VIBES</h1>
       <p class="sub-headline">
         Discover and share live music events. Join now and start vibing.
@@ -15,8 +21,9 @@
 
 <script setup lang="ts">
 import { useAuth } from '../composables/useAuth';
+import MyConcerts from '../components/MyConcerts.vue';
 
-const { signInWithGoogle } = useAuth();
+const { user, signInWithGoogle } = useAuth();
 </script>
 
 <style scoped>
