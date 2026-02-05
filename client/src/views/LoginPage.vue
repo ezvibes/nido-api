@@ -11,7 +11,7 @@
 
       <div class="form-group">
         <label for="password">Password</label>
-        <input type="password" id="password" v-model="password" placeholder="••••••••" />
+        <input type="password" id="password" v-model="password" placeholder="********" />
       </div>
 
       <div class="button-group">
@@ -30,13 +30,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth';
 
 const email = ref('');
 const password = ref('');
 
-const { signUpWithEmail, signInWithEmail, signInWithGoogle } = useAuth();
+const router = useRouter();
+const { user, signUpWithEmail, signInWithEmail, signInWithGoogle } = useAuth();
+
+watch(user, (currentUser) => {
+  if (currentUser) {
+    router.push('/events');
+  }
+}, { immediate: true });
 
 const handleSignUp = () => {
   signUpWithEmail(email.value, password.value);

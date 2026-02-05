@@ -45,6 +45,7 @@ export function useAuth() {
   const signInWithGoogle = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
+      router.push('/events');
     } catch (error) {
       console.error("Error signing in with Google:", error);
     }
@@ -53,6 +54,7 @@ export function useAuth() {
   const signUpWithEmail = async (email: string, password: string) => {
     try {
       await createUserWithEmailAndPassword(auth, email, password);
+      router.push('/events');
     } catch (error: any) {
       console.error("Error signing up with email:", error);
       alert(`Error: ${error.message}`);
@@ -62,6 +64,7 @@ export function useAuth() {
   const signInWithEmail = async (email: string, password: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      router.push('/events');
     } catch (error: any) {
       console.error("Error signing in with email:", error);
       alert(`Error: ${error.message}`);
