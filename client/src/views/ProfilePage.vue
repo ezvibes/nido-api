@@ -66,7 +66,10 @@ const handleFileChange = (event: Event) => {
 
 const uploadProfilePicture = async () => {
   if (selectedFile.value) {
-    await updateProfilePicture(selectedFile.value);
+    const updatedUrl = await updateProfilePicture(selectedFile.value);
+    if (updatedUrl) {
+      photoURL.value = updatedUrl;
+    }
   }
 };
 </script>

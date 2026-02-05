@@ -12,7 +12,7 @@ import {
 } from 'firebase/auth';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, } from 'firebase/storage';
 import { googleProvider, storage } from '../firebase';
-import { syncUserToBackend, updateUserProfile } from './useApi';
+import { syncUserToBackend, updateUserProfile as updateUserProfileApi } from './useApi';
 import router from '../router';
 
 // A reactive object to hold the user's state
@@ -97,7 +97,8 @@ export function useAuth() {
           apiPayload.picture = payload.photoURL;
         }
 
-        await updateUserProfile(token, apiPayload);
+        await syncUserToBackend(token);
+        await updateUserProfileApi(token, apiPayload);
         // Optionally, force refresh the token to get updated claims
         await currentUser.getIdToken(true);
         user.value = auth.currentUser; // Refresh user state
@@ -109,7 +110,7 @@ export function useAuth() {
     }
   };
 
-  const updateProfilePicture = async (file: File) => {
+  const updateProfilePicture = async (file: File): Promise<string | null> => {
     const currentUser = auth.currentUser;
     if (!currentUser) {
       alert('You must be logged in to update your profile picture.');
@@ -129,10 +130,12 @@ export function useAuth() {
 
       // Refresh user state
       user.value = auth.currentUser;
+      return photoURL;
     } catch (error) {
       console.error('Error updating profile picture:', error);
       alert('Failed to update profile picture.');
     }
+    return null;
   };
 
   return {
