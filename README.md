@@ -1,98 +1,95 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Nido API & Client
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+This repository contains the full-stack application for Nido, which includes a NestJS backend API and a Vue.js frontend client.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Project Structure
 
-## Description
+The project is organized into two main parts:
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+-   `src/`: The NestJS backend API. This handles business logic, database interactions, and authentication.
+-   `client/`: The Vue.js frontend application. This is the user-facing interface that consumes the Nido API.
 
-## Project setup
+---
+
+## Getting Started
+
+Follow these steps to get the complete development environment up and running.
+
+### 1. Start the Backend API
+
+First, set up and run the NestJS server.
+
+#### **Prerequisites**
+
+-   A PostgreSQL database. You can run one easily using Docker:
+    ```bash
+    docker-compose up -d
+    ```
+-   A `.env` file in the project root. Create it if it doesn't exist:
+    ```
+    DB_HOST=localhost
+    DB_PORT=5432
+    DB_USER=user
+    DB_PASSWORD=password
+    DB_NAME=nido
+    ```
+
+#### **Installation & Execution**
 
 ```bash
+# Install backend dependencies
 $ npm install
-```
 
-## Compile and run the project
-
-```bash
-# development
-$ npm run start
-
-# watch mode
+# Run the API in development mode
 $ npm run start:dev
-
-# production mode
-$ npm run start:prod
 ```
 
-## Run tests
+The API will be running at `http://localhost:3001`.
+
+### 2. Start the Frontend Client
+
+In a separate terminal, set up and run the Vue.js client.
 
 ```bash
-# unit tests
-$ npm run test
+# Navigate to the client directory
+$ cd client
 
-# e2e tests
-$ npm run test:e2e
+# Install frontend dependencies
+$ npm install
 
-# test coverage
-$ npm run test:cov
+# Run the client in development mode
+$ npm run dev
 ```
 
-## Deployment
+The frontend will be available at `http://localhost:5173`.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+---
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Configuration
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+### CORS
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+The backend is configured to accept cross-origin requests only from the frontend client. This is defined in `src/main.ts`. Any changes to the client's address (`http://localhost:5173`) must be reflected there.
 
-## Resources
+## User Signup Flow
 
-Check out a few resources that may come in handy when working with NestJS:
+The user authentication and data synchronization are handled via Firebase and a dedicated endpoint in this API.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+### Flow:
 
-## Support
+1.  **Client-Side Authentication**: A user signs up or logs in on the client application using Firebase Authentication.
+2.  **ID Token**: Upon successful authentication, the client receives a Firebase ID token.
+3.  **API Sync**: The client sends a `POST` request to the `/users/sync` endpoint of this API.
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### `POST /users/sync`
 
-## Stay in touch
+This endpoint is responsible for creating a new user in the database or retrieving an existing one.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+It requires a valid Firebase ID Token in the `Authorization` header:
+`Authorization: Bearer <FIREBASE_ID_TOKEN>`
+
+The user details (uid, email, picture) are extracted directly from the token.
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+This project is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
