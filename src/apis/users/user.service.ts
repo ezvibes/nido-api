@@ -4,12 +4,21 @@ import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import type { DecodedIdToken } from 'firebase-admin/auth';
+import { AuthService } from '../../auth/auth.service';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectRepository(User) private readonly userRepository: Repository<User>,
+    private readonly authService: AuthService,
   ) {}
+
+  async syncFromToken(decodedToken: DecodedIdToken): Promise<User> {
+    const createUserDto: CreateUserDto =
+      this.authService.getUserProfileFromToken(decodedToken);
+    return this.findOrCreate(createUserDto);
+  }
 
   async findOrCreate(createUserDto: CreateUserDto): Promise<User> {
     if (!this.userRepository) {
@@ -39,4 +48,3 @@ export class UserService {
     return this.userRepository.save(user);
   }
 }
-
