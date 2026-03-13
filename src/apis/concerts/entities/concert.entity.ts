@@ -8,6 +8,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import type { Venue } from '../dto/venue.dto';
+import type { Artist } from '../dto/artist.dto';
 
 @Entity({ name: 'concerts' })
 export class Concert {
@@ -33,8 +35,11 @@ export class Concert {
   @Column({ type: 'timestamptz', nullable: true })
   endsAt?: Date | null;
 
-  @Column({ type: 'text', array: true, default: '{}' })
-  venues: string[];
+  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
+  venues: Venue[];
+
+  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
+  artists: Artist[];
 
   @Column({ type: 'text', nullable: true })
   description?: string | null;

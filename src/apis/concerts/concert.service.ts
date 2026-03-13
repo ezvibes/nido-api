@@ -6,6 +6,8 @@ import { User } from '../users/entities/user.entity';
 import { CreateConcertDto } from './dto/create-concert.dto';
 import { UpdateConcertDto } from './dto/update-concert.dto';
 import { ListConcertsDto } from './dto/list-concerts.dto';
+import { Artist, ArtistDto } from './dto/artist.dto';
+import { Venue, VenueDto } from './dto/venue.dto';
 
 @Injectable()
 export class ConcertService {
@@ -56,12 +58,13 @@ export class ConcertService {
   async createForOwner(owner: User, dto: CreateConcertDto) {
     const concert = this.concertRepository.create({
       owner,
-      title: dto.title.trim(),
-      genre: dto.genre.trim(),
+      title: this.normalizeRequiredString(dto.title),
+      genre: this.normalizeRequiredString(dto.genre),
       startsAt: new Date(dto.startsAt),
       endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
-      venues: dto.venues.map((venue) => venue.trim()).filter(Boolean),
-      description: dto.description?.trim() ?? null,
+      venues: dto.venues.map((venue) => this.normalizeVenue(venue)),
+      artists: dto.artists.map((artist) => this.normalizeArtist(artist)),
+      description: this.normalizeOptionalString(dto.description),
     });
 
     return this.concertRepository.save(concert);
@@ -84,11 +87,11 @@ export class ConcertService {
     const concert = await this.findOneForOwner(id, owner);
 
     if (dto.title !== undefined) {
-      concert.title = dto.title.trim();
+      concert.title = this.normalizeRequiredString(dto.title);
     }
 
     if (dto.genre !== undefined) {
-      concert.genre = dto.genre.trim();
+      concert.genre = this.normalizeRequiredString(dto.genre);
     }
 
     if (dto.startsAt !== undefined) {
@@ -100,11 +103,15 @@ export class ConcertService {
     }
 
     if (dto.venues !== undefined) {
-      concert.venues = dto.venues.map((venue) => venue.trim()).filter(Boolean);
+      concert.venues = dto.venues.map((venue) => this.normalizeVenue(venue));
+    }
+
+    if (dto.artists !== undefined) {
+      concert.artists = dto.artists.map((artist) => this.normalizeArtist(artist));
     }
 
     if (dto.description !== undefined) {
-      concert.description = dto.description?.trim() || null;
+      concert.description = this.normalizeOptionalString(dto.description);
     }
 
     return this.concertRepository.save(concert);
@@ -113,5 +120,34 @@ export class ConcertService {
   async removeForOwner(id: string, owner: User) {
     const concert = await this.findOneForOwner(id, owner);
     await this.concertRepository.remove(concert);
+  }
+
+  private normalizeRequiredString(value: string) {
+    return value.trim();
+  }
+
+  private normalizeOptionalString(value?: string | null) {
+    if (value === undefined || value === null) {
+      return null;
+    }
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : null;
+  }
+
+  private normalizeVenue(venue: VenueDto): Venue {
+    return {
+      name: this.normalizeRequiredString(venue.name),
+      city: venue.city?.trim() || undefined,
+      state: venue.state?.trim() || undefined,
+      country: venue.country?.trim() || undefined,
+    };
+  }
+
+  private normalizeArtist(artist: ArtistDto): Artist {
+    return {
+      name: this.normalizeRequiredString(artist.name),
+      role: artist.role?.trim() || undefined,
+      genre: artist.genre?.trim() || undefined,
+    };
   }
 }

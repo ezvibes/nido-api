@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
@@ -5,7 +6,10 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  ValidateNested,
 } from 'class-validator';
+import { ArtistDto } from './artist.dto';
+import { VenueDto } from './venue.dto';
 
 export class CreateConcertDto {
   @IsString()
@@ -25,9 +29,15 @@ export class CreateConcertDto {
 
   @IsArray()
   @ArrayMinSize(1)
-  @IsString({ each: true })
-  @IsNotEmpty({ each: true })
-  venues: string[];
+  @ValidateNested({ each: true })
+  @Type(() => VenueDto)
+  venues: VenueDto[];
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ArtistDto)
+  artists: ArtistDto[];
 
   @IsOptional()
   @IsString()
