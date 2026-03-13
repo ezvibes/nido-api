@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserModule } from './apis/users/user.module';
 import { FirebaseModule } from './firebase/firebase.module';
 import { AuthModule } from './auth/auth.module';
+import { ConcertModule } from './apis/concerts/concert.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
@@ -27,6 +28,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     UserModule,
     FirebaseModule,
     AuthModule,
+    ConcertModule,
   ],
   controllers: [],
   providers: [],
