@@ -2,12 +2,18 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Storage } from '@google-cloud/storage';
 import { randomUUID } from 'crypto';
 import { extname } from 'path';
+import { Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
 import { CreateIngestionUploadDto } from './dto/create-ingestion-upload.dto';
+import { IngestionJob } from './entities/ingestion-job.entity';
+import { SourceAsset } from './entities/source-asset.entity';
+import { IngestionJobResponse } from './interfaces/ingestion-job-response.interface';
 import { IngestionUploadResult } from './interfaces/ingestion-upload-result.interface';
 
 type UploadableFile = Express.Multer.File;
@@ -17,7 +23,13 @@ export class IngestionService {
   private readonly bucketName?: string;
   private readonly storage: Storage;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    @InjectRepository(SourceAsset)
+    private readonly sourceAssetRepository: Repository<SourceAsset>,
+    @InjectRepository(IngestionJob)
+    private readonly ingestionJobRepository: Repository<IngestionJob>,
+  ) {
     this.bucketName = this.configService.get<string>('GCS_INGESTION_BUCKET');
 
     const projectId =
@@ -77,25 +89,81 @@ export class IngestionService {
       metadata: {
         metadata: {
           uploadedByUid: uid,
-          citySlug: dto.citySlug ?? '',
-          regionSlug: dto.regionSlug ?? '',
-          sourceType: dto.sourceType ?? 'flyer_upload',
+          city: dto.city ?? '',
+          source: dto.source ?? 'flyer_upload',
           originalFilename: file.originalname,
         },
       },
     });
 
+    const sourceAsset = await this.sourceAssetRepository.save(
+      this.sourceAssetRepository.create({
+        storageUri: `gs://${this.bucketName}/${objectName}`,
+        objectName,
+        bucket: this.bucketName,
+        mimeType: file.mimetype,
+        originalFilename: file.originalname,
+        city: dto.city,
+        source: dto.source ?? 'flyer_upload',
+        uploadedByUid: uid,
+        size: file.size,
+      }),
+    );
+
+    const ingestionJob = await this.ingestionJobRepository.save(
+      this.ingestionJobRepository.create({
+        sourceAssetId: sourceAsset.id,
+        status: 'queued',
+        stage: 'uploaded',
+      }),
+    );
+
     return {
+      sourceAssetId: sourceAsset.id,
+      ingestionJobId: ingestionJob.id,
+      status: ingestionJob.status,
       bucket: this.bucketName,
       objectName,
       storageUri: `gs://${this.bucketName}/${objectName}`,
       contentType: file.mimetype,
       size: file.size,
       originalFilename: file.originalname,
-      citySlug: dto.citySlug,
-      regionSlug: dto.regionSlug,
-      sourceType: dto.sourceType ?? 'flyer_upload',
+      city: dto.city,
+      source: dto.source ?? 'flyer_upload',
       uploadedAt,
+    };
+  }
+
+  async getJob(id: string, uid: string): Promise<IngestionJobResponse> {
+    const job = await this.ingestionJobRepository.findOne({
+      where: { id, sourceAsset: { uploadedByUid: uid } },
+      relations: { sourceAsset: true },
+    });
+
+    if (!job) {
+      throw new NotFoundException(`Ingestion job ${id} not found`);
+    }
+
+    return {
+      id: job.id,
+      status: job.status,
+      stage: job.stage,
+      errorMessage: job.errorMessage,
+      createdAt: job.createdAt,
+      updatedAt: job.updatedAt,
+      sourceAsset: {
+        id: job.sourceAsset.id,
+        storageUri: job.sourceAsset.storageUri,
+        objectName: job.sourceAsset.objectName,
+        bucket: job.sourceAsset.bucket,
+        mimeType: job.sourceAsset.mimeType,
+        originalFilename: job.sourceAsset.originalFilename,
+        city: job.sourceAsset.city,
+        source: job.sourceAsset.source,
+        size: Number(job.sourceAsset.size),
+        uploadedByUid: job.sourceAsset.uploadedByUid,
+        createdAt: job.sourceAsset.createdAt,
+      },
     };
   }
 

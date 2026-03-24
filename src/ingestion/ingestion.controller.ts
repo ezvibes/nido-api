@@ -1,6 +1,8 @@
 import {
   Body,
   Controller,
+  Get,
+  Param,
   Post,
   UploadedFile,
   UseGuards,
@@ -34,5 +36,14 @@ export class IngestionController {
     @CurrentUser() user: DecodedIdToken,
   ) {
     return this.ingestionService.uploadImage(file, body, user.uid);
+  }
+
+  @Get('jobs/:id')
+  @UseGuards(FirebaseAuthGuard)
+  async getJob(
+    @Param('id') id: string,
+    @CurrentUser() user: DecodedIdToken,
+  ) {
+    return this.ingestionService.getJob(id, user.uid);
   }
 }
