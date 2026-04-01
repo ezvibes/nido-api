@@ -10,7 +10,7 @@ import {
   updateProfile,
   type User
 } from 'firebase/auth';
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, } from 'firebase/storage';
+import { ref as storageRef, uploadBytes, getDownloadURL, } from 'firebase/storage';
 import { googleProvider, storage } from '../firebase';
 import { syncUserToBackend, updateUserProfile as updateUserProfileApi } from './useApi';
 import router from '../router';
@@ -114,7 +114,7 @@ export function useAuth() {
     const currentUser = auth.currentUser;
     if (!currentUser) {
       alert('You must be logged in to update your profile picture.');
-      return;
+      return null;
     }
 
     const fileRef = storageRef(
