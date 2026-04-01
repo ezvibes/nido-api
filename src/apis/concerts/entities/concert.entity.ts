@@ -29,10 +29,10 @@ export class Concert {
   @Column({ type: 'varchar', length: 120 })
   genre: string;
 
-  @Column({ type: 'timestamptz' })
+  @Column({ name: 'starts_at', type: 'timestamptz' })
   startsAt: Date;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ name: 'ends_at', type: 'timestamptz', nullable: true })
   endsAt?: Date | null;
 
   @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
@@ -44,9 +44,9 @@ export class Concert {
   @Column({ type: 'text', nullable: true })
   description?: string | null;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 }

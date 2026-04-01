@@ -22,29 +22,30 @@ const auth = getAuth();
 // A flag to prevent duplicate sync calls
 let isSyncing = false;
 
+onAuthStateChanged(auth, async (firebaseUser) => {
+  user.value = firebaseUser;
+
+  if (firebaseUser && !isSyncing) {
+    isSyncing = true;
+    try {
+      const token = await firebaseUser.getIdToken();
+      await syncUserToBackend(token);
+    } catch (error) {
+      console.error('Failed to sync user on auth change:', error);
+    } finally {
+      isSyncing = false;
+    }
+  }
+});
+
 /**
  * A reactive composable to manage user authentication state and actions.
  */
 export function useAuth() {
-  onAuthStateChanged(auth, async (firebaseUser) => {
-    user.value = firebaseUser;
-    
-    if (firebaseUser && !isSyncing) {
-      isSyncing = true;
-      try {
-        const token = await firebaseUser.getIdToken();
-        await syncUserToBackend(token);
-      } catch (error) {
-        console.error('Failed to sync user on auth change:', error);
-      } finally {
-        isSyncing = false;
-      }
-    }
-  });
-
   const signInWithGoogle = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
+      await router.push('/');
     } catch (error) {
       console.error("Error signing in with Google:", error);
     }
@@ -53,6 +54,7 @@ export function useAuth() {
   const signUpWithEmail = async (email: string, password: string) => {
     try {
       await createUserWithEmailAndPassword(auth, email, password);
+      await router.push('/');
     } catch (error: any) {
       console.error("Error signing up with email:", error);
       alert(`Error: ${error.message}`);
@@ -62,6 +64,7 @@ export function useAuth() {
   const signInWithEmail = async (email: string, password: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      await router.push('/');
     } catch (error: any) {
       console.error("Error signing in with email:", error);
       alert(`Error: ${error.message}`);

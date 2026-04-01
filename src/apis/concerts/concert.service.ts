@@ -35,19 +35,19 @@ export class ConcertService {
     }
 
     if (query.startsAfter) {
-      qb.andWhere('concert.starts_at >= :startsAfter', {
+      qb.andWhere('concert.startsAt >= :startsAfter', {
         startsAfter: query.startsAfter,
       });
     }
 
     if (query.startsBefore) {
-      qb.andWhere('concert.starts_at <= :startsBefore', {
+      qb.andWhere('concert.startsAt <= :startsBefore', {
         startsBefore: query.startsBefore,
       });
     }
 
     const [data, total] = await qb
-      .orderBy('concert.starts_at', 'ASC')
+      .orderBy('concert.startsAt', 'ASC')
       .skip((page - 1) * pageSize)
       .take(pageSize)
       .getManyAndCount();

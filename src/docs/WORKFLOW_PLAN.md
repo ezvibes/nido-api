@@ -1,148 +1,155 @@
-# Onboarding Flow Plan
+# EZ Vibes Workflow Plan
 
-## Learning Objectives
-- Who is responsible for what ( swim lanes)
+## Product Loop
 
-## Tools used
-- draw
-- firebase auth
-- vs code or goose
+EZ Vibes should be built around one core loop:
 
-## Additonal resources too learn
-- draw.io
-- firebase auth
-- firestore
-- postgress
+1. Event content is uploaded or submitted.
+2. The ingestion engine extracts structured signals from posters, flyers, and form submissions.
+3. The system normalizes that data into canonical event, venue, and artist records.
+4. Admins review low-confidence or duplicate-prone records.
+5. Approved events are published into the discovery catalog.
+6. Fans discover events through city-, region-, and preference-aware feeds.
+7. Partners consume visibility, leads, and event intelligence through APIs and dashboards.
 
-# Workflow PLan
+If a feature does not strengthen this loop, it should not be in the MVP.
 
-## Authentication & User Bootstrap Flow
+## Pillars
 
-### Status
+### 1. AI Ingestion Engine
 
-**Finalized (MVP v1)** – aligned with current architecture diagram and implementation plan.
+- Accept image uploads, PDFs, and structured event submissions
+- Store raw assets in Google Cloud Storage
+- Run OCR with Google Vision
+- Parse dates, times, venue names, artists, cities, and genres
+- Assign confidence scores and flag records for review
 
----
+### 2. Structured Event Catalog
 
-## Summary
+- Normalize events into relational entities
+- Prevent obvious duplicates across repeated flyers and submissions
+- Preserve source provenance and ingestion history
+- Support approval states before records become public
 
-This document describes the finalized **authentication and user bootstrap flow** for the Carolina Live Music ecosystem, powered by the open‑source **NIDO API**.
+### 3. Personalized Recommendation Engine
 
-The architecture is intentionally designed to:
+- Start with rules, not ML
+- Rank by city, region, saved preferences, timing, and recency
+- Return useful feeds for Raleigh/Triangle, Wilmington, Charlotte, Asheville, and Greensboro/Triad
 
-- Use **Firebase Authentication** for identity and OAuth abstraction
-- Keep the **backend (NIDO API)** authoritative for domain users
-- Minimize database footprint for the MVP
-- Support web, mobile, and future AI/agent clients with the same flow
+### 4. Partner Platform Layer
 
-This design is production‑sound while remaining cost‑effective and simple for early development.
+- Expose approved event data via partner-friendly APIs
+- Support partner-specific submissions and visibility workflows
+- Make venue/promoter value legible through speed, accuracy, and reach
 
----
+## User Groups
 
-## Core Design Principles
+### Consumers
 
-- **Identity ≠ Domain User**
-- **Clients are thin** (no business logic)
-- **Backend is deterministic**
-- **Auth is reusable across human and AI clients**
+- Discover upcoming live music by city and date
+- Save preferences and favorite events
+- View reliable event details sourced from real local signals
 
----
+### Venues
 
-## High-Level Components
+- Submit events quickly
+- Ensure listings are accurate and timely
+- Increase discovery in local feeds
 
-### Web App
+### Festival and Promoter Partners
 
-- Vue 3 + TypeScript
-- Uses Firebase Client SDK
-- Stores Firebase JWT in memory or secure client storage
-- Makes authenticated HTTP requests via Axios
+- Submit batches or partner-managed events
+- Access structured event records through APIs
+- Use EZ Vibes as a regional event intelligence layer
 
-### Identity Providers
+### Internal Admins and Curators
 
-- **Google Identity Platform** (OAuth)
-- **Firebase Authentication** (token verification + JWT issuance)
+- Review OCR output and parser decisions
+- Resolve duplicates
+- Approve, reject, or edit normalized records
+- Monitor ingestion job quality
 
-### Backend API
+## MVP Definition
 
-- **NIDO API (NestJS)**
-- Validates Firebase JWTs using Firebase Admin SDK
-- Owns domain user lifecycle
-- Exposes idempotent auth bootstrap endpoint (`POST /auth/sync`). This endpoint's job is to find a user based on the token, create one if they don't exist, and return the canonical user entity from Postgres.
+The MVP is successful when EZ Vibes can demonstrate this live:
 
-### Data Store
+- A flyer or poster is uploaded
+- OCR and parsing produce a draft event
+- An admin reviews and approves it
+- The approved event appears in a fan-facing discovery feed
+- A partner can retrieve that event through an API
 
-- **Postgres** (domain users only)
-- Firebase Auth stores identity metadata
+### In Scope
 
----
+- Image upload to Google Cloud Storage
+- OCR via Google Vision
+- Parsing pipeline for basic event fields
+- Human review queue
+- Approved event catalog
+- Consumer discovery feed by city/date
+- Simple personalization using city, region, genre, and timing
+- Partner API for approved events
 
-## Detailed User Signup Flow
+### Out of Scope
 
-(Based on the diagram in `src/assets/FirebaseSignupFlow.jpg`)
+- Fully automated publishing with no review
+- Complex recommendation models
+- Ticketing integrations
+- Social graph features
+- Full self-serve venue analytics portal
+- Multi-state expansion
 
-This flow outlines the precise sequence of events when a new user signs up.
+## Operating Rules
 
-### Swim Lanes
-- **Web App:** The client-side application the user interacts with.
-- **Identity Providers:** Google Identity and Firebase Authentication.
-- **Nido API:** The backend application.
-- **Data Store:** The Postgres database.
+### Data Quality Rule
 
-### Step-by-step Flow
-1.  **Web App:** User arrives on the Sign Up page.
-2.  **Web App:** User clicks "Sign Up with Google".
-3.  **Identity Providers:** The client redirects the user to Google Identity Platform for OAuth.
-4.  **Identity Providers:** Google authenticates the user and returns a Google ID Token.
-5.  **Identity Providers:** The Google ID Token is exchanged for a Firebase JWT.
-6.  **Web App:** The frontend receives the Firebase JWT and stores it in memory or secure storage.
-7.  **Web App & Nido API:** The frontend calls a `POST /auth/sync` endpoint on the Nido API, including the Firebase JWT in the authorization header.
-8.  **NIDO API:** The API validates the Firebase JWT using the Firebase Admin SDK. It then checks if a user record already exists in the database.
-9.  **NIDO API & Data Store:** If no user record is found, a new one is created in the Postgres database. The user's `email`, `picture`, and `uid` (Firebase ID) are extracted from the decoded JWT claims and mapped to the new user record.
-10. **NIDO API:** The user object (either found or newly created) is returned to the frontend.
-11. **Web App:** The user sees an "account created" confirmation and a welcome message.
+No OCR result should become publicly visible without either:
 
----
+- high-confidence auto-approval rules, or
+- admin review
 
-## Core Implemented Patterns
+For MVP, prefer manual review over risky automation.
 
-### @CurrentUser Decorator
+### Source-of-Truth Rule
 
-To streamline development and avoid repetitive database queries, a custom NestJS decorator, `@CurrentUser()`, has been implemented. This allows easy access to the fully populated Postgres `User` entity within any controller method.
+- Raw assets live in GCS
+- Extracted text and parsing artifacts belong to ingestion jobs
+- Canonical public records live in normalized relational tables
 
-**Example Usage:**
-```typescript
-@Get('profile')
-getProfile(@CurrentUser() user: UserEntity) {
-  // 'user' is the full UserEntity object from Postgres
-  return user;
-}
-```
+### Domain Boundary Rule
 
----
+- `events`, `venues`, and `artists` are the canonical catalog domains
+- The existing `concerts` module is a user-scoped experience layer for "My Concerts", not the long-term catalog source of truth
+- New ingestion, moderation, partner, and discovery work should publish into canonical `events` rather than extending owner-scoped `concerts`
+- `concerts` can continue to support the logged-in user experience until the canonical catalog is ready to power that view directly
 
-## User Profile Management
+### Recommendation Rule
 
-### Status: Implemented (MVP v1)
+For MVP, recommendations are deterministic and explainable:
 
-A basic user profile page has been created to allow users to manage their data.
+- city match
+- nearby region boost
+- genre match
+- upcoming-soon boost
+- partner/featured boost if needed
 
-**Flow:**
-1.  **Web App:** After logging in, the user navigates to the `/profile` page.
-2.  **Web App:** The frontend uses the stored user state to display current information.
-3.  **Web App:** The user updates their name in an input field.
-4.  **Web App & Nido API:** On submission, the client sends a `PATCH /user` request with the updated name.
-5.  **NIDO API:** The backend receives the request, validates it, and updates the `name` field for the corresponding user in the Postgres database.
+## Immediate Build Order
 
----
+1. Ingestion pipeline skeleton
+2. Normalized schema
+3. Admin moderation workflow
+4. Public event catalog API
+5. Consumer discovery feed
+6. Partner API access
+7. Rules-based personalization
 
-## Next Steps: Concerts Feature
+## Decision Filters
 
-### Status: Planned
+Before implementing new work, confirm:
 
-The next major feature is to display a list of concerts relevant to the user on the homepage after they have logged in.
-
-**High-Level Plan:**
-1.  **Frontend:** Build out the `MyConcerts.vue` component to be a container for a list of concert cards.
-2.  **Backend:** Create a new module for Concerts (`/concerts`) with a controller, service, and entity.
-3.  **Backend:** Implement a `GET /concerts` endpoint that retrieves a list of concerts for the currently authenticated user.
-4.  **Frontend:** Update the `HomePage.vue` to call the `GET /concerts` endpoint and pass the data to the `MyConcerts.vue` component for rendering.
+- Does it improve ingestion accuracy?
+- Does it improve event normalization quality?
+- Does it improve discovery usefulness?
+- Does it improve partner value?
+- Can it be demonstrated in the MVP story?

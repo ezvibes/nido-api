@@ -7,6 +7,20 @@ import { Auth, getAuth } from 'firebase-admin/auth';
 export class FirebaseService implements OnModuleInit {
   private firebaseApp: App;
 
+  private resolvePrivateKey() {
+    const directPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
+    if (directPrivateKey) {
+      return directPrivateKey.replace(/\\n/g, '\n');
+    }
+
+    const legacyPrivateKey = process.env.FIREBASE_PRIVATE_KEY_ID;
+    if (legacyPrivateKey?.includes('BEGIN PRIVATE KEY')) {
+      return legacyPrivateKey.replace(/\\n/g, '\n');
+    }
+
+    return undefined;
+  }
+
   onModuleInit() {
     // To connect to your Firebase project, you need a Service Account.
     // 1. Go to your Firebase project console > Project Settings > Service accounts.
@@ -19,8 +33,8 @@ export class FirebaseService implements OnModuleInit {
       projectId: process.env.FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
       // The private key can be tricky with .env files due to line breaks.
-      // A common practice is to base64 encode the key or replace '\n' with '\\n'.
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      // A common practice is to replace '\n' with '\\n' in the env value.
+      privateKey: this.resolvePrivateKey(),
     };
 
     if (
