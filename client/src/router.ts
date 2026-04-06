@@ -1,6 +1,8 @@
 // src/router.ts
 import { createRouter, createWebHistory } from 'vue-router';
 import { getAuth } from 'firebase/auth';
+import EventsPage from './pages/EventsPage.vue';
+import { routeLoading } from './stores/routeLoading';
 import HomePage from './views/HomePage.vue';
 import LoginPage from './views/LoginPage.vue';
 import ProfilePage from './views/ProfilePage.vue';
@@ -22,6 +24,12 @@ const routes = [
     component: ProfilePage,
     meta: { requiresAuth: true },
   },
+  {
+    path: '/events',
+    name: 'Events',
+    component: EventsPage,
+    meta: { requiresAuth: true },
+  },
 ];
 
 const router = createRouter({
@@ -30,6 +38,7 @@ const router = createRouter({
 });
 
 router.beforeEach((to, _from, next) => {
+  routeLoading.value = true;
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
   const isAuthenticated = getAuth().currentUser;
 
@@ -43,6 +52,14 @@ router.beforeEach((to, _from, next) => {
   } else {
     next();
   }
+});
+
+router.afterEach(() => {
+  routeLoading.value = false;
+});
+
+router.onError(() => {
+  routeLoading.value = false;
 });
 
 export default router;

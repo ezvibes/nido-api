@@ -27,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useAuth } from '../composables/useAuth';
 import { fetchUserConcerts } from '../composables/useApi';
 
@@ -105,9 +105,21 @@ const formatVenue = (venues: ConcertVenue[]) => {
 const formatArtists = (artists: ConcertArtist[]) =>
   artists.slice(0, 3).map((artist) => artist.name).join(', ');
 
+const handleConcertsChanged = () => {
+  void loadConcerts();
+};
+
 watch(user, () => {
   void loadConcerts();
 }, { immediate: true });
+
+onMounted(() => {
+  window.addEventListener('concerts:changed', handleConcertsChanged);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('concerts:changed', handleConcertsChanged);
+});
 </script>
 
 <style scoped>

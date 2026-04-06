@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import { useAuth } from './composables/useAuth';
+import { routeLoading } from './stores/routeLoading';
 
 const { user, signOut } = useAuth();
 </script>
 
 <template>
   <div id="app-layout">
+    <transition name="route-fade">
+      <div v-if="routeLoading" class="route-loading">
+        <div class="route-loading__dot"></div>
+      </div>
+    </transition>
     <header class="header">
       <div class="container">
-        <router-link to="/" class="logo-link"><h1 class="logo">Ez Vibes</h1></router-link>
+        <router-link to="/" class="logo-link"><h1 class="logo">EZ Vibes</h1></router-link>
         <nav v-if="user">
           <span class="user-email">{{ user.email }}</span>
+          <router-link to="/events" class="nav-link">Events</router-link>
           <router-link to="/profile" class="nav-link">Profile</router-link>
           <a href="#" @click.prevent="signOut" class="nav-link">Sign Out</a>
         </nav>
@@ -102,5 +109,48 @@ nav a.router-link-exact-active {
 /* Main Content Area */
 .main-content {
   padding: 4rem 0;
+}
+
+.route-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  background: rgba(244, 246, 244, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.route-loading__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--primary);
+  animation: route-pulse 0.85s ease-in-out infinite;
+}
+
+@keyframes route-pulse {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.55;
+  }
+  70% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.7);
+    opacity: 0.55;
+  }
+}
+
+.route-fade-enter-active,
+.route-fade-leave-active {
+  transition: opacity 0.18s ease;
+}
+
+.route-fade-enter-from,
+.route-fade-leave-to {
+  opacity: 0;
 }
 </style>
