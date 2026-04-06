@@ -54,3 +54,36 @@ export async function fetchUserConcerts(token: string) {
     throw error;
   }
 }
+
+export interface CreateConcertPayload {
+  title: string;
+  genre: string;
+  startsAt: string;
+  endsAt?: string;
+  venues: Array<{
+    name: string;
+    city?: string;
+    state?: string;
+    country?: string;
+  }>;
+  artists: Array<{
+    name: string;
+    role?: string;
+    genre?: string;
+  }>;
+  description?: string;
+}
+
+export async function createConcert(token: string, payload: CreateConcertPayload) {
+  try {
+    const response = await apiClient.post('/concerts', payload, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error creating concert:', error);
+    throw error;
+  }
+}
