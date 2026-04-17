@@ -87,3 +87,116 @@ export async function createConcert(token: string, payload: CreateConcertPayload
     throw error;
   }
 }
+
+export interface IngestionUploadResult {
+  concertUploadId: string;
+  bucket: string;
+  objectName: string;
+  storageUri: string;
+  contentType: string;
+  size: number;
+  originalFilename: string;
+  city?: string;
+  state?: string;
+  source: string;
+  uploadedByUserId?: number;
+  uploadedAt: string;
+}
+
+export interface IngestionJobResponse {
+  id: string;
+  status: string;
+  stage?: string;
+  ocrProvider?: string;
+  ocrConfidence?: number | null;
+  parserVersion?: string;
+  parseConfidence?: number | null;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+  concertUpload: {
+    id: string;
+    storageUri: string;
+    objectName: string;
+    bucket: string;
+    mimeType: string;
+    originalFilename: string;
+    city?: string;
+    state?: string;
+    source: string;
+    size: number;
+    uploadedByUid: string;
+    uploadedByUserId?: number;
+    createdAt: string;
+  };
+}
+
+export async function createIngestionJob(token: string, concertUploadId: string) {
+  try {
+    const response = await apiClient.post<IngestionJobResponse>(
+      '/ingestion/jobs',
+      { concertUploadId },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Error creating ingestion job:', error);
+    throw error;
+  }
+}
+
+export async function uploadIngestionImage(
+  token: string,
+  payload: {
+    file: File;
+    city?: string;
+    state?: string;
+    source?: string;
+  },
+) {
+  try {
+    const formData = new FormData();
+    formData.append('file', payload.file);
+    if (payload.city) {
+      formData.append('city', payload.city);
+    }
+    if (payload.state) {
+      formData.append('state', payload.state);
+    }
+    if (payload.source) {
+      formData.append('source', payload.source);
+    }
+
+    const response = await apiClient.post<IngestionUploadResult>(
+      '/ingestion/uploads',
+      formData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Error uploading ingestion image:', error);
+    throw error;
+  }
+}
+
+export async function fetchIngestionJob(token: string, jobId: string) {
+  try {
+    const response = await apiClient.get<IngestionJobResponse>(`/ingestion/jobs/${jobId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching ingestion job:', error);
+    throw error;
+  }
+}
