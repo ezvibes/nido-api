@@ -3,6 +3,12 @@ export interface IngestionJobResponse {
   status: string;
   stage?: string;
   errorMessage?: string;
+  ocrText?: string;
+  ocrProvider?: string;
+  ocrConfidence?: number;
+  processingStartedAt?: Date;
+  completedAt?: Date;
+  failedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
   sourceAsset: {

@@ -13,6 +13,7 @@ import type { DecodedIdToken } from 'firebase-admin/auth';
 import { memoryStorage } from 'multer';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { FirebaseAuthGuard } from '../auth/firebase-auth/firebase-auth.guard';
+import { CreateIngestionJobDto } from './dto/create-ingestion-job.dto';
 import { CreateIngestionUploadDto } from './dto/create-ingestion-upload.dto';
 import { IngestionService } from './ingestion.service';
 
@@ -36,6 +37,15 @@ export class IngestionController {
     @CurrentUser() user: DecodedIdToken,
   ) {
     return this.ingestionService.uploadImage(file, body, user.uid);
+  }
+
+  @Post('jobs')
+  @UseGuards(FirebaseAuthGuard)
+  async createJob(
+    @Body() body: CreateIngestionJobDto,
+    @CurrentUser() user: DecodedIdToken,
+  ) {
+    return this.ingestionService.createJob(body, user.uid);
   }
 
   @Get('jobs/:id')

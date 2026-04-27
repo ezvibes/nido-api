@@ -46,6 +46,21 @@ $ npm run start:dev
 
 The API will be running at `http://localhost:3001`.
 
+### 1b. Start the OCR worker
+
+The ingestion worker runs as a separate process from the NestJS API. It polls for queued ingestion jobs, reads the uploaded image from Cloud Storage, runs Google Vision OCR, and persists job state back to Postgres.
+
+```bash
+# in another terminal
+$ npm run start:worker:dev
+```
+
+For a one-shot local run (useful in tests or when debugging one job):
+
+```bash
+$ npm run start:worker:once
+```
+
 ### 2. Start the Frontend Client
 
 In a separate terminal, set up and run the Vue.js client.
@@ -70,6 +85,27 @@ The frontend will be available at `http://localhost:5173`.
 ### CORS
 
 The backend is configured to accept cross-origin requests only from the frontend client. This is defined in `src/main.ts`. Any changes to the client's address (`http://localhost:5173`) must be reflected there.
+
+### Ingestion / OCR worker
+
+The ingestion flow now works in two phases:
+
+1. `POST /ingestion/uploads` stores the flyer image in GCS and creates a queued ingestion job.
+2. `POST /ingestion/jobs` can queue another OCR job for an existing uploaded asset owned by the current user.
+3. The worker process claims queued jobs, runs Google Vision OCR, and transitions jobs through `queued -> processing -> parsed` or `failed`.
+
+Relevant env vars:
+
+```bash
+GCS_INGESTION_BUCKET=
+GCP_PROJECT_ID=
+GCP_CLIENT_EMAIL=
+GCP_PRIVATE_KEY=
+INGESTION_WORKER_POLL_INTERVAL_MS=5000
+INGESTION_WORKER_ONCE=false
+```
+
+Production note: keep credentials in Secret Manager or runtime env injection rather than committed files.
 
 ## User Signup Flow
 
