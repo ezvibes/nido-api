@@ -92,7 +92,9 @@ The ingestion flow now works in two phases:
 
 1. `POST /ingestion/uploads` stores the flyer image in GCS and creates a queued ingestion job.
 2. `POST /ingestion/jobs` can queue another OCR job for an existing uploaded asset owned by the current user.
-3. The worker process claims queued jobs, runs Google Vision OCR, and transitions jobs through `queued -> processing -> parsed` or `failed`.
+3. The worker process claims queued jobs, runs Google Vision OCR, parses draft event candidates, and transitions jobs through `queued -> processing -> needs_review` or `failed`.
+4. `GET /ingestion/jobs/:id` returns job state plus any generated candidate IDs/titles.
+5. `GET /ingestion/candidates/:id` returns the draft candidate detail for moderation/review tooling.
 
 Relevant env vars:
 

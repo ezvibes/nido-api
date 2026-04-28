@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { NotFoundException } from '@nestjs/common';
+import { IngestionCandidate } from './entities/ingestion-candidate.entity';
 import { IngestionService } from './ingestion.service';
 import { SourceAsset } from './entities/source-asset.entity';
 import { IngestionJob } from './entities/ingestion-job.entity';
@@ -19,6 +20,10 @@ describe('IngestionService', () => {
   const ingestionJobRepository = {
     create: jest.fn(),
     save: jest.fn(),
+    findOne: jest.fn(),
+  };
+
+  const ingestionCandidateRepository = {
     findOne: jest.fn(),
   };
 
@@ -53,6 +58,10 @@ describe('IngestionService', () => {
         {
           provide: getRepositoryToken(IngestionJob),
           useValue: ingestionJobRepository,
+        },
+        {
+          provide: getRepositoryToken(IngestionCandidate),
+          useValue: ingestionCandidateRepository,
         },
       ],
     }).compile();
@@ -145,5 +154,34 @@ describe('IngestionService', () => {
     await expect(
       service.createJob({ sourceAssetId: 'missing-asset' }, 'uid-1'),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('should return a candidate detail scoped to the owning user', async () => {
+    const candidate = {
+      id: 'candidate-1',
+      ingestionJobId: 'job-1',
+      sourceAssetId: 'asset-1',
+      status: 'needs_review',
+      title: 'THE HEADLINERS + DJ MOON',
+      artistNames: ['THE HEADLINERS', 'DJ MOON'],
+      rawOcrText: 'flyer text',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    ingestionCandidateRepository.findOne.mockResolvedValue(candidate);
+
+    const result = await service.getCandidate('candidate-1', 'uid-1');
+
+    expect(ingestionCandidateRepository.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: 'candidate-1',
+          sourceAsset: { uploadedByUid: 'uid-1' },
+        },
+      }),
+    );
+    expect(result.id).toBe('candidate-1');
+    expect(result.status).toBe('needs_review');
   });
 });

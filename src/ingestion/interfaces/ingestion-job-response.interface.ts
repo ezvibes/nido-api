@@ -9,6 +9,12 @@ export interface IngestionJobResponse {
   processingStartedAt?: Date;
   completedAt?: Date;
   failedAt?: Date;
+  candidates?: Array<{
+    id: string;
+    status: string;
+    title?: string;
+    parseConfidence?: number;
+  }>;
   createdAt: Date;
   updatedAt: Date;
   sourceAsset: {
