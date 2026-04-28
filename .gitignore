@@ -61,3 +61,6 @@ firebase-creds.json
 
 # Local planning docs
 src/docs/
+
+# Local agent briefs
+.agents/

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useAuth } from './composables/useAuth';
 import { routeLoading } from './stores/routeLoading';
 
 const { user, signOut } = useAuth();
 const menuOpen = ref(false);
 const accountMenuOpen = ref(false);
+const accountMenuRef = ref<HTMLElement | null>(null);
 const homeRoute = computed(() => (user.value ? '/events' : '/'));
 const displayName = computed(() => user.value?.displayName || user.value?.email || 'Account');
 
@@ -22,6 +23,34 @@ const handleSignOut = async () => {
 const toggleAccountMenu = () => {
   accountMenuOpen.value = !accountMenuOpen.value;
 };
+
+const handleDocumentClick = (event: MouseEvent) => {
+  if (!accountMenuOpen.value) {
+    return;
+  }
+
+  if (accountMenuRef.value?.contains(event.target as Node)) {
+    return;
+  }
+
+  accountMenuOpen.value = false;
+};
+
+const handleDocumentKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') {
+    closeMenu();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick);
+  document.addEventListener('keydown', handleDocumentKeydown);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick);
+  document.removeEventListener('keydown', handleDocumentKeydown);
+});
 </script>
 
 <template>
@@ -51,7 +80,7 @@ const toggleAccountMenu = () => {
           <router-link v-if="user" to="/events" class="nav-link" @click="closeMenu">Events</router-link>
           <router-link v-else to="/" class="nav-link" @click="closeMenu">Home</router-link>
           <router-link v-if="!user" to="/login" class="nav-link nav-link--ghost" @click="closeMenu">Sign in</router-link>
-          <div v-if="user" class="account-menu">
+          <div v-if="user" ref="accountMenuRef" class="account-menu">
             <button
               type="button"
               class="account-menu__button"
