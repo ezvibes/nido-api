@@ -1,148 +1,204 @@
-# Onboarding Flow Plan
+# NIDO API Workflow Plan
 
-## Learning Objectives
-- Who is responsible for what ( swim lanes)
+## Status
 
-## Tools used
-- draw
-- firebase auth
-- vs code or goose
-
-## Additonal resources too learn
-- draw.io
-- firebase auth
-- firestore
-- postgress
-
-# Workflow PLan
-
-## Authentication & User Bootstrap Flow
-
-### Status
-
-**Finalized (MVP v1)** – aligned with current architecture diagram and implementation plan.
+**Active roadmap (MVP platform build)** – updated to reflect the current backend direction.
 
 ---
 
-## Summary
+## Where the project is now
 
-This document describes the finalized **authentication and user bootstrap flow** for the Carolina Live Music ecosystem, powered by the open‑source **NIDO API**.
+The repo has moved beyond the original auth/bootstrap-only phase.
 
-The architecture is intentionally designed to:
+Implemented or in-flight backend slices now include:
+- Firebase-backed user auth/bootstrap
+- user profile sync/update basics
+- ingestion image upload to GCS
+- asynchronous OCR worker flow
+- parsed ingestion candidate generation for review
 
-- Use **Firebase Authentication** for identity and OAuth abstraction
-- Keep the **backend (NIDO API)** authoritative for domain users
-- Minimize database footprint for the MVP
-- Support web, mobile, and future AI/agent clients with the same flow
+That means the next planning layer is no longer “build concerts next.”
+The real platform path is now:
 
-This design is production‑sound while remaining cost‑effective and simple for early development.
-
----
-
-## Core Design Principles
-
-- **Identity ≠ Domain User**
-- **Clients are thin** (no business logic)
-- **Backend is deterministic**
-- **Auth is reusable across human and AI clients**
+**ingestion -> OCR -> candidate review -> canonical catalog -> partner/discovery APIs**
 
 ---
 
-## High-Level Components
+## Core Product Direction
 
-### Web App
+EZ Vibes needs a pipeline that can:
+1. accept raw event inputs (flyers, later partner submissions)
+2. convert them into reviewable draft records
+3. approve and normalize them into a canonical catalog
+4. expose approved events to end users and partners
 
-- Vue 3 + TypeScript
-- Uses Firebase Client SDK
-- Stores Firebase JWT in memory or secure client storage
-- Makes authenticated HTTP requests via Axios
-
-### Identity Providers
-
-- **Google Identity Platform** (OAuth)
-- **Firebase Authentication** (token verification + JWT issuance)
-
-### Backend API
-
-- **NIDO API (NestJS)**
-- Validates Firebase JWTs using Firebase Admin SDK
-- Owns domain user lifecycle
-- Exposes idempotent auth bootstrap endpoint (`POST /auth/sync`). This endpoint's job is to find a user based on the token, create one if they don't exist, and return the canonical user entity from Postgres.
-
-### Data Store
-
-- **Postgres** (domain users only)
-- Firebase Auth stores identity metadata
+For MVP, the system should prefer:
+- deterministic backend behavior
+- explicit provenance
+- moderate data quality over fake certainty
+- simple operational boundaries (API + worker)
 
 ---
 
-## Detailed User Signup Flow
+## Current Architecture Layers
 
-(Based on the diagram in `src/assets/FirebaseSignupFlow.jpg`)
+### 1. Identity and user layer
+- Firebase Authentication for identity
+- NestJS API for domain users
+- Postgres for application-owned records
 
-This flow outlines the precise sequence of events when a new user signs up.
+### 2. Ingestion layer
+- authenticated upload flow
+- source asset persistence
+- ingestion job tracking
+- async worker execution
 
-### Swim Lanes
-- **Web App:** The client-side application the user interacts with.
-- **Identity Providers:** Google Identity and Firebase Authentication.
-- **Nido API:** The backend application.
-- **Data Store:** The Postgres database.
+### 3. OCR + parsing layer
+- OCR reads uploaded flyer assets from GCS
+- OCR text persists on ingestion jobs
+- parser creates draft ingestion candidates
+- low-confidence or incomplete outputs remain in `needs_review`
 
-### Step-by-step Flow
-1.  **Web App:** User arrives on the Sign Up page.
-2.  **Web App:** User clicks "Sign Up with Google".
-3.  **Identity Providers:** The client redirects the user to Google Identity Platform for OAuth.
-4.  **Identity Providers:** Google authenticates the user and returns a Google ID Token.
-5.  **Identity Providers:** The Google ID Token is exchanged for a Firebase JWT.
-6.  **Web App:** The frontend receives the Firebase JWT and stores it in memory or secure storage.
-7.  **Web App & Nido API:** The frontend calls a `POST /auth/sync` endpoint on the Nido API, including the Firebase JWT in the authorization header.
-8.  **NIDO API:** The API validates the Firebase JWT using the Firebase Admin SDK. It then checks if a user record already exists in the database.
-9.  **NIDO API & Data Store:** If no user record is found, a new one is created in the Postgres database. The user's `email`, `picture`, and `uid` (Firebase ID) are extracted from the decoded JWT claims and mapped to the new user record.
-10. **NIDO API:** The user object (either found or newly created) is returned to the frontend.
-11. **Web App:** The user sees an "account created" confirmation and a welcome message.
+### 4. Review / moderation layer
+**Not implemented yet**
+- human/admin review of candidates
+- approve / reject / publish workflow
+- audit trail for candidate decisions
 
----
+### 5. Canonical catalog layer
+**Not implemented yet**
+- approved events
+- normalized venue/artist/source relationships
+- stable read APIs for discovery and partners
 
-## Core Implemented Patterns
-
-### @CurrentUser Decorator
-
-To streamline development and avoid repetitive database queries, a custom NestJS decorator, `@CurrentUser()`, has been implemented. This allows easy access to the fully populated Postgres `User` entity within any controller method.
-
-**Example Usage:**
-```typescript
-@Get('profile')
-getProfile(@CurrentUser() user: UserEntity) {
-  // 'user' is the full UserEntity object from Postgres
-  return user;
-}
-```
+### 6. Partner platform layer
+**Blocked on catalog + moderation foundations**
+- API-key auth
+- structured partner submissions
+- approved catalog sync endpoints
 
 ---
 
-## User Profile Management
+## MVP Build Sequence
 
-### Status: Implemented (MVP v1)
+### Phase 1 — Foundation
+Status: **partially complete**
+- Firebase auth bootstrap
+- domain user persistence
+- basic authenticated user flows
 
-A basic user profile page has been created to allow users to manage their data.
+### Phase 2 — Ingestion foundation
+Status: **complete / in review**
+- upload flyer images
+- persist source assets
+- create ingestion jobs
+- expose job lookup
 
-**Flow:**
-1.  **Web App:** After logging in, the user navigates to the `/profile` page.
-2.  **Web App:** The frontend uses the stored user state to display current information.
-3.  **Web App:** The user updates their name in an input field.
-4.  **Web App & Nido API:** On submission, the client sends a `PATCH /user` request with the updated name.
-5.  **NIDO API:** The backend receives the request, validates it, and updates the `name` field for the corresponding user in the Postgres database.
+### Phase 3 — OCR worker
+Status: **complete / in review**
+- background worker claims queued jobs
+- reads GCS object
+- runs Vision OCR
+- persists OCR output and failure state
+
+### Phase 4 — Candidate generation
+Status: **complete / in review**
+- deterministic parsing from OCR text
+- candidate persistence
+- candidate detail retrieval
+- jobs route to `needs_review`
+
+### Phase 5 — Moderation workflow
+Status: **next major blocker**
+Required capabilities:
+- moderation states for candidates
+- admin/reviewer endpoints
+- approve / reject / request-fix actions
+- publishing rules and audit trail
+
+### Phase 6 — Canonical event catalog
+Status: **blocked by moderation design**
+Required capabilities:
+- approved event model
+- source attribution model
+- normalized event/venue/artist strategy
+- read endpoints for approved catalog only
+
+### Phase 7 — Partner platform
+Status: **blocked by phases 5-6**
+Required capabilities:
+- partner identity and API keys
+- partner submissions
+- approved catalog sync (`updatedSince`)
+- source attribution via event sources
 
 ---
 
-## Next Steps: Concerts Feature
+## Immediate Engineering Priorities
 
-### Status: Planned
+### Priority 1
+Get ingestion PR stack merge-ready:
+- ingestion upload foundation
+- OCR worker
+- candidate generation
 
-The next major feature is to display a list of concerts relevant to the user on the homepage after they have logged in.
+### Priority 2
+Define moderation model:
+- candidate lifecycle states
+- reviewer actions
+- publish boundary between ingestion artifacts and canonical records
 
-**High-Level Plan:**
-1.  **Frontend:** Build out the `MyConcerts.vue` component to be a container for a list of concert cards.
-2.  **Backend:** Create a new module for Concerts (`/concerts`) with a controller, service, and entity.
-3.  **Backend:** Implement a `GET /concerts` endpoint that retrieves a list of concerts for the currently authenticated user.
-4.  **Frontend:** Update the `HomePage.vue` to call the `GET /concerts` endpoint and pass the data to the `MyConcerts.vue` component for rendering.
+### Priority 3
+Define canonical catalog schema:
+- canonical `events`
+- normalized venues/artists as needed
+- event provenance / source attribution
+
+### Priority 4
+Then implement partner APIs and discovery APIs on top of the approved catalog
+
+---
+
+## Major Known Blockers
+
+### Blocker A — Moderation workflow is missing
+Without moderation, the system can create draft candidates but cannot safely publish them.
+
+### Blocker B — Canonical catalog model is not defined
+Issue #12 and similar work depends on a stable approved event model.
+
+### Blocker C — Migration discipline is missing
+The project is adding entities/columns quickly, but there is not yet a clear migration workflow for persistent environments.
+
+### Blocker D — Operational docs are behind reality
+The old plan still points to user/concert flows instead of the ingestion pipeline now being built.
+
+---
+
+## Recommended Next Work After Current PR Stack
+
+1. Merge/finalize the ingestion stack
+2. Add moderation entities + admin review endpoints
+3. Define canonical approved event schema
+4. Add publish flow from candidate -> canonical event
+5. Then implement partner API slice (#12)
+
+---
+
+## Guardrails
+
+- Do not write parser output directly into canonical events
+- Do not let partner submissions bypass provenance or moderation
+- Keep Firebase auth separate from future partner API auth
+- Keep worker stages explicit (`queued`, `processing`, `parsing`, `needs_review`, `failed`, etc.)
+- Prefer deterministic parsing rules before LLM-assisted extraction
+
+---
+
+## Short version
+
+**What exists now:** auth + ingestion + OCR + candidate creation
+
+**What is missing next:** moderation + canonical catalog
+
+**What is blocked until then:** partner platform, approved catalog sync, broader discovery APIs

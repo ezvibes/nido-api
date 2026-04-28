@@ -23,6 +23,7 @@ Indie rock dance party
     expect(candidate.artistNames).toEqual(['THE HEADLINERS', 'DJ MOON']);
     expect(candidate.genreHints).toEqual(expect.arrayContaining(['rock', 'indie', 'dj']));
     expect(candidate.startAt).toBeInstanceOf(Date);
+    expect(candidate.startAt?.toISOString()).toBe('2026-04-17T20:00:00.000Z');
     expect(candidate.parseWarnings).not.toContain('missing_start_date');
   });
 
@@ -37,6 +38,7 @@ Durham, NC
     expect(candidate.city).toBe('Durham');
     expect(candidate.region).toBe('NC');
     expect(candidate.startAt).toBeInstanceOf(Date);
+    expect(candidate.startAt?.toISOString()).toBe('2026-04-27T21:30:00.000Z');
     expect(candidate.parseWarnings).toContain('missing_venue');
     expect(candidate.status).toBe('needs_review');
   });

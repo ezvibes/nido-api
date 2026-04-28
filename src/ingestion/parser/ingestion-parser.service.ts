@@ -16,6 +16,33 @@ const GENRE_HINTS = [
   'dj',
 ];
 
+const MONTH_INDEX: Record<string, number> = {
+  jan: 0,
+  january: 0,
+  feb: 1,
+  february: 1,
+  mar: 2,
+  march: 2,
+  apr: 3,
+  april: 3,
+  may: 4,
+  jun: 5,
+  june: 5,
+  jul: 6,
+  july: 6,
+  aug: 7,
+  august: 7,
+  sep: 8,
+  sept: 8,
+  september: 8,
+  oct: 9,
+  october: 9,
+  nov: 10,
+  november: 10,
+  dec: 11,
+  december: 11,
+};
+
 export const INGESTION_PARSER_VERSION = 'mvp-v1';
 
 export interface ParsedCandidateDraft {
@@ -173,12 +200,24 @@ export class IngestionParserService {
 
     if (monthMatch) {
       const [, , month, day, providedYear, startTime, endTime] = monthMatch;
-      const dateLabel = `${month} ${day}, ${providedYear ?? year}`;
+      const normalizedYear = Number(providedYear ?? year);
       return {
-        dateText: dateLabel,
+        dateText: `${month} ${day}, ${normalizedYear}`,
         timeText: [startTime, endTime].filter(Boolean).join(' - ') || undefined,
-        startAt: this.buildDate(dateLabel, startTime),
-        endAt: this.buildDate(dateLabel, endTime),
+        startAt: this.buildDateFromParts(
+          normalizedYear,
+          this.getMonthIndex(month),
+          Number(day),
+          startTime,
+        ),
+        endAt: endTime
+          ? this.buildDateFromParts(
+              normalizedYear,
+              this.getMonthIndex(month),
+              Number(day),
+              endTime,
+            )
+          : undefined,
       };
     }
 
@@ -189,12 +228,24 @@ export class IngestionParserService {
           ? `20${providedYear}`
           : providedYear
         : String(year);
-      const dateLabel = `${month}/${day}/${normalizedYear}`;
+      const numericYear = Number(normalizedYear);
       return {
-        dateText: dateLabel,
+        dateText: `${month}/${day}/${numericYear}`,
         timeText: [startTime, endTime].filter(Boolean).join(' - ') || undefined,
-        startAt: this.buildDate(dateLabel, startTime),
-        endAt: this.buildDate(dateLabel, endTime),
+        startAt: this.buildDateFromParts(
+          numericYear,
+          Number(month) - 1,
+          Number(day),
+          startTime,
+        ),
+        endAt: endTime
+          ? this.buildDateFromParts(
+              numericYear,
+              Number(month) - 1,
+              Number(day),
+              endTime,
+            )
+          : undefined,
       };
     }
 
@@ -206,10 +257,56 @@ export class IngestionParserService {
     };
   }
 
-  private buildDate(dateLabel: string, timeLabel?: string): Date | undefined {
-    const composed = timeLabel ? `${dateLabel} ${timeLabel}` : dateLabel;
-    const parsed = new Date(composed);
+  private buildDateFromParts(
+    year: number,
+    monthIndex: number | undefined,
+    day: number,
+    timeLabel?: string,
+  ): Date | undefined {
+    if (
+      monthIndex === undefined ||
+      Number.isNaN(year) ||
+      Number.isNaN(day) ||
+      day < 1 ||
+      day > 31
+    ) {
+      return undefined;
+    }
+
+    const time = this.parseTime(timeLabel);
+    const parsed = new Date(
+      Date.UTC(year, monthIndex, day, time.hours, time.minutes, 0, 0),
+    );
+
     return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  }
+
+  private getMonthIndex(month: string): number | undefined {
+    return MONTH_INDEX[month.toLowerCase()];
+  }
+
+  private parseTime(timeLabel?: string): { hours: number; minutes: number } {
+    if (!timeLabel) {
+      return { hours: 0, minutes: 0 };
+    }
+
+    const match = timeLabel.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
+
+    if (!match) {
+      return { hours: 0, minutes: 0 };
+    }
+
+    let hours = Number(match[1]);
+    const minutes = Number(match[2] ?? '0');
+    const meridiem = match[3].toUpperCase();
+
+    if (meridiem === 'AM') {
+      hours = hours === 12 ? 0 : hours;
+    } else {
+      hours = hours === 12 ? 12 : hours + 12;
+    }
+
+    return { hours, minutes };
   }
 
   private calculateConfidence(input: {

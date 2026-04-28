@@ -79,6 +79,14 @@ describe('IngestionWorkerService', () => {
 
   const ingestionCandidateRepository = {
     create: jest.fn((value: IngestionCandidate) => value),
+    delete: jest.fn(async (criteria: { ingestionJobId: string }) => {
+      const remaining = candidates.filter(
+        (candidate) => candidate.ingestionJobId !== criteria.ingestionJobId,
+      );
+      candidates.length = 0;
+      candidates.push(...remaining);
+      return { affected: 1 };
+    }),
     save: jest.fn(async (value: IngestionCandidate[]) => {
       candidates.push(...value);
       return value.map((candidate, index) => ({
@@ -173,6 +181,9 @@ describe('IngestionWorkerService', () => {
       }),
     );
     expect(candidates).toHaveLength(1);
+    expect(ingestionCandidateRepository.delete).toHaveBeenCalledWith({
+      ingestionJobId: 'job-1',
+    });
   });
 
   it('should mark a job failed when the source object is missing from GCS', async () => {
@@ -267,5 +278,52 @@ describe('IngestionWorkerService', () => {
     });
     expect(visionOcrService.extractText).not.toHaveBeenCalled();
     expect(ingestionStorageService.objectExists).not.toHaveBeenCalled();
+  });
+
+  it('should replace existing candidates when a job is reprocessed', async () => {
+    candidates.push({
+      id: 'candidate-old',
+      ingestionJobId: 'job-5',
+      sourceAssetId: sourceAsset.id,
+      sourceAsset,
+      status: 'needs_review',
+      title: 'old candidate',
+      rawOcrText: 'old',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as IngestionCandidate);
+
+    jobs.set('job-5', {
+      id: 'job-5',
+      sourceAssetId: sourceAsset.id,
+      sourceAsset,
+      status: 'queued',
+      stage: 'queued',
+      createdAt: new Date('2026-04-01T00:00:00Z'),
+      updatedAt: new Date('2026-04-01T00:00:00Z'),
+    } as IngestionJob);
+
+    ingestionStorageService.objectExists.mockResolvedValue(true);
+    visionOcrService.extractText.mockResolvedValue({
+      provider: 'google-vision',
+      text: 'new flyer text',
+      confidence: 0.88,
+    });
+    ingestionParserService.parseOcrText.mockReturnValue([
+      {
+        status: 'needs_review',
+        title: 'new candidate',
+        parserVersion: 'mvp-v1',
+        parseConfidence: 0.88,
+        parseWarnings: [],
+        rawExtractedFields: {},
+        rawOcrText: 'new flyer text',
+      },
+    ]);
+
+    await service.processNextQueuedJob();
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].title).toBe('new candidate');
   });
 });

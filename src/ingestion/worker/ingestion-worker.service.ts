@@ -168,6 +168,10 @@ export class IngestionWorkerService {
         city: job.sourceAsset.city,
       });
 
+      await this.ingestionCandidateRepository.delete({
+        ingestionJobId: job.id,
+      });
+
       const persistedCandidates = await this.ingestionCandidateRepository.save(
         parsedCandidates.map((candidate) =>
           this.ingestionCandidateRepository.create({
