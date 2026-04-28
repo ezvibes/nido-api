@@ -1,70 +1,41 @@
 import {
   BadRequestException,
   Injectable,
-  InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Storage } from '@google-cloud/storage';
 import { randomUUID } from 'crypto';
 import { extname } from 'path';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
+import { CreateIngestionJobDto } from './dto/create-ingestion-job.dto';
 import { CreateIngestionUploadDto } from './dto/create-ingestion-upload.dto';
 import { IngestionJob } from './entities/ingestion-job.entity';
 import { SourceAsset } from './entities/source-asset.entity';
 import { IngestionJobResponse } from './interfaces/ingestion-job-response.interface';
 import { IngestionUploadResult } from './interfaces/ingestion-upload-result.interface';
+import { IngestionStorageService } from './storage/ingestion-storage.service';
 
 type UploadableFile = Express.Multer.File;
 
 @Injectable()
 export class IngestionService {
-  private readonly bucketName?: string;
-  private readonly storage: Storage;
+  private readonly logger = new Logger(IngestionService.name);
 
   constructor(
-    private readonly configService: ConfigService,
+    private readonly storageService: IngestionStorageService,
     @InjectRepository(SourceAsset)
     private readonly sourceAssetRepository: Repository<SourceAsset>,
     @InjectRepository(IngestionJob)
     private readonly ingestionJobRepository: Repository<IngestionJob>,
-  ) {
-    this.bucketName = this.configService.get<string>('GCS_INGESTION_BUCKET');
-
-    const projectId =
-      this.configService.get<string>('GCP_PROJECT_ID') ??
-      this.configService.get<string>('FIREBASE_PROJECT_ID');
-    const clientEmail =
-      this.configService.get<string>('GCP_CLIENT_EMAIL') ??
-      this.configService.get<string>('FIREBASE_CLIENT_EMAIL');
-    const privateKey = (
-      this.configService.get<string>('GCP_PRIVATE_KEY') ??
-      this.configService.get<string>('FIREBASE_PRIVATE_KEY')
-    )?.replace(/\\n/g, '\n');
-
-    this.storage =
-      projectId && clientEmail && privateKey
-        ? new Storage({
-            projectId,
-            credentials: {
-              client_email: clientEmail,
-              private_key: privateKey,
-            },
-          })
-        : new Storage();
-  }
+  ) {}
 
   async uploadImage(
     file: UploadableFile,
     dto: CreateIngestionUploadDto,
     uid: string,
   ): Promise<IngestionUploadResult> {
-    if (!this.bucketName) {
-      throw new InternalServerErrorException(
-        'GCS_INGESTION_BUCKET is not configured.',
-      );
-    }
+    const bucketName = this.storageService.getConfiguredBucketName();
 
     if (!file) {
       throw new BadRequestException('An image file is required.');
@@ -80,27 +51,25 @@ export class IngestionService {
 
     const uploadedAt = new Date().toISOString();
     const objectName = this.buildObjectName(file.originalname, uid, uploadedAt);
-    const bucket = this.storage.bucket(this.bucketName);
-    const object = bucket.file(objectName);
 
-    await object.save(file.buffer, {
-      resumable: false,
-      contentType: file.mimetype,
-      metadata: {
-        metadata: {
-          uploadedByUid: uid,
-          city: dto.city ?? '',
-          source: dto.source ?? 'flyer_upload',
-          originalFilename: file.originalname,
-        },
+    await this.storageService.uploadObject(
+      bucketName,
+      objectName,
+      file.buffer,
+      {
+        uploadedByUid: uid,
+        city: dto.city ?? '',
+        source: dto.source ?? 'flyer_upload',
+        originalFilename: file.originalname,
       },
-    });
+      file.mimetype,
+    );
 
     const sourceAsset = await this.sourceAssetRepository.save(
       this.sourceAssetRepository.create({
-        storageUri: `gs://${this.bucketName}/${objectName}`,
+        storageUri: `gs://${bucketName}/${objectName}`,
         objectName,
-        bucket: this.bucketName,
+        bucket: bucketName,
         mimeType: file.mimetype,
         originalFilename: file.originalname,
         city: dto.city,
@@ -114,7 +83,7 @@ export class IngestionService {
       this.ingestionJobRepository.create({
         sourceAssetId: sourceAsset.id,
         status: 'queued',
-        stage: 'uploaded',
+        stage: 'queued',
       }),
     );
 
@@ -122,9 +91,9 @@ export class IngestionService {
       sourceAssetId: sourceAsset.id,
       ingestionJobId: ingestionJob.id,
       status: ingestionJob.status,
-      bucket: this.bucketName,
+      bucket: bucketName,
       objectName,
-      storageUri: `gs://${this.bucketName}/${objectName}`,
+      storageUri: `gs://${bucketName}/${objectName}`,
       contentType: file.mimetype,
       size: file.size,
       originalFilename: file.originalname,
@@ -132,6 +101,38 @@ export class IngestionService {
       source: dto.source ?? 'flyer_upload',
       uploadedAt,
     };
+  }
+
+  async createJob(
+    dto: CreateIngestionJobDto,
+    uid: string,
+  ): Promise<IngestionJobResponse> {
+    const sourceAsset = await this.sourceAssetRepository.findOne({
+      where: {
+        id: dto.sourceAssetId,
+        uploadedByUid: uid,
+      },
+    });
+
+    if (!sourceAsset) {
+      throw new NotFoundException(
+        `Source asset ${dto.sourceAssetId} not found`,
+      );
+    }
+
+    const ingestionJob = await this.ingestionJobRepository.save(
+      this.ingestionJobRepository.create({
+        sourceAssetId: sourceAsset.id,
+        sourceAsset,
+        status: 'queued',
+        stage: 'queued',
+      }),
+    );
+
+    return this.toJobResponse({
+      ...ingestionJob,
+      sourceAsset,
+    } as IngestionJob);
   }
 
   async getJob(id: string, uid: string): Promise<IngestionJobResponse> {
@@ -144,11 +145,25 @@ export class IngestionService {
       throw new NotFoundException(`Ingestion job ${id} not found`);
     }
 
+    return this.toJobResponse(job);
+  }
+
+  private toJobResponse(job: IngestionJob): IngestionJobResponse {
+    if (!job.sourceAsset) {
+      this.logger.warn(`Ingestion job ${job.id} was loaded without sourceAsset`);
+    }
+
     return {
       id: job.id,
       status: job.status,
       stage: job.stage,
       errorMessage: job.errorMessage,
+      ocrText: job.ocrText,
+      ocrProvider: job.ocrProvider,
+      ocrConfidence: job.ocrConfidence,
+      processingStartedAt: job.processingStartedAt,
+      completedAt: job.completedAt,
+      failedAt: job.failedAt,
       createdAt: job.createdAt,
       updatedAt: job.updatedAt,
       sourceAsset: {

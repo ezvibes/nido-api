@@ -35,6 +35,21 @@ export class IngestionJob {
   @Column({ nullable: true, type: 'text' })
   ocrText?: string;
 
+  @Column({ nullable: true })
+  ocrProvider?: string;
+
+  @Column({ nullable: true, type: 'float' })
+  ocrConfidence?: number;
+
+  @Column({ nullable: true, type: 'timestamptz' })
+  processingStartedAt?: Date;
+
+  @Column({ nullable: true, type: 'timestamptz' })
+  completedAt?: Date;
+
+  @Column({ nullable: true, type: 'timestamptz' })
+  failedAt?: Date;
+
   @CreateDateColumn()
   createdAt: Date;
 

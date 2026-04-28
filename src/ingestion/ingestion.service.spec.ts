@@ -1,9 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
+import { NotFoundException } from '@nestjs/common';
 import { IngestionService } from './ingestion.service';
 import { SourceAsset } from './entities/source-asset.entity';
 import { IngestionJob } from './entities/ingestion-job.entity';
+import { IngestionStorageService } from './storage/ingestion-storage.service';
 
 describe('IngestionService', () => {
   let service: IngestionService;
@@ -11,6 +13,7 @@ describe('IngestionService', () => {
   const sourceAssetRepository = {
     create: jest.fn(),
     save: jest.fn(),
+    findOne: jest.fn(),
   };
 
   const ingestionJobRepository = {
@@ -21,6 +24,11 @@ describe('IngestionService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+
+    const storageService = {
+      getConfiguredBucketName: jest.fn().mockReturnValue('test-bucket'),
+      uploadObject: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -33,6 +41,10 @@ describe('IngestionService', () => {
               return undefined;
             }),
           },
+        },
+        {
+          provide: IngestionStorageService,
+          useValue: storageService,
         },
         {
           provide: getRepositoryToken(SourceAsset),
@@ -69,16 +81,6 @@ describe('IngestionService', () => {
       stage: 'uploaded',
     });
 
-    const bucketMock = {
-      file: jest.fn().mockReturnValue({
-        save: jest.fn().mockResolvedValue(undefined),
-      }),
-    };
-
-    Object.defineProperty(service as object, 'storage', {
-      value: { bucket: jest.fn().mockReturnValue(bucketMock) },
-    });
-
     const result = await service.uploadImage(
       file,
       { city: 'wilmington', source: 'flyer_upload' },
@@ -96,5 +98,52 @@ describe('IngestionService', () => {
     expect(result.ingestionJobId).toBe('job-1');
     expect(result.city).toBe('wilmington');
     expect(result.source).toBe('flyer_upload');
+  });
+
+  it('should create a queued OCR job for an owned source asset', async () => {
+    sourceAssetRepository.findOne.mockResolvedValue({
+      id: 'asset-1',
+      uploadedByUid: 'uid-1',
+    });
+    ingestionJobRepository.create.mockImplementation((value) => value);
+    ingestionJobRepository.save.mockResolvedValue({
+      id: 'job-2',
+      sourceAssetId: 'asset-1',
+      status: 'queued',
+      stage: 'queued',
+      sourceAsset: {
+        id: 'asset-1',
+        storageUri: 'gs://bucket/path.jpg',
+        objectName: 'path.jpg',
+        bucket: 'bucket',
+        mimeType: 'image/jpeg',
+        originalFilename: 'poster.jpg',
+        source: 'flyer_upload',
+        size: 123,
+        uploadedByUid: 'uid-1',
+        createdAt: new Date(),
+      },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const result = await service.createJob({ sourceAssetId: 'asset-1' }, 'uid-1');
+
+    expect(ingestionJobRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceAssetId: 'asset-1',
+        status: 'queued',
+        stage: 'queued',
+      }),
+    );
+    expect(result.id).toBe('job-2');
+  });
+
+  it('should reject job creation for an asset the user does not own', async () => {
+    sourceAssetRepository.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.createJob({ sourceAssetId: 'missing-asset' }, 'uid-1'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
