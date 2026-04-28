@@ -102,6 +102,8 @@ describe('IngestionWorkerService', () => {
       sourceAsset,
       status: 'queued',
       stage: 'queued',
+      errorMessage: 'old error',
+      failedAt: new Date('2026-03-31T23:00:00Z'),
       createdAt: new Date('2026-04-01T00:00:00Z'),
       updatedAt: new Date('2026-04-01T00:00:00Z'),
     } as IngestionJob);
@@ -127,6 +129,8 @@ describe('IngestionWorkerService', () => {
         ocrProvider: 'google-vision',
         ocrText: 'Local band at Cat\'s Cradle',
         ocrConfidence: 0.91,
+        errorMessage: undefined,
+        failedAt: undefined,
       }),
     );
   });
@@ -168,6 +172,10 @@ describe('IngestionWorkerService', () => {
       sourceAsset,
       status: 'queued',
       stage: 'queued',
+      ocrProvider: 'google-vision',
+      ocrText: 'stale text',
+      ocrConfidence: 0.77,
+      completedAt: new Date('2026-04-01T01:00:00Z'),
       createdAt: new Date('2026-04-01T00:00:00Z'),
       updatedAt: new Date('2026-04-01T00:00:00Z'),
     } as IngestionJob);
@@ -189,7 +197,34 @@ describe('IngestionWorkerService', () => {
       expect.objectContaining({
         status: 'failed',
         errorMessage: 'Vision quota exceeded',
+        ocrProvider: undefined,
+        ocrText: undefined,
+        ocrConfidence: undefined,
+        completedAt: undefined,
       }),
     );
+  });
+
+  it('should not reprocess a job that is already in processing state', async () => {
+    jobs.set('job-4', {
+      id: 'job-4',
+      sourceAssetId: sourceAsset.id,
+      sourceAsset,
+      status: 'processing',
+      stage: 'ocr',
+      createdAt: new Date('2026-04-01T00:00:00Z'),
+      updatedAt: new Date('2026-04-01T00:00:00Z'),
+    } as IngestionJob);
+
+    const result = await service.processJobById('job-4');
+
+    expect(result).toEqual({
+      jobId: 'job-4',
+      status: 'processing',
+      stage: 'ocr',
+      errorMessage: undefined,
+    });
+    expect(visionOcrService.extractText).not.toHaveBeenCalled();
+    expect(ingestionStorageService.objectExists).not.toHaveBeenCalled();
   });
 });

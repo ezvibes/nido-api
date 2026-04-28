@@ -47,7 +47,12 @@ export class IngestionWorkerService {
     }
 
     if (existingJob.status === 'processing') {
-      return this.processClaimedJob(existingJob.id);
+      return {
+        jobId: existingJob.id,
+        status: existingJob.status,
+        stage: existingJob.stage,
+        errorMessage: existingJob.errorMessage,
+      };
     }
 
     return {
@@ -75,6 +80,12 @@ export class IngestionWorkerService {
         status: 'processing',
         stage: 'ocr',
         processingStartedAt: new Date(),
+        completedAt: undefined,
+        failedAt: undefined,
+        errorMessage: undefined,
+        ocrText: undefined,
+        ocrProvider: undefined,
+        ocrConfidence: undefined,
       },
     );
 
@@ -92,6 +103,12 @@ export class IngestionWorkerService {
         status: 'processing',
         stage: 'ocr',
         processingStartedAt: new Date(),
+        completedAt: undefined,
+        failedAt: undefined,
+        errorMessage: undefined,
+        ocrText: undefined,
+        ocrProvider: undefined,
+        ocrConfidence: undefined,
       },
     );
 
@@ -139,6 +156,8 @@ export class IngestionWorkerService {
         ocrProvider: ocrResult.provider,
         ocrText: ocrResult.text,
         ocrConfidence: ocrResult.confidence,
+        errorMessage: undefined,
+        failedAt: undefined,
         completedAt: new Date(),
       });
 
@@ -164,6 +183,10 @@ export class IngestionWorkerService {
       status: 'failed',
       stage: 'failed',
       errorMessage,
+      ocrText: undefined,
+      ocrProvider: undefined,
+      ocrConfidence: undefined,
+      completedAt: undefined,
       failedAt: new Date(),
     });
 
