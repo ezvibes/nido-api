@@ -2,11 +2,13 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
+import { IngestionCandidate } from './entities/ingestion-candidate.entity';
 import { IngestionJob } from './entities/ingestion-job.entity';
 import { SourceAsset } from './entities/source-asset.entity';
 import { IngestionController } from './ingestion.controller';
 import { IngestionService } from './ingestion.service';
 import { VisionOcrService } from './ocr/vision-ocr.service';
+import { IngestionParserService } from './parser/ingestion-parser.service';
 import { IngestionStorageService } from './storage/ingestion-storage.service';
 import { IngestionWorkerRunner } from './worker/ingestion-worker.runner';
 import { IngestionWorkerService } from './worker/ingestion-worker.service';
@@ -15,13 +17,14 @@ import { IngestionWorkerService } from './worker/ingestion-worker.service';
   imports: [
     ConfigModule,
     AuthModule,
-    TypeOrmModule.forFeature([SourceAsset, IngestionJob]),
+    TypeOrmModule.forFeature([SourceAsset, IngestionJob, IngestionCandidate]),
   ],
   controllers: [IngestionController],
   providers: [
     IngestionService,
     IngestionStorageService,
     VisionOcrService,
+    IngestionParserService,
     IngestionWorkerService,
     IngestionWorkerRunner,
   ],

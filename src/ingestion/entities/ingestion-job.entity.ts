@@ -4,9 +4,11 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { IngestionCandidate } from './ingestion-candidate.entity';
 import { SourceAsset } from './source-asset.entity';
 
 @Entity({ name: 'ingestion_jobs' })
@@ -49,6 +51,9 @@ export class IngestionJob {
 
   @Column({ nullable: true, type: 'timestamptz' })
   failedAt?: Date;
+
+  @OneToMany(() => IngestionCandidate, (candidate) => candidate.ingestionJob)
+  candidates: IngestionCandidate[];
 
   @CreateDateColumn()
   createdAt: Date;

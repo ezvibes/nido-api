@@ -9,9 +9,11 @@ import { extname } from 'path';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CreateIngestionJobDto } from './dto/create-ingestion-job.dto';
+import { IngestionCandidate } from './entities/ingestion-candidate.entity';
 import { CreateIngestionUploadDto } from './dto/create-ingestion-upload.dto';
 import { IngestionJob } from './entities/ingestion-job.entity';
 import { SourceAsset } from './entities/source-asset.entity';
+import { IngestionCandidateResponse } from './interfaces/ingestion-candidate-response.interface';
 import { IngestionJobResponse } from './interfaces/ingestion-job-response.interface';
 import { IngestionUploadResult } from './interfaces/ingestion-upload-result.interface';
 import { IngestionStorageService } from './storage/ingestion-storage.service';
@@ -28,6 +30,8 @@ export class IngestionService {
     private readonly sourceAssetRepository: Repository<SourceAsset>,
     @InjectRepository(IngestionJob)
     private readonly ingestionJobRepository: Repository<IngestionJob>,
+    @InjectRepository(IngestionCandidate)
+    private readonly ingestionCandidateRepository: Repository<IngestionCandidate>,
   ) {}
 
   async uploadImage(
@@ -138,7 +142,7 @@ export class IngestionService {
   async getJob(id: string, uid: string): Promise<IngestionJobResponse> {
     const job = await this.ingestionJobRepository.findOne({
       where: { id, sourceAsset: { uploadedByUid: uid } },
-      relations: { sourceAsset: true },
+      relations: { sourceAsset: true, candidates: true },
     });
 
     if (!job) {
@@ -146,6 +150,24 @@ export class IngestionService {
     }
 
     return this.toJobResponse(job);
+  }
+
+  async getCandidate(id: string, uid: string): Promise<IngestionCandidateResponse> {
+    const candidate = await this.ingestionCandidateRepository.findOne({
+      where: {
+        id,
+        sourceAsset: { uploadedByUid: uid },
+      },
+      relations: {
+        sourceAsset: true,
+      },
+    });
+
+    if (!candidate) {
+      throw new NotFoundException(`Ingestion candidate ${id} not found`);
+    }
+
+    return this.toCandidateResponse(candidate);
   }
 
   private toJobResponse(job: IngestionJob): IngestionJobResponse {
@@ -164,6 +186,12 @@ export class IngestionService {
       processingStartedAt: job.processingStartedAt,
       completedAt: job.completedAt,
       failedAt: job.failedAt,
+      candidates: job.candidates?.map((candidate) => ({
+        id: candidate.id,
+        status: candidate.status,
+        title: candidate.title,
+        parseConfidence: candidate.parseConfidence,
+      })),
       createdAt: job.createdAt,
       updatedAt: job.updatedAt,
       sourceAsset: {
@@ -179,6 +207,33 @@ export class IngestionService {
         uploadedByUid: job.sourceAsset.uploadedByUid,
         createdAt: job.sourceAsset.createdAt,
       },
+    };
+  }
+
+  private toCandidateResponse(
+    candidate: IngestionCandidate,
+  ): IngestionCandidateResponse {
+    return {
+      id: candidate.id,
+      ingestionJobId: candidate.ingestionJobId,
+      sourceAssetId: candidate.sourceAssetId,
+      status: candidate.status,
+      title: candidate.title,
+      description: candidate.description,
+      startAt: candidate.startAt,
+      endAt: candidate.endAt,
+      venueName: candidate.venueName,
+      city: candidate.city,
+      region: candidate.region,
+      artistNames: candidate.artistNames,
+      genreHints: candidate.genreHints,
+      parserVersion: candidate.parserVersion,
+      parseConfidence: candidate.parseConfidence,
+      parseWarnings: candidate.parseWarnings,
+      rawExtractedFields: candidate.rawExtractedFields,
+      rawOcrText: candidate.rawOcrText,
+      createdAt: candidate.createdAt,
+      updatedAt: candidate.updatedAt,
     };
   }
 

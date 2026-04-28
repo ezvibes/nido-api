@@ -1,8 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { IngestionCandidate } from '../entities/ingestion-candidate.entity';
 import { IngestionJob } from '../entities/ingestion-job.entity';
 import { SourceAsset } from '../entities/source-asset.entity';
 import { VisionOcrService } from '../ocr/vision-ocr.service';
+import { IngestionParserService } from '../parser/ingestion-parser.service';
 import { IngestionStorageService } from '../storage/ingestion-storage.service';
 import { IngestionWorkerService } from './ingestion-worker.service';
 
@@ -24,6 +26,7 @@ describe('IngestionWorkerService', () => {
   };
 
   const jobs = new Map<string, IngestionJob>();
+  const candidates: IngestionCandidate[] = [];
 
   const ingestionJobRepository = {
     findOne: jest.fn(async (options: any) => {
@@ -70,9 +73,25 @@ describe('IngestionWorkerService', () => {
     extractText: jest.fn(),
   };
 
+  const ingestionParserService = {
+    parseOcrText: jest.fn(),
+  };
+
+  const ingestionCandidateRepository = {
+    create: jest.fn((value: IngestionCandidate) => value),
+    save: jest.fn(async (value: IngestionCandidate[]) => {
+      candidates.push(...value);
+      return value.map((candidate, index) => ({
+        ...candidate,
+        id: candidate.id ?? `candidate-${index + 1}`,
+      }));
+    }),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     jobs.clear();
+    candidates.length = 0;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -82,6 +101,10 @@ describe('IngestionWorkerService', () => {
           useValue: ingestionJobRepository,
         },
         {
+          provide: getRepositoryToken(IngestionCandidate),
+          useValue: ingestionCandidateRepository,
+        },
+        {
           provide: IngestionStorageService,
           useValue: ingestionStorageService,
         },
@@ -89,13 +112,17 @@ describe('IngestionWorkerService', () => {
           provide: VisionOcrService,
           useValue: visionOcrService,
         },
+        {
+          provide: IngestionParserService,
+          useValue: ingestionParserService,
+        },
       ],
     }).compile();
 
     service = module.get<IngestionWorkerService>(IngestionWorkerService);
   });
 
-  it('should claim a queued job and transition it to parsed after OCR succeeds', async () => {
+  it('should claim a queued job and transition it to needs_review after OCR and parsing succeed', async () => {
     jobs.set('job-1', {
       id: 'job-1',
       sourceAssetId: sourceAsset.id,
@@ -114,17 +141,29 @@ describe('IngestionWorkerService', () => {
       text: 'Local band at Cat\'s Cradle',
       confidence: 0.91,
     });
+    ingestionParserService.parseOcrText.mockReturnValue([
+      {
+        status: 'needs_review',
+        title: 'Local band at Cat\'s Cradle',
+        artistNames: ['Local band'],
+        parserVersion: 'mvp-v1',
+        parseConfidence: 0.91,
+        parseWarnings: [],
+        rawExtractedFields: { cityLine: 'Carrboro, NC' },
+        rawOcrText: 'Local band at Cat\'s Cradle',
+      },
+    ]);
 
     const result = await service.processNextQueuedJob();
 
     expect(result).toEqual({
       jobId: 'job-1',
-      status: 'parsed',
+      status: 'needs_review',
       stage: 'parsed',
     });
     expect(jobs.get('job-1')).toEqual(
       expect.objectContaining({
-        status: 'parsed',
+        status: 'needs_review',
         stage: 'parsed',
         ocrProvider: 'google-vision',
         ocrText: 'Local band at Cat\'s Cradle',
@@ -133,6 +172,7 @@ describe('IngestionWorkerService', () => {
         failedAt: undefined,
       }),
     );
+    expect(candidates).toHaveLength(1);
   });
 
   it('should mark a job failed when the source object is missing from GCS', async () => {
@@ -184,6 +224,7 @@ describe('IngestionWorkerService', () => {
     visionOcrService.extractText.mockRejectedValue(
       new Error('Vision quota exceeded'),
     );
+    ingestionParserService.parseOcrText.mockReturnValue([]);
 
     const result = await service.processNextQueuedJob();
 

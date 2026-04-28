@@ -1,7 +1,9 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { IngestionCandidate } from '../entities/ingestion-candidate.entity';
 import { IngestionJob } from '../entities/ingestion-job.entity';
+import { IngestionParserService } from '../parser/ingestion-parser.service';
 import { IngestionStorageService } from '../storage/ingestion-storage.service';
 import { VisionOcrService } from '../ocr/vision-ocr.service';
 
@@ -19,8 +21,11 @@ export class IngestionWorkerService {
   constructor(
     @InjectRepository(IngestionJob)
     private readonly ingestionJobRepository: Repository<IngestionJob>,
+    @InjectRepository(IngestionCandidate)
+    private readonly ingestionCandidateRepository: Repository<IngestionCandidate>,
     private readonly ingestionStorageService: IngestionStorageService,
     private readonly visionOcrService: VisionOcrService,
+    private readonly ingestionParserService: IngestionParserService,
   ) {}
 
   async processNextQueuedJob(): Promise<ProcessedIngestionJobResult | null> {
@@ -123,6 +128,7 @@ export class IngestionWorkerService {
     id: string,
   ): Promise<ProcessedIngestionJobResult> {
     const job = await this.findJobById(id);
+    let ocrSucceeded = false;
 
     if (!job) {
       throw new NotFoundException(`Ingestion job ${id} not found`);
@@ -151,43 +157,87 @@ export class IngestionWorkerService {
       );
 
       await this.ingestionJobRepository.update(job.id, {
-        status: 'parsed',
-        stage: 'parsed',
+        stage: 'parsing',
         ocrProvider: ocrResult.provider,
         ocrText: ocrResult.text,
         ocrConfidence: ocrResult.confidence,
+      });
+      ocrSucceeded = true;
+
+      const parsedCandidates = this.ingestionParserService.parseOcrText(ocrResult.text, {
+        city: job.sourceAsset.city,
+      });
+
+      const persistedCandidates = await this.ingestionCandidateRepository.save(
+        parsedCandidates.map((candidate) =>
+          this.ingestionCandidateRepository.create({
+            ingestionJobId: job.id,
+            ingestionJob: job,
+            sourceAssetId: job.sourceAssetId,
+            sourceAsset: job.sourceAsset,
+            status: candidate.status,
+            title: candidate.title,
+            description: candidate.description,
+            startAt: candidate.startAt,
+            endAt: candidate.endAt,
+            venueName: candidate.venueName,
+            city: candidate.city,
+            region: candidate.region,
+            artistNames: candidate.artistNames,
+            genreHints: candidate.genreHints,
+            parserVersion: candidate.parserVersion,
+            parseConfidence: candidate.parseConfidence,
+            parseWarnings: candidate.parseWarnings,
+            rawExtractedFields: candidate.rawExtractedFields,
+            rawOcrText: candidate.rawOcrText,
+          }),
+        ),
+      );
+
+      await this.ingestionJobRepository.update(job.id, {
+        status: persistedCandidates.length ? 'needs_review' : 'parsed',
+        stage: 'parsed',
         errorMessage: undefined,
         failedAt: undefined,
         completedAt: new Date(),
       });
 
-      this.logger.log(`Parsed ingestion job ${job.id}`);
+      this.logger.log(
+        `Parsed ingestion job ${job.id} and created ${persistedCandidates.length} candidate(s)`,
+      );
 
       return {
         jobId: job.id,
-        status: 'parsed',
+        status: persistedCandidates.length ? 'needs_review' : 'parsed',
         stage: 'parsed',
       };
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unknown OCR worker failure.';
-      return this.markFailed(job.id, message);
+      return this.markFailed(job.id, message, {
+        preserveOcrFields: ocrSucceeded,
+      });
     }
   }
 
   private async markFailed(
     jobId: string,
     errorMessage: string,
+    options?: { preserveOcrFields?: boolean },
   ): Promise<ProcessedIngestionJobResult> {
     await this.ingestionJobRepository.update(jobId, {
       status: 'failed',
       stage: 'failed',
       errorMessage,
-      ocrText: undefined,
-      ocrProvider: undefined,
-      ocrConfidence: undefined,
       completedAt: undefined,
       failedAt: new Date(),
+      ...(options?.preserveOcrFields
+        ? {}
+        : {
+            ocrText: undefined,
+            ocrProvider: undefined,
+            ocrConfidence: undefined,
+          }),
     });
 
     this.logger.warn(`Failed ingestion job ${jobId}: ${errorMessage}`);

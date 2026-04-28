@@ -5,6 +5,7 @@ describe('IngestionController', () => {
     uploadImage: jest.fn(),
     createJob: jest.fn(),
     getJob: jest.fn(),
+    getCandidate: jest.fn(),
   };
 
   let controller: IngestionController;
@@ -51,5 +52,16 @@ describe('IngestionController', () => {
     await controller.getJob('job-1', { uid: 'uid-1' } as any);
 
     expect(ingestionService.getJob).toHaveBeenCalledWith('job-1', 'uid-1');
+  });
+
+  it('should request a candidate lookup for the current user', async () => {
+    ingestionService.getCandidate.mockResolvedValue({ id: 'candidate-1' });
+
+    await controller.getCandidate('candidate-1', { uid: 'uid-1' } as any);
+
+    expect(ingestionService.getCandidate).toHaveBeenCalledWith(
+      'candidate-1',
+      'uid-1',
+    );
   });
 });

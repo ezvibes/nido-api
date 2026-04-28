@@ -56,4 +56,13 @@ export class IngestionController {
   ) {
     return this.ingestionService.getJob(id, user.uid);
   }
+
+  @Get('candidates/:id')
+  @UseGuards(FirebaseAuthGuard)
+  async getCandidate(
+    @Param('id') id: string,
+    @CurrentUser() user: DecodedIdToken,
+  ) {
+    return this.ingestionService.getCandidate(id, user.uid);
+  }
 }
