@@ -5,6 +5,7 @@ import { FirebaseModule } from './firebase/firebase.module';
 import { AuthModule } from './auth/auth.module';
 import { ConcertModule } from './apis/concerts/concert.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { IngestionModule } from './ingestion/ingestion.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     FirebaseModule,
     AuthModule,
     ConcertModule,
+    IngestionModule,
   ],
   controllers: [],
   providers: [],

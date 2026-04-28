@@ -1,17 +1,10 @@
 <template>
   <section class="events-page">
     <header class="events-page__hero">
-      <div class="events-page__hero-copy">
-        <p class="events-page__eyebrow">Demo Discovery Feed</p>
-        <p class="events-page__intro">
-          This demo route previews a browseable event feed using a frontend model that can later
-          map cleanly onto the existing concerts API.
-        </p>
+      <div class="events-page__hero-overlay">
+        <p class="events-page__eyebrow">EZ Vibes intake</p>
+        <h2>Add Your Concert Poster</h2>
       </div>
-
-      <button class="events-page__toggle" type="button" @click="toggleAddForm">
-        {{ showAddForm ? 'Close form' : 'Add a show' }}
-      </button>
     </header>
 
     <p v-if="pageMessage" :class="pageMessageClass">{{ pageMessage }}</p>
@@ -80,6 +73,8 @@
       </form>
     </section>
 
+    <IngestionUploadPanel />
+
     <EventFiltersBar
       :search-text="searchText"
       :date-range="dateRange"
@@ -112,6 +107,7 @@
 import { computed, reactive, ref } from 'vue';
 import EventCard from '../components/events/EventCard.vue';
 import EventFiltersBar from '../components/events/EventFiltersBar.vue';
+import IngestionUploadPanel from '../components/ingestion/IngestionUploadPanel.vue';
 import { useEventFilters } from '../composables/useEventFilters';
 import { sampleEvents } from '../data/sampleEvents';
 import { createConcert } from '../composables/useApi';
@@ -263,18 +259,49 @@ const handleSubmit = async () => {
 }
 
 .events-page__hero {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 1.75rem;
+  display: grid;
+  place-items: center;
+  min-height: clamp(19rem, 38vw, 30rem);
+  overflow: hidden;
   border-radius: 1.2rem;
+  background:
+    linear-gradient(135deg, rgba(16, 28, 21, 0.28), rgba(16, 28, 21, 0.72)),
+    url("https://cb68d5340ef83a9d76eb.cdn6.editmysite.com/uploads/b/cb68d5340ef83a9d76eb36aa80e24b2ce574c25effd71d09013454911b4684ee/IMG_0418%202_1755022409.jpg?width=2400&optimize=medium");
+  background-position: center;
+  background-size: cover;
+  box-shadow: inset 0 0 8rem rgba(0, 0, 0, 0.38);
+  border: 1px solid var(--border);
+}
+
+.events-page__hero-overlay {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1.25rem;
+  color: #fff;
+  text-align: center;
+}
+
+.events-page__hero h2 {
+  margin: 0;
+  font-family: "Avenir Next", "Helvetica Neue", Helvetica, sans-serif;
+  font-size: clamp(1.75rem, 4.4vw, 3.35rem);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+
+/*
+  Secondary form styles stay intentionally plain while the page hero carries
+  the visual weight for ingestion.
+*/
+.add-show-panel {
   background:
     radial-gradient(circle at top left, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.74)),
     linear-gradient(135deg, rgba(229, 231, 235, 0.75), rgba(244, 246, 244, 0.95));
   border: 1px solid var(--border);
 }
 
-.events-page__hero-copy p,
 .events-page__results p,
 .events-page__empty h2,
 .events-page__empty p,
@@ -287,8 +314,8 @@ const handleSubmit = async () => {
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--text-light);
-  margin-bottom: 0.45rem;
+  color: rgba(255, 255, 255, 0.76);
+  margin: 0 0 0.45rem;
 }
 
 .events-page__intro {
@@ -435,9 +462,9 @@ const handleSubmit = async () => {
 }
 
 @media (min-width: 760px) {
-  .events-page__hero {
-    grid-template-columns: 1fr auto;
-    align-items: end;
+  .events-page__hero h2 {
+    font-size: clamp(2.05rem, 4.1vw, 3.25rem);
+    white-space: nowrap;
   }
 
   .add-show-panel__form {

@@ -6,6 +6,7 @@ import { routeLoading } from './stores/routeLoading';
 import HomePage from './views/HomePage.vue';
 import LoginPage from './views/LoginPage.vue';
 import ProfilePage from './views/ProfilePage.vue';
+import SettingsPage from './views/SettingsPage.vue';
 
 const routes = [
   {
@@ -22,6 +23,12 @@ const routes = [
     path: '/profile',
     name: 'Profile',
     component: ProfilePage,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/settings',
+    name: 'Settings',
+    component: SettingsPage,
     meta: { requiresAuth: true },
   },
   {
@@ -43,7 +50,12 @@ router.beforeEach((to, _from, next) => {
   const isAuthenticated = getAuth().currentUser;
 
   if (to.path === '/login' && isAuthenticated) {
-    next('/');
+    next('/events');
+    return;
+  }
+
+  if (to.path === '/' && isAuthenticated) {
+    next('/events');
     return;
   }
 
