@@ -7,6 +7,8 @@ import HomePage from './views/HomePage.vue';
 import LoginPage from './views/LoginPage.vue';
 import ProfilePage from './views/ProfilePage.vue';
 import SettingsPage from './views/SettingsPage.vue';
+import AdminIngestionUploadsPage from './pages/AdminIngestionUploadsPage.vue';
+import { isAdminEmail } from './utils/admin';
 
 const routes = [
   {
@@ -37,6 +39,12 @@ const routes = [
     component: EventsPage,
     meta: { requiresAuth: true },
   },
+  {
+    path: '/admin/ingestion/uploads',
+    name: 'AdminIngestionUploads',
+    component: AdminIngestionUploadsPage,
+    meta: { requiresAuth: true, requiresAdmin: true },
+  },
 ];
 
 const router = createRouter({
@@ -47,6 +55,7 @@ const router = createRouter({
 router.beforeEach((to, _from, next) => {
   routeLoading.value = true;
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
+  const requiresAdmin = to.matched.some(record => (record.meta as any).requiresAdmin);
   const isAuthenticated = getAuth().currentUser;
 
   if (to.path === '/login' && isAuthenticated) {
@@ -61,9 +70,18 @@ router.beforeEach((to, _from, next) => {
 
   if (requiresAuth && !isAuthenticated) {
     next('/login');
-  } else {
-    next();
+    return;
   }
+
+  if (requiresAdmin) {
+    const email = getAuth().currentUser?.email;
+    if (!isAdminEmail(email)) {
+      next('/events');
+      return;
+    }
+  }
+
+  next();
 });
 
 router.afterEach(() => {

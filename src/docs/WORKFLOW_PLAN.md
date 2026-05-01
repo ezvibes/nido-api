@@ -1,155 +1,213 @@
 # EZ Vibes Workflow Plan
 
+Last updated: 2026-04-30
+
+## Working Thesis
+
+EZ Vibes should be built around a single operational loop:
+
+1. Show data enters the system through uploads, submissions, or imports.
+2. Ingestion converts messy inputs into structured draft records.
+3. Admin review protects quality before anything becomes public.
+4. Approved events power discovery, alerts, exports, and partner distribution.
+5. User interaction data improves ranking and curation over time.
+
+This is still the right workflow, but the plan now needs to balance two tracks:
+
+- **Foundation track:** ingestion quality, normalization, moderation, and canonical event data
+- **Activation track:** discovery engagement, recurring distribution, and audience growth
+
+If the team over-builds ingestion without activation, there is no proof that users care.
+If the team over-builds engagement without canonical event quality, the feed becomes untrustworthy.
+
+## Current Product Priorities
+
+### Priority 1: Publish trustworthy event data
+
+- Standardize ingestion inputs
+- Normalize event, venue, and artist data
+- Preserve provenance and review states
+- Prevent obvious duplicates
+
+### Priority 2: Make the discovery feed more alive
+
+- Add upvotes on events
+- Add a "Trending this week" sort
+- Prepare for city-aware alerts
+- Tighten the highest-traffic UX flows
+
+### Priority 3: Turn catalog data into distribution assets
+
+- Generate a 90-day "Top Picks" export
+- Reuse that output for newsletter and partner workflows
+- Treat Beehiiv as a downstream integration, not a starting point
+
 ## Product Loop
 
-EZ Vibes should be built around one core loop:
+### Core Loop
 
 1. Event content is uploaded or submitted.
-2. The ingestion engine extracts structured signals from posters, flyers, and form submissions.
-3. The system normalizes that data into canonical event, venue, and artist records.
+2. The ingestion engine extracts structured signals from posters, flyers, and forms.
+3. The system normalizes that data into canonical event records.
 4. Admins review low-confidence or duplicate-prone records.
 5. Approved events are published into the discovery catalog.
-6. Fans discover events through city-, region-, and preference-aware feeds.
-7. Partners consume visibility, leads, and event intelligence through APIs and dashboards.
+6. Users discover, react to, and share events.
+7. Distribution channels reuse approved event data for alerts, exports, and partner delivery.
 
-If a feature does not strengthen this loop, it should not be in the MVP.
+## Canonical System Design
 
-## Pillars
-
-### 1. AI Ingestion Engine
+### Ingestion Layer
 
 - Accept image uploads, PDFs, and structured event submissions
+- Validate core metadata early: file type, size, source, city, state, uploader
 - Store raw assets in Google Cloud Storage
-- Run OCR with Google Vision
-- Parse dates, times, venue names, artists, cities, and genres
-- Assign confidence scores and flag records for review
+- Run OCR and parsing on raw assets
+- Assign confidence scores and route uncertain records to review
 
-### 2. Structured Event Catalog
+### Catalog Layer
 
-- Normalize events into relational entities
-- Prevent obvious duplicates across repeated flyers and submissions
+- Canonical public domains should be `events`, `venues`, and `artists`
 - Preserve source provenance and ingestion history
-- Support approval states before records become public
+- Support draft, approved, rejected, and duplicate-review states
+- Model engagement data separately from source records
 
-### 3. Personalized Recommendation Engine
+### Discovery Layer
 
-- Start with rules, not ML
-- Rank by city, region, saved preferences, timing, and recency
-- Return useful feeds for Raleigh/Triangle, Wilmington, Charlotte, Asheville, and Greensboro/Triad
+- Public feed powered only by approved events
+- Deterministic ranking first: upcoming soon, city match, featured boost, engagement boost
+- Add explicit user signals over time: upvotes, saved preferences, alert subscriptions
 
-### 4. Partner Platform Layer
+### Distribution Layer
 
-- Expose approved event data via partner-friendly APIs
-- Support partner-specific submissions and visibility workflows
-- Make venue/promoter value legible through speed, accuracy, and reach
+- Partner-facing API for approved event data
+- Export service for editorial and newsletter workflows
+- Notification pipeline for city-based alerts
 
 ## User Groups
 
 ### Consumers
 
 - Discover upcoming live music by city and date
-- Save preferences and favorite events
-- View reliable event details sourced from real local signals
+- Upvote events and use trending discovery views
+- Receive city-aware alerts for new shows
 
-### Venues
+### Venues and Promoters
 
 - Submit events quickly
 - Ensure listings are accurate and timely
-- Increase discovery in local feeds
-
-### Festival and Promoter Partners
-
-- Submit batches or partner-managed events
-- Access structured event records through APIs
-- Use EZ Vibes as a regional event intelligence layer
+- Gain visibility in local discovery and downstream distribution
 
 ### Internal Admins and Curators
 
 - Review OCR output and parser decisions
 - Resolve duplicates
 - Approve, reject, or edit normalized records
-- Monitor ingestion job quality
+- Review media and enrichment submissions when needed
+
+### Partners
+
+- Retrieve structured, approved event data
+- Reuse exports or APIs for external distribution
 
 ## MVP Definition
 
-The MVP is successful when EZ Vibes can demonstrate this live:
+The MVP is successful when EZ Vibes can demonstrate this end-to-end:
 
-- A flyer or poster is uploaded
-- OCR and parsing produce a draft event
-- An admin reviews and approves it
-- The approved event appears in a fan-facing discovery feed
-- A partner can retrieve that event through an API
+1. A flyer or poster is uploaded.
+2. Ingestion creates a draft event with structured metadata.
+3. An admin reviews and approves it.
+4. The approved event appears in a public discovery feed.
+5. Users can interact with that feed through simple engagement signals.
+6. The same approved event can be exported or delivered through an external channel.
 
-### In Scope
+## In Scope Now
 
 - Image upload to Google Cloud Storage
-- OCR via Google Vision
-- Parsing pipeline for basic event fields
+- OCR and parsing for basic event fields
 - Human review queue
-- Approved event catalog
+- Canonical approved event catalog
 - Consumer discovery feed by city/date
-- Simple personalization using city, region, genre, and timing
-- Partner API for approved events
+- Event upvotes and "Trending this week"
+- 90-day "Top Picks" export
+- Input validation and normalization for ingestion payloads
 
-### Out of Scope
+## Out of Scope For This Phase
 
 - Fully automated publishing with no review
 - Complex recommendation models
 - Ticketing integrations
-- Social graph features
-- Full self-serve venue analytics portal
+- Full social graph features
+- Full self-serve venue analytics
 - Multi-state expansion
+- Beehiiv automation before exports are stable
+- LLM enrichment features before ingestion quality is measured
 
 ## Operating Rules
 
 ### Data Quality Rule
 
-No OCR result should become publicly visible without either:
+No event should become public without either:
 
-- high-confidence auto-approval rules, or
+- clear approval logic, or
 - admin review
 
-For MVP, prefer manual review over risky automation.
+For this phase, prefer manual review over risky automation.
 
 ### Source-of-Truth Rule
 
 - Raw assets live in GCS
-- Extracted text and parsing artifacts belong to ingestion jobs
-- Canonical public records live in normalized relational tables
+- OCR text and parsing artifacts belong to ingestion jobs
+- Canonical public records live in normalized catalog tables
+- Feed interactions like upvotes should be stored separately from source records
 
 ### Domain Boundary Rule
 
-- `events`, `venues`, and `artists` are the canonical catalog domains
-- The existing `concerts` module is a user-scoped experience layer for "My Concerts", not the long-term catalog source of truth
-- New ingestion, moderation, partner, and discovery work should publish into canonical `events` rather than extending owner-scoped `concerts`
-- `concerts` can continue to support the logged-in user experience until the canonical catalog is ready to power that view directly
+- The existing `concerts` module is still a user-scoped experience layer
+- Canonical discovery should move toward `events`, not expand `concerts` forever
+- Near-term UX wins can ship on top of current surfaces, but schema decisions should not block the future canonical catalog
 
 ### Recommendation Rule
 
-For MVP, recommendations are deterministic and explainable:
+For the current phase, ranking should stay deterministic and explainable:
 
 - city match
 - nearby region boost
-- genre match
 - upcoming-soon boost
-- partner/featured boost if needed
+- editorial/featured boost
+- recent engagement boost
 
-## Immediate Build Order
+## Near-Term Build Order
 
-1. Ingestion pipeline skeleton
-2. Normalized schema
-3. Admin moderation workflow
-4. Public event catalog API
-5. Consumer discovery feed
-6. Partner API access
-7. Rules-based personalization
+### Phase 1: Clean input + publish reliably
+
+1. Standardize ingestion input values
+2. Tighten normalized event schema and approval flow
+3. Improve duplicate handling and provenance
+
+### Phase 2: Increase discovery engagement
+
+1. Add event upvotes
+2. Add "Trending this week" sort
+3. Audit and tighten the highest-traffic feed interactions
+
+### Phase 3: Reuse the catalog externally
+
+1. Build 90-day "Top Picks" export
+2. Define city-based alert pipeline
+3. Add partner/distribution endpoints on top of approved catalog data
+
+### Phase 4: Add selective enrichment
+
+1. Admin review for YouTube media
+2. OCR evaluation dataset and scorecard
+3. LLM genre tagging only after measurement criteria are defined
 
 ## Decision Filters
 
-Before implementing new work, confirm:
+Before building a feature, confirm:
 
-- Does it improve ingestion accuracy?
-- Does it improve event normalization quality?
-- Does it improve discovery usefulness?
-- Does it improve partner value?
-- Can it be demonstrated in the MVP story?
+- Does it improve event data quality?
+- Does it improve discovery usefulness or engagement?
+- Does it create reusable distribution value?
+- Can it be demonstrated in the end-to-end workflow?
+- Does it fit the current phase, or is it premature?

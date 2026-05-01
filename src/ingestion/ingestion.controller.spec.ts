@@ -25,7 +25,7 @@ describe('IngestionController', () => {
     userService.syncFromToken.mockResolvedValue({ id: 3 });
 
     await controller.uploadImage(
-      file,
+      { file: [file] },
       { city: 'raleigh', state: 'NC', source: 'flyer_upload' },
       { uid: 'uid-1' } as any,
     );

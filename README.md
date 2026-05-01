@@ -32,6 +32,7 @@ First, set up and run the NestJS server.
     DB_USER=user
     DB_PASSWORD=password
     DB_NAME=nido
+    DB_SYNCHRONIZE=true
     ```
 
 #### **Installation & Execution**
@@ -70,6 +71,26 @@ The frontend will be available at `http://localhost:5173`.
 ### CORS
 
 The backend is configured to accept cross-origin requests only from the frontend client. This is defined in `src/main.ts`. Any changes to the client's address (`http://localhost:5173`) must be reflected there.
+
+### Image Ingestion (GCS)
+
+`POST /ingestion/uploads` accepts a multipart upload and stores it in Google Cloud Storage (GCS).
+
+Required env:
+
+- `GCS_INGESTION_BUCKET` (bucket name)
+- Credentials (choose one):
+  - Application Default Credentials (recommended): set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json`
+  - Or set `GCP_SERVICE_ACCOUNT_PATH=/path/to/service-account.json`
+  - Or set `GCP_SERVICE_ACCOUNT_JSON='{"project_id":"...","client_email":"...","private_key":"..."}'`
+  - Or set `GCP_PROJECT_ID`, `GCP_CLIENT_EMAIL`, `GCP_PRIVATE_KEY` (single-line key with `\n`)
+
+### Admin Review
+
+Admin-only endpoints are under `/admin/ingestion/*` (list uploads, preview images, and set review status/notes).
+
+- Backend allowlist: set `ADMIN_EMAILS` (comma-separated emails) in `.env`
+- Client menu allowlist: set `VITE_ADMIN_EMAILS` (comma-separated emails) in `client/.env`
 
 ## User Signup Flow
 

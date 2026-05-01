@@ -4,11 +4,11 @@ import {
   Get,
   Param,
   Post,
-  UploadedFile,
+  UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { memoryStorage } from 'multer';
 import { UserService } from '../apis/users/user.service';
@@ -29,19 +29,30 @@ export class IngestionController {
   @Post('uploads')
   @UseGuards(FirebaseAuthGuard)
   @UseInterceptors(
-    FileInterceptor('file', {
-      storage: memoryStorage(),
-      limits: {
-        fileSize: 10 * 1024 * 1024,
+    FileFieldsInterceptor(
+      [
+        { name: 'file', maxCount: 1 },
+        { name: 'image', maxCount: 1 },
+      ],
+      {
+        storage: memoryStorage(),
+        limits: {
+          fileSize: 50 * 1024 * 1024,
+        },
       },
-    }),
+    ),
   )
   async uploadImage(
-    @UploadedFile() file: UploadableFile,
+    @UploadedFiles()
+    files: {
+      file?: UploadableFile[];
+      image?: UploadableFile[];
+    },
     @Body() body: CreateIngestionUploadDto,
     @CurrentUser() user: DecodedIdToken,
   ) {
     const profile = await this.userService.syncFromToken(user);
+    const file = files?.file?.[0] ?? files?.image?.[0];
     return this.ingestionService.uploadImage(file, body, user.uid, profile.id);
   }
 

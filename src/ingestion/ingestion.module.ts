@@ -5,6 +5,7 @@ import { AuthModule } from '../auth/auth.module';
 import { UserModule } from '../apis/users/user.module';
 import { IngestionJob } from './entities/ingestion-job.entity';
 import { ConcertUpload } from './entities/concert-upload.entity';
+import { AdminIngestionController } from './admin-ingestion.controller';
 import { IngestionController } from './ingestion.controller';
 import { IngestionService } from './ingestion.service';
 
@@ -15,7 +16,7 @@ import { IngestionService } from './ingestion.service';
     UserModule,
     TypeOrmModule.forFeature([ConcertUpload, IngestionJob]),
   ],
-  controllers: [IngestionController],
+  controllers: [IngestionController, AdminIngestionController],
   providers: [IngestionService],
   exports: [IngestionService],
 })

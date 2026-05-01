@@ -7,14 +7,21 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Storage } from '@google-cloud/storage';
 import { randomUUID } from 'crypto';
+import { readFileSync } from 'fs';
 import { extname } from 'path';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
+import type { Response } from 'express';
 import { CreateIngestionUploadDto } from './dto/create-ingestion-upload.dto';
+import { ReviewConcertUploadDto } from './dto/review-concert-upload.dto';
 import { IngestionJob } from './entities/ingestion-job.entity';
 import { ConcertUpload } from './entities/concert-upload.entity';
 import { IngestionJobResponse } from './interfaces/ingestion-job-response.interface';
 import { IngestionUploadResult } from './interfaces/ingestion-upload-result.interface';
+import type {
+  AdminConcertUploadListItem,
+  AdminConcertUploadListResponse,
+} from './interfaces/admin-concert-upload.interface';
 import { UploadableFile } from './interfaces/uploadable-file.interface';
 
 @Injectable()
@@ -31,15 +38,24 @@ export class IngestionService {
     @InjectRepository(IngestionJob)
     private readonly ingestionJobRepository: Repository<IngestionJob>,
   ) {
-    this.bucketName = this.configService.get<string>('GCS_INGESTION_BUCKET');
+    this.bucketName =
+      this.configService.get<string>('GCS_INGESTION_BUCKET')?.trim() || undefined;
+
+    const serviceAccountFromEnv = this.resolveServiceAccountFromEnv();
+    const serviceAccountFromPath = this.resolveServiceAccountFromPath();
+
+    const serviceAccount = serviceAccountFromEnv ?? serviceAccountFromPath;
 
     const projectId =
+      serviceAccount?.project_id ??
       this.configService.get<string>('GCP_PROJECT_ID') ??
       this.configService.get<string>('FIREBASE_PROJECT_ID');
     const clientEmail =
+      serviceAccount?.client_email ??
       this.configService.get<string>('GCP_CLIENT_EMAIL') ??
       this.configService.get<string>('FIREBASE_CLIENT_EMAIL');
-    const privateKey = this.resolvePrivateKey();
+    const privateKey =
+      serviceAccount?.private_key ?? this.resolvePrivateKey();
 
     this.storage =
       projectId && clientEmail && privateKey
@@ -47,10 +63,63 @@ export class IngestionService {
             projectId,
             credentials: {
               client_email: clientEmail,
-              private_key: privateKey,
+              private_key: privateKey.replace(/\\n/g, '\n'),
             },
           })
         : new Storage();
+  }
+
+  private resolveServiceAccountFromEnv():
+    | { project_id?: string; client_email?: string; private_key?: string }
+    | undefined {
+    const raw = this.configService.get<string>('GCP_SERVICE_ACCOUNT_JSON');
+    if (!raw?.trim()) return undefined;
+
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      return {
+        project_id:
+          typeof parsed.project_id === 'string' ? parsed.project_id : undefined,
+        client_email:
+          typeof parsed.client_email === 'string'
+            ? parsed.client_email
+            : undefined,
+        private_key:
+          typeof parsed.private_key === 'string' ? parsed.private_key : undefined,
+      };
+    } catch {
+      throw new InternalServerErrorException(
+        'GCP_SERVICE_ACCOUNT_JSON is set but is not valid JSON.',
+      );
+    }
+  }
+
+  private resolveServiceAccountFromPath():
+    | { project_id?: string; client_email?: string; private_key?: string }
+    | undefined {
+    const path = this.configService.get<string>('GCP_SERVICE_ACCOUNT_PATH');
+    if (!path?.trim()) return undefined;
+
+    try {
+      const raw = readFileSync(path, 'utf8');
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      return {
+        project_id:
+          typeof parsed.project_id === 'string' ? parsed.project_id : undefined,
+        client_email:
+          typeof parsed.client_email === 'string'
+            ? parsed.client_email
+            : undefined,
+        private_key:
+          typeof parsed.private_key === 'string' ? parsed.private_key : undefined,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      throw new InternalServerErrorException(
+        `Failed to load GCP service account from GCP_SERVICE_ACCOUNT_PATH (${path}): ${errorMessage}`,
+      );
+    }
   }
 
   private resolvePrivateKey() {
@@ -70,8 +139,24 @@ export class IngestionService {
     return undefined;
   }
 
+  private normalizeReviewStatus(
+    status: string | undefined | null,
+  ): 'submitted' | 'approved' | 'rejected' | 'past' {
+    switch (status) {
+      case 'approved':
+      case 'rejected':
+      case 'past':
+      case 'submitted':
+        return status;
+      case 'pending':
+      case 'needs_review':
+      default:
+        return 'submitted';
+    }
+  }
+
   async uploadImage(
-    file: UploadableFile,
+    file: UploadableFile | undefined,
     dto: CreateIngestionUploadDto,
     uid: string,
     uploadedByUserId?: number,
@@ -100,20 +185,30 @@ export class IngestionService {
     const bucket = this.storage.bucket(this.bucketName);
     const object = bucket.file(objectName);
 
-    await object.save(file.buffer, {
-      resumable: false,
-      contentType: file.mimetype,
-      metadata: {
+    console.log(`[DEBUG] Attempting to upload to bucket: "${this.bucketName}"`);
+
+    try {
+      await object.save(file.buffer, {
+        resumable: false,
+        contentType: file.mimetype,
         metadata: {
-          uploadedByUid: uid,
-          city: dto.city ?? '',
-          state: dto.state ?? '',
-          source: normalizedSource,
-          uploadedByUserId: uploadedByUserId?.toString() ?? '',
-          originalFilename: file.originalname,
+          metadata: {
+            uploadedByUid: uid,
+            city: dto.city ?? '',
+            state: dto.state ?? '',
+            source: normalizedSource,
+            uploadedByUserId: uploadedByUserId?.toString() ?? '',
+            originalFilename: file.originalname,
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown GCS upload error';
+      throw new InternalServerErrorException(
+        `Failed to upload image to GCS. Verify GCS_INGESTION_BUCKET exists and the configured credentials have storage.objects.create permission. ${errorMessage}`,
+      );
+    }
 
     const concertUpload = await this.concertUploadRepository.save(
       this.concertUploadRepository.create({
@@ -125,6 +220,7 @@ export class IngestionService {
         city: dto.city,
         state: dto.state,
         source: normalizedSource,
+        reviewStatus: 'submitted',
         uploadedByUid: uid,
         uploadedByUserId,
         size: file.size,
@@ -185,6 +281,152 @@ export class IngestionService {
     }
 
     return this.mapConcertUploadResponse(concertUpload);
+  }
+
+  async adminListConcertUploads(options?: {
+    limit?: number;
+    offset?: number;
+    reviewStatus?: string;
+  }): Promise<AdminConcertUploadListResponse> {
+    const requestedLimit = Number.isFinite(options?.limit) ? options?.limit : undefined;
+    const requestedOffset = Number.isFinite(options?.offset) ? options?.offset : undefined;
+
+    const limit = Math.min(Math.max(requestedLimit ?? 25, 1), 100);
+    const offset = Math.max(requestedOffset ?? 0, 0);
+    const reviewStatus = options?.reviewStatus?.trim() || undefined;
+
+    const qb = this.concertUploadRepository
+      .createQueryBuilder('upload')
+      .leftJoinAndSelect('upload.uploadedByUser', 'uploadedByUser')
+      .leftJoinAndSelect('upload.reviewedByUser', 'reviewedByUser')
+      .orderBy('upload.createdAt', 'DESC')
+      .take(limit)
+      .skip(offset);
+
+    if (reviewStatus) {
+      if (reviewStatus === 'submitted') {
+        qb.andWhere('upload.reviewStatus IN (:...reviewStatuses)', {
+          reviewStatuses: ['submitted', 'pending', 'needs_review'],
+        });
+      } else {
+        qb.andWhere('upload.reviewStatus = :reviewStatus', { reviewStatus });
+      }
+    }
+
+    const [uploads, total] = await qb.getManyAndCount();
+
+    const items: AdminConcertUploadListItem[] = uploads.map((upload) => ({
+      id: upload.id,
+      storageUri: upload.storageUri,
+      bucket: upload.bucket,
+      objectName: upload.objectName,
+      mimeType: upload.mimeType,
+      originalFilename: upload.originalFilename,
+      size: Number(upload.size),
+      city: upload.city,
+      state: upload.state,
+      source: upload.source,
+      uploadedByUid: upload.uploadedByUid,
+      uploadedByUserId: upload.uploadedByUserId,
+      uploadedByUserEmail: upload.uploadedByUser?.email,
+      createdAt: upload.createdAt.toISOString(),
+      reviewStatus: this.normalizeReviewStatus(upload.reviewStatus),
+      reviewNotes: upload.reviewNotes,
+      reviewedAt: upload.reviewedAt?.toISOString(),
+      reviewedByUserId: upload.reviewedByUserId,
+      reviewedByUserEmail: upload.reviewedByUser?.email,
+    }));
+
+    return { total, items };
+  }
+
+  async adminReviewConcertUpload(
+    uploadId: string,
+    dto: ReviewConcertUploadDto,
+    reviewedByUserId: number,
+  ): Promise<AdminConcertUploadListItem> {
+    const upload = await this.concertUploadRepository.findOne({
+      where: { id: uploadId },
+      relations: {
+        uploadedByUser: true,
+        reviewedByUser: true,
+      },
+    });
+
+    if (!upload) {
+      throw new NotFoundException(`Concert upload ${uploadId} not found`);
+    }
+
+    upload.reviewStatus = dto.status;
+    upload.reviewNotes = dto.notes?.trim() || undefined;
+    upload.reviewedAt = new Date();
+    upload.reviewedByUserId = reviewedByUserId;
+
+    const saved = await this.concertUploadRepository.save(upload);
+    const hydrated = await this.concertUploadRepository.findOneOrFail({
+      where: { id: saved.id },
+      relations: {
+        uploadedByUser: true,
+        reviewedByUser: true,
+      },
+    });
+
+    return {
+      id: hydrated.id,
+      storageUri: hydrated.storageUri,
+      bucket: hydrated.bucket,
+      objectName: hydrated.objectName,
+      mimeType: hydrated.mimeType,
+      originalFilename: hydrated.originalFilename,
+      size: Number(hydrated.size),
+      city: hydrated.city,
+      state: hydrated.state,
+      source: hydrated.source,
+      uploadedByUid: hydrated.uploadedByUid,
+      uploadedByUserId: hydrated.uploadedByUserId,
+      uploadedByUserEmail: hydrated.uploadedByUser?.email,
+      createdAt: hydrated.createdAt.toISOString(),
+      reviewStatus: this.normalizeReviewStatus(hydrated.reviewStatus),
+      reviewNotes: hydrated.reviewNotes ?? undefined,
+      reviewedAt: hydrated.reviewedAt?.toISOString(),
+      reviewedByUserId: hydrated.reviewedByUserId,
+      reviewedByUserEmail: hydrated.reviewedByUser?.email,
+    };
+  }
+
+  async adminStreamUploadImage(uploadId: string, res: Response): Promise<void> {
+    const upload = await this.concertUploadRepository.findOne({
+      where: { id: uploadId },
+    });
+
+    if (!upload) {
+      throw new NotFoundException(`Concert upload ${uploadId} not found`);
+    }
+
+    try {
+      res.setHeader('Content-Type', upload.mimeType);
+      res.setHeader(
+        'Content-Disposition',
+        `inline; filename="${encodeURIComponent(upload.originalFilename)}"`,
+      );
+      res.setHeader('Cache-Control', 'private, max-age=60');
+
+      const bucket = this.storage.bucket(upload.bucket);
+      const file = bucket.file(upload.objectName);
+      await new Promise<void>((resolve, reject) => {
+        const stream = file.createReadStream();
+        stream.on('error', reject);
+        res.on('error', reject);
+        res.on('finish', resolve);
+        stream.pipe(res);
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown GCS read error';
+      throw new InternalServerErrorException(
+        `Failed to read image from GCS. ${errorMessage}`,
+      );
+    }
   }
 
   async getJob(id: string, uid: string): Promise<IngestionJobResponse> {
