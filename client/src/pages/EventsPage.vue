@@ -87,7 +87,9 @@
     <section class="events-page__results">
       <div>
         <p class="events-page__results-label">{{ filteredEvents.length }} shows</p>
-        <p class="events-page__results-subtitle">{{ sortSummary }}</p>
+        <p class="events-page__results-subtitle">
+          {{ isLoadingEvents ? 'Loading saved concerts from the database…' : sortSummary }}
+        </p>
       </div>
       <button class="button-secondary" type="button" @click="clearFilters">Reset filters</button>
     </section>
@@ -110,22 +112,29 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import EventCard from '../components/events/EventCard.vue';
 import EventFiltersBar from '../components/events/EventFiltersBar.vue';
 import IngestionUploadPanel from '../components/ingestion/IngestionUploadPanel.vue';
 import { useEventFilters } from '../composables/useEventFilters';
 import { sampleEvents } from '../data/sampleEvents';
-import { createConcert, removeConcertUpvote, upvoteConcert } from '../composables/useApi';
+import {
+  createConcert,
+  fetchUserConcerts,
+  removeConcertUpvote,
+  upvoteConcert,
+} from '../composables/useApi';
 import { useAuth } from '../composables/useAuth';
 import { mapConcertToEventListItem, type EventListItem } from '../types/events';
 
 const { user } = useAuth();
 
-const createdEvents = ref<EventListItem[]>([]);
+const persistedEvents = ref<EventListItem[]>([]);
 const sampleFeedEvents = ref<EventListItem[]>(sampleEvents);
 const upvotingEventIds = ref(new Set<string>());
-const demoEvents = computed(() => [...createdEvents.value, ...sampleFeedEvents.value]);
+const hasLoadedPersistedEvents = ref(false);
+const isLoadingEvents = ref(false);
+const demoEvents = computed(() => [...persistedEvents.value, ...sampleFeedEvents.value]);
 const { searchText, dateRange, sort, filteredEvents, clearFilters } = useEventFilters(demoEvents);
 
 const showAddForm = ref(false);
@@ -228,9 +237,44 @@ const updateEventEngagement = (
         }
       : event;
 
-  createdEvents.value = createdEvents.value.map(applyEngagement);
+  persistedEvents.value = persistedEvents.value.map(applyEngagement);
 
   sampleFeedEvents.value = sampleFeedEvents.value.map(applyEngagement);
+};
+
+const loadPersistedEvents = async () => {
+  if (!user.value) {
+    persistedEvents.value = [];
+    hasLoadedPersistedEvents.value = false;
+    isLoadingEvents.value = false;
+    return;
+  }
+
+  isLoadingEvents.value = true;
+  pageMessage.value = '';
+
+  try {
+    const token = await user.value.getIdToken();
+    const response = await fetchUserConcerts(token, {
+      sort: sort.value,
+      pageSize: 100,
+    });
+    const concerts = Array.isArray(response?.data) ? response.data : [];
+    persistedEvents.value = concerts.map((concert) =>
+      mapConcertToEventListItem(concert, {
+        posterUrl: 'https://placehold.co/720x900/e6ece4/31453a?text=DB+Show',
+        sourceLabel: 'Concerts DB',
+        displayTags: [concert.genre, 'saved'],
+        demoRank: 100,
+      })
+    );
+    hasLoadedPersistedEvents.value = true;
+  } catch {
+    pageMessageType.value = 'error';
+    pageMessage.value = 'Unable to load saved concerts from the database right now.';
+  } finally {
+    isLoadingEvents.value = false;
+  }
 };
 
 const handleToggleUpvote = async (event: EventListItem) => {
@@ -306,7 +350,7 @@ const handleSubmit = async () => {
       description: form.description.trim() || undefined,
     });
 
-    createdEvents.value = [
+    persistedEvents.value = [
       mapConcertToEventListItem(concert, {
         posterUrl:
           form.posterUrl.trim() ||
@@ -315,7 +359,7 @@ const handleSubmit = async () => {
         displayTags: [form.genre.trim(), 'new', 'my concert'],
         demoRank: 100,
       }),
-      ...createdEvents.value,
+      ...persistedEvents.value,
     ];
 
     submitMessageType.value = 'success';
@@ -334,6 +378,20 @@ const handleSubmit = async () => {
     isSubmitting.value = false;
   }
 };
+
+watch(
+  user,
+  () => {
+    void loadPersistedEvents();
+  },
+  { immediate: true }
+);
+
+watch(sort, (nextSort) => {
+  if (nextSort === 'trending_week' && hasLoadedPersistedEvents.value) {
+    void loadPersistedEvents();
+  }
+});
 </script>
 
 <style scoped>

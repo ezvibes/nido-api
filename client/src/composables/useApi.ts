@@ -1,5 +1,6 @@
 // src/composables/useApi.ts
 import axios from 'axios';
+import type { ConcertApiResponse } from '../types/events';
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
@@ -41,12 +42,19 @@ export async function updateUserProfile(
   }
 }
 
-export async function fetchUserConcerts(token: string) {
+export async function fetchUserConcerts(
+  token: string,
+  params?: {
+    sort?: 'soonest' | 'featured' | 'trending_week';
+    pageSize?: number;
+  },
+): Promise<ConcertApiResponse> {
   try {
-    const response = await apiClient.get('/concerts', {
+    const response = await apiClient.get<ConcertApiResponse>('/concerts', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
+      params,
     });
     return response.data;
   } catch (error) {
