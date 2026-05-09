@@ -24,6 +24,7 @@
       <select :value="sort" @change="onSortChange">
         <option value="soonest">Soonest</option>
         <option value="featured">Featured</option>
+        <option value="trending_week">Trending this week</option>
       </select>
     </label>
   </section>

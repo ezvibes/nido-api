@@ -12,7 +12,20 @@
 
       <p v-if="event.description" class="event-card__description">{{ event.description }}</p>
 
-      <button class="event-card__tickets" type="button" disabled>Tickets</button>
+      <div class="event-card__actions">
+        <button
+          class="event-card__upvote"
+          :class="{ 'event-card__upvote--active': event.upvotedByMe }"
+          type="button"
+          :aria-pressed="event.upvotedByMe"
+          :disabled="isUpvoting"
+          @click="$emit('toggle-upvote', event)"
+        >
+          <span class="event-card__upvote-icon" aria-hidden="true">♥</span>
+          <span>{{ event.upvoteCount ?? 0 }}</span>
+        </button>
+        <button class="event-card__tickets" type="button" disabled>Tickets</button>
+      </div>
     </div>
   </article>
 </template>
@@ -23,6 +36,11 @@ import type { EventListItem } from '../../types/events';
 
 const props = defineProps<{
   event: EventListItem;
+  isUpvoting?: boolean;
+}>();
+
+defineEmits<{
+  (event: 'toggle-upvote', value: EventListItem): void;
 }>();
 
 const primaryVenue = computed(() => props.event.venues[0]);
@@ -101,16 +119,68 @@ const formattedStartTime = computed(() =>
   color: var(--text-light);
 }
 
+.event-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 0.35rem;
+}
+
+.event-card__upvote,
 .event-card__tickets {
   justify-self: start;
-  margin-top: 0.35rem;
   padding: 0.6rem 0.95rem;
   border-radius: 999px;
   border: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.event-card__upvote {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  background: transparent;
+  color: var(--text-dark);
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease;
+}
+
+.event-card__upvote:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+
+.event-card__upvote:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.event-card__upvote--active {
+  border-color: #2f8f45;
+  background: rgba(47, 143, 69, 0.14);
+  color: #1f7a38;
+  box-shadow:
+    0 0 0 3px rgba(47, 143, 69, 0.12),
+    0 0 18px rgba(47, 143, 69, 0.42);
+}
+
+.event-card__upvote-icon {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.event-card__upvote--active .event-card__upvote-icon {
+  filter: drop-shadow(0 0 6px rgba(47, 143, 69, 0.72));
+}
+
+.event-card__tickets {
   background: transparent;
   color: var(--text-light);
   cursor: not-allowed;
-  font-weight: 600;
 }
 
 @media (min-width: 720px) {

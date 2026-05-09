@@ -93,7 +93,13 @@
     </section>
 
     <section v-if="filteredEvents.length" class="events-page__list">
-      <EventCard v-for="event in filteredEvents" :key="event.id" :event="event" />
+      <EventCard
+        v-for="event in filteredEvents"
+        :key="event.id"
+        :event="event"
+        :is-upvoting="upvotingEventIds.has(event.id)"
+        @toggle-upvote="handleToggleUpvote"
+      />
     </section>
 
     <section v-else class="events-page__empty">
@@ -110,14 +116,16 @@ import EventFiltersBar from '../components/events/EventFiltersBar.vue';
 import IngestionUploadPanel from '../components/ingestion/IngestionUploadPanel.vue';
 import { useEventFilters } from '../composables/useEventFilters';
 import { sampleEvents } from '../data/sampleEvents';
-import { createConcert } from '../composables/useApi';
+import { createConcert, removeConcertUpvote, upvoteConcert } from '../composables/useApi';
 import { useAuth } from '../composables/useAuth';
 import { mapConcertToEventListItem, type EventListItem } from '../types/events';
 
 const { user } = useAuth();
 
 const createdEvents = ref<EventListItem[]>([]);
-const demoEvents = computed(() => [...createdEvents.value, ...sampleEvents]);
+const sampleFeedEvents = ref<EventListItem[]>(sampleEvents);
+const upvotingEventIds = ref(new Set<string>());
+const demoEvents = computed(() => [...createdEvents.value, ...sampleFeedEvents.value]);
 const { searchText, dateRange, sort, filteredEvents, clearFilters } = useEventFilters(demoEvents);
 
 const showAddForm = ref(false);
@@ -141,7 +149,11 @@ const form = reactive({
 });
 
 const sortSummary = computed(() =>
-  sort.value === 'soonest' ? 'Sorted by earliest upcoming start time.' : 'Sorted by featured demo priority.'
+  sort.value === 'soonest'
+    ? 'Sorted by earliest upcoming start time.'
+    : sort.value === 'trending_week'
+      ? 'Sorted by upvotes from the last seven days.'
+      : 'Sorted by featured demo priority.'
 );
 
 const isSubmitDisabled = computed(
@@ -188,6 +200,78 @@ const resetForm = () => {
 const buildStartsAt = () => {
   const localDate = new Date(`${form.date}T${form.time}`);
   return localDate.toISOString();
+};
+
+const isPersistedConcert = (event: EventListItem) => !event.id.startsWith('evt-');
+
+const setUpvoting = (eventId: string, isUpvoting: boolean) => {
+  const next = new Set(upvotingEventIds.value);
+  if (isUpvoting) {
+    next.add(eventId);
+  } else {
+    next.delete(eventId);
+  }
+  upvotingEventIds.value = next;
+};
+
+const updateEventEngagement = (
+  eventId: string,
+  engagement: Pick<EventListItem, 'upvoteCount' | 'upvotedByMe' | 'trendingWeekUpvotes'>
+) => {
+  const applyEngagement = (event: EventListItem): EventListItem =>
+    event.id === eventId
+      ? {
+          ...event,
+          upvoteCount: engagement.upvoteCount,
+          upvotedByMe: engagement.upvotedByMe,
+          trendingWeekUpvotes: engagement.trendingWeekUpvotes,
+        }
+      : event;
+
+  createdEvents.value = createdEvents.value.map(applyEngagement);
+
+  sampleFeedEvents.value = sampleFeedEvents.value.map(applyEngagement);
+};
+
+const handleToggleUpvote = async (event: EventListItem) => {
+  if (!user.value || upvotingEventIds.value.has(event.id)) {
+    return;
+  }
+
+  const nextEngagement = {
+    upvoteCount: Math.max(0, (event.upvoteCount ?? 0) + (event.upvotedByMe ? -1 : 1)),
+    upvotedByMe: !event.upvotedByMe,
+    trendingWeekUpvotes: Math.max(
+      0,
+      (event.trendingWeekUpvotes ?? 0) + (event.upvotedByMe ? -1 : 1)
+    ),
+  };
+
+  updateEventEngagement(event.id, nextEngagement);
+
+  if (!isPersistedConcert(event)) {
+    return;
+  }
+
+  setUpvoting(event.id, true);
+
+  try {
+    const token = await user.value.getIdToken();
+    const engagement = event.upvotedByMe
+      ? await removeConcertUpvote(token, event.id)
+      : await upvoteConcert(token, event.id);
+    updateEventEngagement(event.id, engagement);
+  } catch {
+    updateEventEngagement(event.id, {
+      upvoteCount: event.upvoteCount ?? 0,
+      upvotedByMe: event.upvotedByMe ?? false,
+      trendingWeekUpvotes: event.trendingWeekUpvotes ?? 0,
+    });
+    pageMessageType.value = 'error';
+    pageMessage.value = 'Unable to update your upvote right now.';
+  } finally {
+    setUpvoting(event.id, false);
+  }
 };
 
 const handleSubmit = async () => {

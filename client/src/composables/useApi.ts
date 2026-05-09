@@ -88,6 +88,48 @@ export async function createConcert(token: string, payload: CreateConcertPayload
   }
 }
 
+export interface ConcertEngagementResponse {
+  concertId: string;
+  upvoteCount: number;
+  upvotedByMe: boolean;
+  trendingWeekUpvotes: number;
+}
+
+export async function upvoteConcert(token: string, concertId: string) {
+  try {
+    const response = await apiClient.post<ConcertEngagementResponse>(
+      `/concerts/${concertId}/upvote`,
+      null,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Error upvoting concert:', error);
+    throw error;
+  }
+}
+
+export async function removeConcertUpvote(token: string, concertId: string) {
+  try {
+    const response = await apiClient.delete<ConcertEngagementResponse>(
+      `/concerts/${concertId}/upvote`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Error removing concert upvote:', error);
+    throw error;
+  }
+}
+
 export interface IngestionUploadResult {
   concertUploadId: string;
   bucket: string;
