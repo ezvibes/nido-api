@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useAuth } from './composables/useAuth';
 import { routeLoading } from './stores/routeLoading';
+import { isAdminEmail } from './utils/admin';
 
 const { user, signOut } = useAuth();
 const menuOpen = ref(false);
@@ -9,6 +10,7 @@ const accountMenuOpen = ref(false);
 const accountMenuRef = ref<HTMLElement | null>(null);
 const homeRoute = computed(() => (user.value ? '/events' : '/'));
 const displayName = computed(() => user.value?.displayName || user.value?.email || 'Account');
+const isAdmin = computed(() => isAdminEmail(user.value?.email ?? null));
 
 const closeMenu = () => {
   menuOpen.value = false;
@@ -96,6 +98,14 @@ onBeforeUnmount(() => {
                 <span class="account-menu__label">Signed in as</span>
                 <strong :title="displayName">{{ displayName }}</strong>
               </div>
+              <router-link
+                v-if="isAdmin"
+                to="/admin/ingestion/uploads"
+                class="account-menu__item"
+                @click="closeMenu"
+              >
+                Admin review
+              </router-link>
               <router-link to="/settings" class="account-menu__item" @click="closeMenu">
                 Settings
               </router-link>

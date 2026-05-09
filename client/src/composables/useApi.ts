@@ -200,3 +200,69 @@ export async function fetchIngestionJob(token: string, jobId: string) {
     throw error;
   }
 }
+
+export type UploadReviewStatus = 'submitted' | 'approved' | 'rejected' | 'past';
+
+export interface AdminConcertUploadListItem {
+  id: string;
+  storageUri: string;
+  bucket: string;
+  objectName: string;
+  mimeType: string;
+  originalFilename: string;
+  size: number;
+  city?: string;
+  state?: string;
+  source: string;
+  uploadedByUid: string;
+  uploadedByUserId?: number;
+  uploadedByUserEmail?: string;
+  createdAt: string;
+  reviewStatus: UploadReviewStatus;
+  reviewNotes?: string;
+  reviewedAt?: string;
+  reviewedByUserId?: number;
+  reviewedByUserEmail?: string;
+}
+
+export interface AdminConcertUploadListResponse {
+  total: number;
+  items: AdminConcertUploadListItem[];
+}
+
+export async function fetchAdminIngestionUploads(
+  token: string,
+  params?: { limit?: number; offset?: number; reviewStatus?: UploadReviewStatus },
+) {
+  const response = await apiClient.get<AdminConcertUploadListResponse>('/admin/ingestion/uploads', {
+    headers: { Authorization: `Bearer ${token}` },
+    params,
+  });
+  return response.data;
+}
+
+export async function reviewAdminIngestionUpload(
+  token: string,
+  uploadId: string,
+  payload: { status: UploadReviewStatus; notes?: string },
+) {
+  const response = await apiClient.put<AdminConcertUploadListItem>(
+    `/admin/ingestion/uploads/${uploadId}/review`,
+    payload,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  return response.data;
+}
+
+export async function fetchAdminIngestionUploadImageBlob(
+  token: string,
+  uploadId: string,
+) {
+  const response = await apiClient.get<Blob>(`/admin/ingestion/uploads/${uploadId}/image`, {
+    headers: { Authorization: `Bearer ${token}` },
+    responseType: 'blob',
+  });
+  return response.data;
+}
