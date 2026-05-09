@@ -1,7 +1,11 @@
 <template>
   <article class="event-card">
     <div class="event-card__poster">
-      <img :src="event.posterUrl" :alt="`${event.title} poster`" loading="lazy" />
+      <img
+        :src="event.posterUrl"
+        :alt="`${event.title} poster`"
+        loading="lazy"
+      />
     </div>
 
     <div class="event-card__body">
@@ -10,7 +14,9 @@
       <p class="event-card__location">{{ locationLabel }}</p>
       <p class="event-card__time">{{ formattedStartTime }}</p>
 
-      <p v-if="event.description" class="event-card__description">{{ event.description }}</p>
+      <p v-if="event.description" class="event-card__description">
+        {{ event.description }}
+      </p>
 
       <div class="event-card__actions">
         <button
@@ -18,13 +24,15 @@
           :class="{ 'event-card__upvote--active': event.upvotedByMe }"
           type="button"
           :aria-pressed="event.upvotedByMe"
-          :disabled="isUpvoting"
+          :disabled="isUpvoting || !canUpvote"
           @click="$emit('toggle-upvote', event)"
         >
           <span class="event-card__upvote-icon" aria-hidden="true">♥</span>
           <span>{{ event.upvoteCount ?? 0 }}</span>
         </button>
-        <button class="event-card__tickets" type="button" disabled>Tickets</button>
+        <button class="event-card__tickets" type="button" disabled>
+          Tickets
+        </button>
       </div>
     </div>
   </article>
@@ -37,6 +45,7 @@ import type { EventListItem } from '../../types/events';
 const props = defineProps<{
   event: EventListItem;
   isUpvoting?: boolean;
+  canUpvote?: boolean;
 }>();
 
 defineEmits<{
@@ -45,14 +54,18 @@ defineEmits<{
 
 const primaryVenue = computed(() => props.event.venues[0]);
 
-const primaryVenueName = computed(() => primaryVenue.value?.name ?? 'Venue TBD');
+const primaryVenueName = computed(
+  () => primaryVenue.value?.name ?? 'Venue TBD',
+);
 
 const locationLabel = computed(() => {
   if (!primaryVenue.value) {
     return 'Location TBD';
   }
 
-  const pieces = [primaryVenue.value.city, primaryVenue.value.state].filter(Boolean);
+  const pieces = [primaryVenue.value.city, primaryVenue.value.state].filter(
+    Boolean,
+  );
   return pieces.length ? pieces.join(', ') : 'Location TBD';
 });
 
@@ -63,7 +76,7 @@ const formattedStartTime = computed(() =>
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-  }).format(new Date(props.event.startsAt))
+  }).format(new Date(props.event.startsAt)),
 );
 </script>
 

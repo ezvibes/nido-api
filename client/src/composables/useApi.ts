@@ -27,7 +27,7 @@ export async function syncUserToBackend(token: string) {
 
 export async function updateUserProfile(
   token: string,
-  payload: { name?: string; picture?: string }
+  payload: { name?: string; picture?: string },
 ) {
   try {
     const response = await apiClient.patch('/users/profile', payload, {
@@ -46,6 +46,7 @@ export async function fetchUserConcerts(
   token: string,
   params?: {
     sort?: 'soonest' | 'featured' | 'trending_week';
+    startsAfter?: string;
     pageSize?: number;
   },
 ): Promise<ConcertApiResponse> {
@@ -82,7 +83,10 @@ export interface CreateConcertPayload {
   description?: string;
 }
 
-export async function createConcert(token: string, payload: CreateConcertPayload) {
+export async function createConcert(
+  token: string,
+  payload: CreateConcertPayload,
+) {
   try {
     const response = await apiClient.post('/concerts', payload, {
       headers: {
@@ -181,7 +185,10 @@ export interface IngestionJobResponse {
   };
 }
 
-export async function createIngestionJob(token: string, concertUploadId: string) {
+export async function createIngestionJob(
+  token: string,
+  concertUploadId: string,
+) {
   try {
     const response = await apiClient.post<IngestionJobResponse>(
       '/ingestion/jobs',
@@ -239,11 +246,14 @@ export async function uploadIngestionImage(
 
 export async function fetchIngestionJob(token: string, jobId: string) {
   try {
-    const response = await apiClient.get<IngestionJobResponse>(`/ingestion/jobs/${jobId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
+    const response = await apiClient.get<IngestionJobResponse>(
+      `/ingestion/jobs/${jobId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       },
-    });
+    );
     return response.data;
   } catch (error) {
     console.error('Error fetching ingestion job:', error);
@@ -282,12 +292,19 @@ export interface AdminConcertUploadListResponse {
 
 export async function fetchAdminIngestionUploads(
   token: string,
-  params?: { limit?: number; offset?: number; reviewStatus?: UploadReviewStatus },
+  params?: {
+    limit?: number;
+    offset?: number;
+    reviewStatus?: UploadReviewStatus;
+  },
 ) {
-  const response = await apiClient.get<AdminConcertUploadListResponse>('/admin/ingestion/uploads', {
-    headers: { Authorization: `Bearer ${token}` },
-    params,
-  });
+  const response = await apiClient.get<AdminConcertUploadListResponse>(
+    '/admin/ingestion/uploads',
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      params,
+    },
+  );
   return response.data;
 }
 
@@ -310,9 +327,12 @@ export async function fetchAdminIngestionUploadImageBlob(
   token: string,
   uploadId: string,
 ) {
-  const response = await apiClient.get<Blob>(`/admin/ingestion/uploads/${uploadId}/image`, {
-    headers: { Authorization: `Bearer ${token}` },
-    responseType: 'blob',
-  });
+  const response = await apiClient.get<Blob>(
+    `/admin/ingestion/uploads/${uploadId}/image`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      responseType: 'blob',
+    },
+  );
   return response.data;
 }
