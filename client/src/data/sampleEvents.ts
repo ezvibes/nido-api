@@ -30,6 +30,8 @@ export const sampleEvents: EventListItem[] = [
       sourceLabel: 'Bowstring Brewyard',
       displayTags: ['rock', 'local', 'high energy'],
       demoRank: 10,
+      upvoteCount: 26,
+      trendingWeekUpvotes: 18,
     }
   ),
   mapConcertToEventListItem(
@@ -47,6 +49,8 @@ export const sampleEvents: EventListItem[] = [
       sourceLabel: 'Venue Flyer',
       displayTags: ['jam', 'danceable', 'triangle'],
       demoRank: 9,
+      upvoteCount: 14,
+      trendingWeekUpvotes: 9,
     }
   ),
   mapConcertToEventListItem(
@@ -64,6 +68,8 @@ export const sampleEvents: EventListItem[] = [
       sourceLabel: 'Poster Upload',
       displayTags: ['indie', 'night out', 'carolina'],
       demoRank: 8,
+      upvoteCount: 21,
+      trendingWeekUpvotes: 16,
     }
   ),
   mapConcertToEventListItem(
@@ -81,6 +87,8 @@ export const sampleEvents: EventListItem[] = [
       sourceLabel: 'DPAC Listing',
       displayTags: ['jazz', 'seated', 'durham'],
       demoRank: 7,
+      upvoteCount: 5,
+      trendingWeekUpvotes: 2,
     }
   ),
   mapConcertToEventListItem(
@@ -98,6 +106,8 @@ export const sampleEvents: EventListItem[] = [
       sourceLabel: 'Promoter Post',
       displayTags: ['folk', 'acoustic', 'asheville'],
       demoRank: 6,
+      upvoteCount: 8,
+      trendingWeekUpvotes: 5,
     }
   ),
   mapConcertToEventListItem(
@@ -115,6 +125,8 @@ export const sampleEvents: EventListItem[] = [
       sourceLabel: 'Promoter Import',
       displayTags: ['electronic', 'late', 'charlotte'],
       demoRank: 5,
+      upvoteCount: 17,
+      trendingWeekUpvotes: 11,
     }
   ),
 ];

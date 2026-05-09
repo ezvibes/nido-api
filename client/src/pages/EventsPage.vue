@@ -12,17 +12,28 @@
     <section v-if="showAddForm" class="add-show-panel">
       <div class="add-show-panel__header">
         <h2>Add a show</h2>
-        <p>Create a concert for your account and preview it here in the demo feed.</p>
+        <p>
+          Create a concert for your account and preview it here in the demo
+          feed.
+        </p>
       </div>
 
       <form class="add-show-panel__form" @submit.prevent="handleSubmit">
         <label>
           <span>Title</span>
-          <input v-model="form.title" type="text" placeholder="Artist or lineup name" />
+          <input
+            v-model="form.title"
+            type="text"
+            placeholder="Artist or lineup name"
+          />
         </label>
         <label>
           <span>Genre</span>
-          <input v-model="form.genre" type="text" placeholder="rock, indie, jazz" />
+          <input
+            v-model="form.genre"
+            type="text"
+            placeholder="rock, indie, jazz"
+          />
         </label>
         <label>
           <span>Artist / Lineup</span>
@@ -30,7 +41,11 @@
         </label>
         <label>
           <span>Venue</span>
-          <input v-model="form.venueName" type="text" placeholder="Venue name" />
+          <input
+            v-model="form.venueName"
+            type="text"
+            placeholder="Venue name"
+          />
         </label>
         <label>
           <span>City</span>
@@ -53,7 +68,11 @@
         </label>
         <label>
           <span>Poster URL</span>
-          <input v-model="form.posterUrl" type="url" placeholder="https://..." />
+          <input
+            v-model="form.posterUrl"
+            type="url"
+            placeholder="https://..."
+          />
         </label>
         <label class="add-show-panel__full">
           <span>Description</span>
@@ -63,10 +82,18 @@
             placeholder="Optional notes for the event card"
           ></textarea>
         </label>
-        <p v-if="submitMessage" :class="submitMessageClass">{{ submitMessage }}</p>
+        <p v-if="submitMessage" :class="submitMessageClass">
+          {{ submitMessage }}
+        </p>
         <div class="add-show-panel__actions">
-          <button type="button" class="button-secondary" @click="toggleAddForm">Cancel</button>
-          <button type="submit" class="button-primary" :disabled="isSubmitDisabled">
+          <button type="button" class="button-secondary" @click="toggleAddForm">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="button-primary"
+            :disabled="isSubmitDisabled"
+          >
             {{ isSubmitting ? 'Saving…' : 'Save show' }}
           </button>
         </div>
@@ -86,14 +113,31 @@
 
     <section class="events-page__results">
       <div>
-        <p class="events-page__results-label">{{ filteredEvents.length }} shows</p>
-        <p class="events-page__results-subtitle">{{ sortSummary }}</p>
+        <p class="events-page__results-label">
+          {{ filteredEvents.length }} shows
+        </p>
+        <p class="events-page__results-subtitle">
+          {{
+            isLoadingEvents
+              ? 'Loading saved concerts from the database…'
+              : sortSummary
+          }}
+        </p>
       </div>
-      <button class="button-secondary" type="button" @click="clearFilters">Reset filters</button>
+      <button class="button-secondary" type="button" @click="clearFilters">
+        Reset filters
+      </button>
     </section>
 
     <section v-if="filteredEvents.length" class="events-page__list">
-      <EventCard v-for="event in filteredEvents" :key="event.id" :event="event" />
+      <EventCard
+        v-for="event in filteredEvents"
+        :key="event.id"
+        :event="event"
+        :is-upvoting="upvotingEventIds.has(event.id)"
+        :can-upvote="isPersistedConcert(event)"
+        @toggle-upvote="handleToggleUpvote"
+      />
     </section>
 
     <section v-else class="events-page__empty">
@@ -104,21 +148,36 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import EventCard from '../components/events/EventCard.vue';
 import EventFiltersBar from '../components/events/EventFiltersBar.vue';
 import IngestionUploadPanel from '../components/ingestion/IngestionUploadPanel.vue';
 import { useEventFilters } from '../composables/useEventFilters';
 import { sampleEvents } from '../data/sampleEvents';
-import { createConcert } from '../composables/useApi';
+import {
+  createConcert,
+  fetchUserConcerts,
+  removeConcertUpvote,
+  upvoteConcert,
+} from '../composables/useApi';
 import { useAuth } from '../composables/useAuth';
 import { mapConcertToEventListItem, type EventListItem } from '../types/events';
 
 const { user } = useAuth();
 
-const createdEvents = ref<EventListItem[]>([]);
-const demoEvents = computed(() => [...createdEvents.value, ...sampleEvents]);
-const { searchText, dateRange, sort, filteredEvents, clearFilters } = useEventFilters(demoEvents);
+const persistedEvents = ref<EventListItem[]>([]);
+const sampleFeedEvents = ref<EventListItem[]>(sampleEvents);
+const upvotingEventIds = ref(new Set<string>());
+const hasLoadedPersistedEvents = ref(false);
+const isLoadingEvents = ref(false);
+const feedEvents = computed(() =>
+  hasLoadedPersistedEvents.value
+    ? persistedEvents.value
+    : sampleFeedEvents.value,
+);
+const demoEvents = computed(() => [...feedEvents.value]);
+const { searchText, dateRange, sort, filteredEvents, clearFilters } =
+  useEventFilters(demoEvents);
 
 const showAddForm = ref(false);
 const isSubmitting = ref(false);
@@ -141,7 +200,11 @@ const form = reactive({
 });
 
 const sortSummary = computed(() =>
-  sort.value === 'soonest' ? 'Sorted by earliest upcoming start time.' : 'Sorted by featured demo priority.'
+  sort.value === 'soonest'
+    ? 'Sorted by earliest upcoming start time.'
+    : sort.value === 'trending_week'
+      ? 'Sorted by upvotes from the last seven days.'
+      : 'Sorted by featured demo priority.',
 );
 
 const isSubmitDisabled = computed(
@@ -152,19 +215,19 @@ const isSubmitDisabled = computed(
     !form.artistName.trim() ||
     !form.venueName.trim() ||
     !form.date ||
-    !form.time
+    !form.time,
 );
 
 const submitMessageClass = computed(() =>
   submitMessageType.value === 'success'
     ? 'add-show-panel__message add-show-panel__message--success'
-    : 'add-show-panel__message add-show-panel__message--error'
+    : 'add-show-panel__message add-show-panel__message--error',
 );
 
 const pageMessageClass = computed(() =>
   pageMessageType.value === 'success'
     ? 'events-page__message events-page__message--success'
-    : 'events-page__message events-page__message--error'
+    : 'events-page__message events-page__message--error',
 );
 
 const toggleAddForm = () => {
@@ -188,6 +251,122 @@ const resetForm = () => {
 const buildStartsAt = () => {
   const localDate = new Date(`${form.date}T${form.time}`);
   return localDate.toISOString();
+};
+
+const isPersistedConcert = (event: EventListItem) =>
+  !event.id.startsWith('evt-');
+
+const setUpvoting = (eventId: string, isUpvoting: boolean) => {
+  const next = new Set(upvotingEventIds.value);
+  if (isUpvoting) {
+    next.add(eventId);
+  } else {
+    next.delete(eventId);
+  }
+  upvotingEventIds.value = next;
+};
+
+const updateEventEngagement = (
+  eventId: string,
+  engagement: Pick<
+    EventListItem,
+    'upvoteCount' | 'upvotedByMe' | 'trendingWeekUpvotes'
+  >,
+) => {
+  const applyEngagement = (event: EventListItem): EventListItem =>
+    event.id === eventId
+      ? {
+          ...event,
+          upvoteCount: engagement.upvoteCount,
+          upvotedByMe: engagement.upvotedByMe,
+          trendingWeekUpvotes: engagement.trendingWeekUpvotes,
+        }
+      : event;
+
+  persistedEvents.value = persistedEvents.value.map(applyEngagement);
+
+  sampleFeedEvents.value = sampleFeedEvents.value.map(applyEngagement);
+};
+
+const loadPersistedEvents = async () => {
+  if (!user.value) {
+    persistedEvents.value = [];
+    hasLoadedPersistedEvents.value = false;
+    isLoadingEvents.value = false;
+    return;
+  }
+
+  isLoadingEvents.value = true;
+  pageMessage.value = '';
+
+  try {
+    const token = await user.value.getIdToken();
+    const response = await fetchUserConcerts(token, {
+      sort: sort.value,
+      startsAfter: new Date().toISOString(),
+      pageSize: 100,
+    });
+    const concerts = Array.isArray(response?.data) ? response.data : [];
+    persistedEvents.value = concerts.map((concert) =>
+      mapConcertToEventListItem(concert, {
+        posterUrl: 'https://placehold.co/720x900/e6ece4/31453a?text=DB+Show',
+        sourceLabel: 'Concerts DB',
+        displayTags: [concert.genre, 'saved'],
+        demoRank: 100,
+      }),
+    );
+    hasLoadedPersistedEvents.value = true;
+  } catch {
+    pageMessageType.value = 'error';
+    pageMessage.value =
+      'Unable to load saved concerts from the database right now.';
+  } finally {
+    isLoadingEvents.value = false;
+  }
+};
+
+const handleToggleUpvote = async (event: EventListItem) => {
+  if (
+    !user.value ||
+    !isPersistedConcert(event) ||
+    upvotingEventIds.value.has(event.id)
+  ) {
+    return;
+  }
+
+  const nextEngagement = {
+    upvoteCount: Math.max(
+      0,
+      (event.upvoteCount ?? 0) + (event.upvotedByMe ? -1 : 1),
+    ),
+    upvotedByMe: !event.upvotedByMe,
+    trendingWeekUpvotes: Math.max(
+      0,
+      (event.trendingWeekUpvotes ?? 0) + (event.upvotedByMe ? -1 : 1),
+    ),
+  };
+
+  updateEventEngagement(event.id, nextEngagement);
+
+  setUpvoting(event.id, true);
+
+  try {
+    const token = await user.value.getIdToken();
+    const engagement = event.upvotedByMe
+      ? await removeConcertUpvote(token, event.id)
+      : await upvoteConcert(token, event.id);
+    updateEventEngagement(event.id, engagement);
+  } catch {
+    updateEventEngagement(event.id, {
+      upvoteCount: event.upvoteCount ?? 0,
+      upvotedByMe: event.upvotedByMe ?? false,
+      trendingWeekUpvotes: event.trendingWeekUpvotes ?? 0,
+    });
+    pageMessageType.value = 'error';
+    pageMessage.value = 'Unable to update your upvote right now.';
+  } finally {
+    setUpvoting(event.id, false);
+  }
 };
 
 const handleSubmit = async () => {
@@ -222,7 +401,7 @@ const handleSubmit = async () => {
       description: form.description.trim() || undefined,
     });
 
-    createdEvents.value = [
+    persistedEvents.value = [
       mapConcertToEventListItem(concert, {
         posterUrl:
           form.posterUrl.trim() ||
@@ -231,11 +410,12 @@ const handleSubmit = async () => {
         displayTags: [form.genre.trim(), 'new', 'my concert'],
         demoRank: 100,
       }),
-      ...createdEvents.value,
+      ...persistedEvents.value,
     ];
 
     submitMessageType.value = 'success';
-    submitMessage.value = 'Show saved. It should also appear on your My Concerts home feed.';
+    submitMessage.value =
+      'Show saved. It should also appear on your My Concerts home feed.';
     pageMessageType.value = 'success';
     pageMessage.value = 'New show saved and added to the demo feed.';
     window.dispatchEvent(new CustomEvent('concerts:changed'));
@@ -250,6 +430,20 @@ const handleSubmit = async () => {
     isSubmitting.value = false;
   }
 };
+
+watch(
+  user,
+  () => {
+    void loadPersistedEvents();
+  },
+  { immediate: true },
+);
+
+watch(sort, (nextSort) => {
+  if (nextSort === 'trending_week' && hasLoadedPersistedEvents.value) {
+    void loadPersistedEvents();
+  }
+});
 </script>
 
 <style scoped>
@@ -266,7 +460,7 @@ const handleSubmit = async () => {
   border-radius: 1.2rem;
   background:
     linear-gradient(135deg, rgba(16, 28, 21, 0.28), rgba(16, 28, 21, 0.72)),
-    url("https://cb68d5340ef83a9d76eb.cdn6.editmysite.com/uploads/b/cb68d5340ef83a9d76eb36aa80e24b2ce574c25effd71d09013454911b4684ee/IMG_0418%202_1755022409.jpg?width=2400&optimize=medium");
+    url('https://cb68d5340ef83a9d76eb.cdn6.editmysite.com/uploads/b/cb68d5340ef83a9d76eb36aa80e24b2ce574c25effd71d09013454911b4684ee/IMG_0418%202_1755022409.jpg?width=2400&optimize=medium');
   background-position: center;
   background-size: cover;
   box-shadow: inset 0 0 8rem rgba(0, 0, 0, 0.38);
@@ -283,7 +477,7 @@ const handleSubmit = async () => {
 
 .events-page__hero h2 {
   margin: 0;
-  font-family: "Avenir Next", "Helvetica Neue", Helvetica, sans-serif;
+  font-family: 'Avenir Next', 'Helvetica Neue', Helvetica, sans-serif;
   font-size: clamp(1.75rem, 4.4vw, 3.35rem);
   font-weight: 800;
   line-height: 1.02;
@@ -297,8 +491,16 @@ const handleSubmit = async () => {
 */
 .add-show-panel {
   background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.74)),
-    linear-gradient(135deg, rgba(229, 231, 235, 0.75), rgba(244, 246, 244, 0.95));
+    radial-gradient(
+      circle at top left,
+      rgba(255, 255, 255, 0.95),
+      rgba(255, 255, 255, 0.74)
+    ),
+    linear-gradient(
+      135deg,
+      rgba(229, 231, 235, 0.75),
+      rgba(244, 246, 244, 0.95)
+    );
   border: 1px solid var(--border);
 }
 

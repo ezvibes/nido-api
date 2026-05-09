@@ -2,7 +2,7 @@ import { computed, ref, unref, type Ref } from 'vue';
 import type { EventListItem } from '../types/events';
 
 export type DateRangeOption = '7' | '30' | 'all';
-export type SortOption = 'soonest' | 'featured';
+export type SortOption = 'soonest' | 'featured' | 'trending_week';
 
 export function useEventFilters(events: EventListItem[] | Ref<EventListItem[]>) {
   const searchText = ref('');
@@ -49,6 +49,22 @@ export function useEventFilters(events: EventListItem[] | Ref<EventListItem[]>) 
       return [...result].sort((a, b) => {
         if (b.demoRank !== a.demoRank) {
           return b.demoRank - a.demoRank;
+        }
+
+        return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
+      });
+    }
+
+    if (sort.value === 'trending_week') {
+      return [...result].sort((a, b) => {
+        const trendingDelta = (b.trendingWeekUpvotes ?? 0) - (a.trendingWeekUpvotes ?? 0);
+        if (trendingDelta !== 0) {
+          return trendingDelta;
+        }
+
+        const totalDelta = (b.upvoteCount ?? 0) - (a.upvoteCount ?? 0);
+        if (totalDelta !== 0) {
+          return totalDelta;
         }
 
         return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();

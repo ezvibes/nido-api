@@ -49,6 +49,24 @@ export class ConcertController {
     return this.concertService.createForOwner(owner, body);
   }
 
+  @Post(':id/upvote')
+  async upvoteConcert(
+    @CurrentUser() user: DecodedIdToken,
+    @Param('id') id: string,
+  ) {
+    const owner = await this.ensureOwner(user);
+    return this.concertService.upvote(id, owner);
+  }
+
+  @Delete(':id/upvote')
+  async removeConcertUpvote(
+    @CurrentUser() user: DecodedIdToken,
+    @Param('id') id: string,
+  ) {
+    const owner = await this.ensureOwner(user);
+    return this.concertService.removeUpvote(id, owner);
+  }
+
   @Get(':id')
   async getConcert(
     @CurrentUser() user: DecodedIdToken,

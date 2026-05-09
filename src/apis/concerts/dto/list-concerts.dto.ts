@@ -1,5 +1,20 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsISO8601, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
+
+export const concertSortOptions = [
+  'soonest',
+  'featured',
+  'trending_week',
+] as const;
+export type ConcertSortOption = (typeof concertSortOptions)[number];
 
 export class ListConcertsDto {
   @IsOptional()
@@ -17,6 +32,10 @@ export class ListConcertsDto {
   @IsOptional()
   @IsISO8601()
   startsBefore?: string;
+
+  @IsOptional()
+  @IsIn(concertSortOptions)
+  sort?: ConcertSortOption = 'soonest';
 
   @Type(() => Number)
   @IsInt()
