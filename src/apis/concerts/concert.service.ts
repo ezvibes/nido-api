@@ -77,6 +77,10 @@ export class ConcertService {
       qb.orderBy('trending_week_upvotes', 'DESC')
         .addOrderBy('upvote_count', 'DESC')
         .addOrderBy('concert.startsAt', 'ASC');
+    } else if (query.sort === 'featured' || query.sort === 'top_picks') {
+      qb.orderBy('concert.isTopPick', 'DESC')
+        .addOrderBy('concert.topPickScore', 'DESC', 'NULLS LAST')
+        .addOrderBy('concert.startsAt', 'ASC');
     } else {
       qb.orderBy('concert.startsAt', 'ASC');
     }
@@ -87,7 +91,10 @@ export class ConcertService {
       .getRawAndEntities();
 
     const rawByConcertId = new Map<string, Record<string, unknown>>(
-      raw.map((row) => [String(row.concert_id), row]),
+      raw.map((row) => {
+        const typedRow = row as Record<string, unknown>;
+        return [String(typedRow.concert_id), typedRow];
+      }),
     );
 
     const data = entities.map((concert) =>
@@ -172,6 +179,22 @@ export class ConcertService {
   async removeForOwner(id: string, owner: User) {
     const concert = await this.findOneForOwner(id, owner);
     await this.concertRepository.remove(concert);
+  }
+
+  async setAdminApproval(id: string, reviewer: User, approved: boolean) {
+    const concert = await this.findOne(id);
+
+    concert.isAdminApproved = approved;
+    concert.adminApprovedAt = approved ? new Date() : null;
+    concert.adminApprovedByUserId = approved ? reviewer.id : null;
+
+    if (!approved) {
+      concert.isTopPick = false;
+      concert.topPickScore = null;
+      concert.topPickRefreshedAt = new Date();
+    }
+
+    return this.concertRepository.save(concert);
   }
 
   async upvote(id: string, user: User) {

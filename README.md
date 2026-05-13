@@ -92,6 +92,70 @@ Admin-only endpoints are under `/admin/ingestion/*` (list uploads, preview image
 - Backend allowlist: set `ADMIN_EMAILS` (comma-separated emails) in `.env`
 - Client menu allowlist: set `VITE_ADMIN_EMAILS` (comma-separated emails) in `client/.env`
 
+### Concert Calendar Sync Agent
+
+The API now includes a sync agent under `/concert-sync/*` that can:
+
+- Pull Google Calendar events for a user and date range
+- Use Gemini to normalize event metadata into clean concert records
+- Upsert concert data with event-level fingerprinting for idempotent sync runs
+- Refresh Top Picks rankings after sync jobs
+- Preserve low-confidence extraction warnings for review
+- Run autonomous recurring sync schedules using Google OAuth refresh tokens
+- Keep Top Picks limited to admin-approved concerts only
+
+Required env for AI enrichment:
+
+- `GEMINI_API_KEY`
+- Optional `GEMINI_MODEL` (defaults to `gemini-2.0-flash`)
+- Optional extraction policy controls:
+  - `CONCERT_SYNC_ALLOWED_GENRES`
+  - `CONCERT_SYNC_MIN_CONFIDENCE`
+  - `CONCERT_SYNC_REQUIRE_VENUE`
+  - `CONCERT_SYNC_REQUIRE_ARTIST`
+  - `CONCERT_SYNC_MAX_DESCRIPTION_LENGTH`
+
+Required env for autonomous schedules:
+
+- `CONCERT_SYNC_TOKEN_ENCRYPTION_KEY` (base64 32-byte key)
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_SECRET`
+- Optional scheduler toggles:
+  - `CONCERT_SYNC_SCHEDULER_ENABLED`
+  - `CONCERT_SYNC_SCHEDULER_POLL_MS`
+
+Important security behavior:
+
+- `googleAccessToken` is accepted per sync request and not persisted to the database.
+- Sync job records store operational metadata only (counts/status/extraction warnings).
+- Gemini prompt payload is sanitized before transmission (attendees/organizer omitted, emails/phones/URLs redacted).
+- Refresh tokens for autonomous schedules are encrypted-at-rest before DB persistence.
+
+Core endpoints:
+
+- `POST /concert-sync/jobs` starts a sync job
+- `GET /concert-sync/jobs` lists sync jobs
+- `GET /concert-sync/jobs/:id` gets a sync job with recent mapped events
+- `GET /concert-sync/gemini/prompt-template` returns the default Gemini prompt template and data policy
+- `POST /concert-sync/gemini/prompt-preview` previews the exact prompt + sanitized event payload before execution
+- `POST /concert-sync/top-picks/refresh` recomputes Top Picks for upcoming events
+- `GET /concert-sync/top-picks` returns the current Top Picks list
+- `POST /concert-sync/schedules` creates an autonomous sync schedule
+- `GET /concert-sync/schedules` lists schedules
+- `GET /concert-sync/schedules/:id` retrieves a schedule
+- `POST /concert-sync/schedules/:id/update` updates cadence/status/policy/token
+- `POST /concert-sync/schedules/:id/run` triggers immediate execution
+
+Concert approval gate:
+
+- Only concerts with `isAdminApproved=true` are eligible for Top Picks scoring.
+- Admin approval endpoint: `PUT /admin/concerts/:id/approval` with body `{ "approved": true | false }`.
+
+Sample-job mode:
+
+- `POST /concert-sync/jobs` can accept `sampleEvents` for local/test runs without live Google API calls.
+- Production source of truth remains Google Calendar for now, but the sync service already isolates event-source loading (`loadSourceEvents`) so a future ingestion-pipeline source can be added without rewriting extraction/upsert logic.
+
 ## User Signup Flow
 
 The user authentication and data synchronization are handled via Firebase and a dedicated endpoint in this API.

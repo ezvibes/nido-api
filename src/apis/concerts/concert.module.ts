@@ -4,6 +4,7 @@ import { Concert } from './entities/concert.entity';
 import { ConcertUpvote } from './entities/concert-upvote.entity';
 import { ConcertService } from './concert.service';
 import { ConcertController } from './concert.controller';
+import { AdminConcertController } from './admin-concert.controller';
 import { AuthModule } from '../../auth/auth.module';
 import { UserModule } from '../users/user.module';
 
@@ -13,7 +14,7 @@ import { UserModule } from '../users/user.module';
     AuthModule,
     UserModule,
   ],
-  controllers: [ConcertController],
+  controllers: [ConcertController, AdminConcertController],
   providers: [ConcertService],
 })
 export class ConcertModule {}
