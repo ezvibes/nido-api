@@ -12,6 +12,7 @@ import {
 export const concertSortOptions = [
   'soonest',
   'featured',
+  'top_picks',
   'trending_week',
 ] as const;
 export type ConcertSortOption = (typeof concertSortOptions)[number];

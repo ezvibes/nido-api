@@ -44,6 +44,28 @@ export class Concert {
   @Column({ type: 'text', nullable: true })
   description?: string | null;
 
+  @Column({ name: 'is_top_pick', type: 'boolean', default: false })
+  isTopPick: boolean;
+
+  @Column({ name: 'top_pick_score', type: 'real', nullable: true })
+  topPickScore?: number | null;
+
+  @Column({
+    name: 'top_pick_refreshed_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  topPickRefreshedAt?: Date | null;
+
+  @Column({ name: 'is_admin_approved', type: 'boolean', default: false })
+  isAdminApproved: boolean;
+
+  @Column({ name: 'admin_approved_at', type: 'timestamptz', nullable: true })
+  adminApprovedAt?: Date | null;
+
+  @Column({ name: 'admin_approved_by_user_id', type: 'integer', nullable: true })
+  adminApprovedByUserId?: number | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
