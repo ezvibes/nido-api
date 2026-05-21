@@ -61,7 +61,6 @@ export class ConcertSyncService {
         requestedRangeStart: rangeStart,
         requestedRangeEnd: rangeEnd,
         refreshTopPicks: dto.refreshTopPicks ?? true,
-        guidanceContext: {},
         jobMetadata: {
           geminiPrompt: dto.geminiPrompt?.trim() || null,
           geminiContext: dto.geminiContext?.trim() || null,
@@ -295,10 +294,8 @@ export class ConcertSyncService {
       job.eventsProcessed = processed;
 
       job.status = 'completed';
-      job.guidanceRequired = false;
-      job.guidancePrompt = null;
-      job.guidanceContext = {
-        ...(job.guidanceContext || {}),
+      job.jobMetadata = {
+        ...(job.jobMetadata || {}),
         extractionWarnings: Array.from(extractionWarnings).slice(0, 20),
       };
 

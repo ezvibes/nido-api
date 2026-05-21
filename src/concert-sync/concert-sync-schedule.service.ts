@@ -21,6 +21,7 @@ import { TokenProtectionService } from './services/token-protection.service';
 @Injectable()
 export class ConcertSyncScheduleService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ConcertSyncScheduleService.name);
+  private readonly runLockTimeoutMs = 30 * 60 * 1000;
   private timer?: NodeJS.Timeout;
   private tickInFlight = false;
 
@@ -155,6 +156,9 @@ export class ConcertSyncScheduleService implements OnModuleInit, OnModuleDestroy
     if (schedule.status !== 'active') {
       throw new BadRequestException('Schedule must be active to run immediately.');
     }
+    if (this.isRunLocked(schedule)) {
+      throw new BadRequestException('Schedule is already running.');
+    }
 
     const updated = await this.scheduleRepository.save({
       ...schedule,
@@ -196,16 +200,12 @@ export class ConcertSyncScheduleService implements OnModuleInit, OnModuleDestroy
   }
 
   private async executeSchedule(scheduleId: string) {
-    const schedule = await this.scheduleRepository.findOne({
-      where: { id: scheduleId },
-      relations: { owner: true, lastJob: true },
-    });
-
-    if (!schedule || schedule.status !== 'active') {
+    const now = new Date();
+    const schedule = await this.claimScheduleForExecution(scheduleId, now);
+    if (!schedule) {
       return;
     }
 
-    const now = new Date();
     const nextRunAt = this.computeNextRunAt(schedule.cadenceMinutes, now);
 
     try {
@@ -235,6 +235,7 @@ export class ConcertSyncScheduleService implements OnModuleInit, OnModuleDestroy
       );
 
       schedule.lastRunAt = now;
+      schedule.runStartedAt = null;
       schedule.nextRunAt = nextRunAt;
       schedule.lastError = null;
       schedule.scheduleMetadata = {
@@ -247,6 +248,7 @@ export class ConcertSyncScheduleService implements OnModuleInit, OnModuleDestroy
       await this.scheduleRepository.save(schedule);
     } catch (error) {
       schedule.lastRunAt = now;
+      schedule.runStartedAt = null;
       schedule.nextRunAt = nextRunAt;
       schedule.lastError =
         error instanceof Error
@@ -254,6 +256,52 @@ export class ConcertSyncScheduleService implements OnModuleInit, OnModuleDestroy
           : 'Unknown schedule execution error';
       await this.scheduleRepository.save(schedule);
     }
+  }
+
+  private async claimScheduleForExecution(scheduleId: string, now: Date) {
+    const schedule = await this.scheduleRepository.findOne({
+      where: { id: scheduleId },
+      relations: { owner: true, lastJob: true },
+    });
+
+    if (
+      !schedule ||
+      schedule.status !== 'active' ||
+      schedule.nextRunAt > now ||
+      this.isRunLocked(schedule, now)
+    ) {
+      return null;
+    }
+
+    const previousNextRunAt = schedule.nextRunAt;
+    const claimedNextRunAt = this.computeNextRunAt(schedule.cadenceMinutes, now);
+    const claimQb = this.scheduleRepository
+      .createQueryBuilder()
+      .update(ConcertSyncSchedule)
+      .set({
+        nextRunAt: claimedNextRunAt,
+        runStartedAt: now,
+      })
+      .where('id = :id', { id: schedule.id })
+      .andWhere('status = :status', { status: 'active' })
+      .andWhere('next_run_at = :previousNextRunAt', { previousNextRunAt });
+
+    if (schedule.runStartedAt) {
+      claimQb.andWhere('run_started_at = :previousRunStartedAt', {
+        previousRunStartedAt: schedule.runStartedAt,
+      });
+    } else {
+      claimQb.andWhere('run_started_at IS NULL');
+    }
+
+    const claimResult = await claimQb.execute();
+    if (!claimResult.affected) {
+      return null;
+    }
+
+    schedule.nextRunAt = claimedNextRunAt;
+    schedule.runStartedAt = now;
+    return schedule;
   }
 
   private async findOwnerSchedule(id: string, ownerId: number) {
@@ -271,6 +319,16 @@ export class ConcertSyncScheduleService implements OnModuleInit, OnModuleDestroy
 
   private computeNextRunAt(cadenceMinutes: number, start = new Date()) {
     return new Date(start.getTime() + cadenceMinutes * 60 * 1000);
+  }
+
+  private isRunLocked(schedule: ConcertSyncSchedule, now = new Date()) {
+    if (!schedule.runStartedAt) {
+      return false;
+    }
+
+    return (
+      now.getTime() - schedule.runStartedAt.getTime() < this.runLockTimeoutMs
+    );
   }
 
   private getPollIntervalMs() {

@@ -49,6 +49,9 @@ export class ConcertSyncSchedule {
   @Column({ name: 'next_run_at', type: 'timestamptz' })
   nextRunAt: Date;
 
+  @Column({ name: 'run_started_at', type: 'timestamptz', nullable: true })
+  runStartedAt?: Date | null;
+
   @Column({ name: 'last_run_at', type: 'timestamptz', nullable: true })
   lastRunAt?: Date | null;
 

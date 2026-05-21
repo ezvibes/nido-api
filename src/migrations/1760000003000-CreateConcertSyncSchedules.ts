@@ -19,6 +19,7 @@ export class CreateConcertSyncSchedules1760000003000
         "gemini_prompt" text,
         "gemini_context" text,
         "next_run_at" TIMESTAMP WITH TIME ZONE NOT NULL,
+        "run_started_at" TIMESTAMP WITH TIME ZONE,
         "last_run_at" TIMESTAMP WITH TIME ZONE,
         "last_job_id" uuid,
         "last_error" text,

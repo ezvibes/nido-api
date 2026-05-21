@@ -69,19 +69,6 @@ export class ConcertSyncJob {
   @Column({ name: 'events_skipped', type: 'integer', default: 0 })
   eventsSkipped: number;
 
-  @Column({ name: 'guidance_required', type: 'boolean', default: false })
-  guidanceRequired: boolean;
-
-  @Column({ name: 'guidance_prompt', type: 'text', nullable: true })
-  guidancePrompt?: string | null;
-
-  @Column({
-    name: 'guidance_context',
-    type: 'jsonb',
-    default: () => "'{}'::jsonb",
-  })
-  guidanceContext: Record<string, unknown>;
-
   @Column({ name: 'error_message', type: 'text', nullable: true })
   errorMessage?: string | null;
 
