@@ -8,6 +8,14 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { UserService } from '../apis/users/user.service';
@@ -19,6 +27,8 @@ import { IngestionService } from './ingestion.service';
 
 @Controller('admin/ingestion')
 @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
+@ApiTags('Admin Ingestion')
+@ApiBearerAuth()
 export class AdminIngestionController {
   constructor(
     private readonly ingestionService: IngestionService,
@@ -26,6 +36,10 @@ export class AdminIngestionController {
   ) {}
 
   @Get('uploads')
+  @ApiOperation({ summary: 'List uploaded concert assets for admin review' })
+  @ApiQuery({ name: 'limit', required: false, example: 25 })
+  @ApiQuery({ name: 'offset', required: false, example: 0 })
+  @ApiQuery({ name: 'reviewStatus', required: false, example: 'submitted' })
   async listUploads(
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
@@ -42,11 +56,16 @@ export class AdminIngestionController {
   }
 
   @Get('uploads/:id/image')
+  @ApiOperation({ summary: 'Stream an uploaded concert image for review' })
+  @ApiParam({ name: 'id', description: 'Concert upload id' })
   async streamUploadImage(@Param('id') id: string, @Res() res: Response) {
     await this.ingestionService.adminStreamUploadImage(id, res);
   }
 
   @Put('uploads/:id/review')
+  @ApiOperation({ summary: 'Set review status for an uploaded concert asset' })
+  @ApiParam({ name: 'id', description: 'Concert upload id' })
+  @ApiBody({ type: ReviewConcertUploadDto })
   async reviewUpload(
     @Param('id') id: string,
     @Body() body: ReviewConcertUploadDto,

@@ -7,6 +7,14 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { UserService } from '../apis/users/user.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -15,14 +23,22 @@ import { ConcertSyncScheduleService } from './concert-sync-schedule.service';
 import { ConcertSyncService } from './concert-sync.service';
 import { CreateConcertSyncJobDto } from './dto/create-concert-sync-job.dto';
 import { CreateConcertSyncScheduleDto } from './dto/create-concert-sync-schedule.dto';
-import { ListConcertSyncJobsDto } from './dto/list-concert-sync-jobs.dto';
+import {
+  ListConcertSyncJobsDto,
+  syncJobStatuses,
+} from './dto/list-concert-sync-jobs.dto';
 import { ListConcertSyncSchedulesDto } from './dto/list-concert-sync-schedules.dto';
 import { PromptPreviewDto } from './dto/prompt-preview.dto';
 import { RefreshTopPicksDto } from './dto/refresh-top-picks.dto';
-import { UpdateConcertSyncScheduleDto } from './dto/update-concert-sync-schedule.dto';
+import {
+  scheduleStatuses,
+  UpdateConcertSyncScheduleDto,
+} from './dto/update-concert-sync-schedule.dto';
 
 @Controller('concert-sync')
 @UseGuards(FirebaseAuthGuard)
+@ApiTags('Doctor S Calendar Sync')
+@ApiBearerAuth()
 export class ConcertSyncController {
   constructor(
     private readonly concertSyncService: ConcertSyncService,
@@ -35,6 +51,12 @@ export class ConcertSyncController {
   }
 
   @Post('jobs')
+  @ApiOperation({
+    summary: 'Create a Doctor S calendar sync job',
+    description:
+      'Starts an async sync job from Google Calendar or sampleEvents. Use sampleEvents for local QA without Google credentials.',
+  })
+  @ApiBody({ type: CreateConcertSyncJobDto })
   async createJob(
     @CurrentUser() user: DecodedIdToken,
     @Body() body: CreateConcertSyncJobDto,
@@ -44,6 +66,15 @@ export class ConcertSyncController {
   }
 
   @Get('jobs')
+  @ApiOperation({ summary: 'List Doctor S sync jobs for the current user' })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiQuery({ name: 'offset', required: false, example: 0 })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: syncJobStatuses,
+    example: 'completed',
+  })
   async listJobs(
     @CurrentUser() user: DecodedIdToken,
     @Query() query: ListConcertSyncJobsDto,
@@ -53,11 +84,18 @@ export class ConcertSyncController {
   }
 
   @Get('gemini/prompt-template')
+  @ApiOperation({
+    summary: 'Inspect the active Gemini prompt template and extraction policy',
+  })
   getPromptTemplate() {
     return this.concertSyncService.getGeminiPromptTemplate();
   }
 
   @Post('gemini/prompt-preview')
+  @ApiOperation({
+    summary: 'Preview the exact Gemini prompt and sanitized event payload',
+  })
+  @ApiBody({ type: PromptPreviewDto })
   previewPrompt(@Body() body: PromptPreviewDto) {
     return this.concertSyncService.previewGeminiPrompt({
       event: body.event,
@@ -67,12 +105,18 @@ export class ConcertSyncController {
   }
 
   @Get('jobs/:id')
+  @ApiOperation({ summary: 'Get a sync job and recent event mappings' })
+  @ApiParam({ name: 'id', description: 'Concert sync job id' })
   async getJob(@CurrentUser() user: DecodedIdToken, @Param('id') id: string) {
     const owner = await this.ensureOwner(user);
     return this.concertSyncService.getJobForOwner(id, owner);
   }
 
   @Post('top-picks/refresh')
+  @ApiOperation({
+    summary: 'Refresh Top Picks for admin-approved concerts only',
+  })
+  @ApiBody({ type: RefreshTopPicksDto })
   async refreshTopPicks(
     @CurrentUser() user: DecodedIdToken,
     @Body() body: RefreshTopPicksDto,
@@ -82,6 +126,8 @@ export class ConcertSyncController {
   }
 
   @Get('top-picks')
+  @ApiOperation({ summary: 'List current Top Picks for the current user' })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
   async listTopPicks(
     @CurrentUser() user: DecodedIdToken,
     @Query('limit') limit?: string,
@@ -95,6 +141,12 @@ export class ConcertSyncController {
   }
 
   @Post('schedules')
+  @ApiOperation({
+    summary: 'Create an autonomous Doctor S calendar sync schedule',
+    description:
+      'Stores the Google refresh token encrypted at rest and runs recurring calendar syncs.',
+  })
+  @ApiBody({ type: CreateConcertSyncScheduleDto })
   async createSchedule(
     @CurrentUser() user: DecodedIdToken,
     @Body() body: CreateConcertSyncScheduleDto,
@@ -104,6 +156,15 @@ export class ConcertSyncController {
   }
 
   @Get('schedules')
+  @ApiOperation({ summary: 'List autonomous sync schedules' })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiQuery({ name: 'offset', required: false, example: 0 })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: scheduleStatuses,
+    example: 'active',
+  })
   async listSchedules(
     @CurrentUser() user: DecodedIdToken,
     @Query() query: ListConcertSyncSchedulesDto,
@@ -113,6 +174,8 @@ export class ConcertSyncController {
   }
 
   @Get('schedules/:id')
+  @ApiOperation({ summary: 'Get an autonomous sync schedule' })
+  @ApiParam({ name: 'id', description: 'Concert sync schedule id' })
   async getSchedule(
     @CurrentUser() user: DecodedIdToken,
     @Param('id') id: string,
@@ -122,6 +185,8 @@ export class ConcertSyncController {
   }
 
   @Post('schedules/:id/run')
+  @ApiOperation({ summary: 'Trigger a schedule immediately' })
+  @ApiParam({ name: 'id', description: 'Concert sync schedule id' })
   async runScheduleNow(
     @CurrentUser() user: DecodedIdToken,
     @Param('id') id: string,
@@ -131,6 +196,9 @@ export class ConcertSyncController {
   }
 
   @Post('schedules/:id/update')
+  @ApiOperation({ summary: 'Update cadence, status, prompt context, or token' })
+  @ApiParam({ name: 'id', description: 'Concert sync schedule id' })
+  @ApiBody({ type: UpdateConcertSyncScheduleDto })
   async updateSchedule(
     @CurrentUser() user: DecodedIdToken,
     @Param('id') id: string,

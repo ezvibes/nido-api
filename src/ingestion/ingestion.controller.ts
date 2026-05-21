@@ -8,6 +8,14 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { memoryStorage } from 'multer';
@@ -20,6 +28,7 @@ import { IngestionService } from './ingestion.service';
 import { UploadableFile } from './interfaces/uploadable-file.interface';
 
 @Controller('ingestion')
+@ApiTags('Ingestion')
 export class IngestionController {
   constructor(
     private readonly ingestionService: IngestionService,
@@ -28,6 +37,21 @@ export class IngestionController {
 
   @Post('uploads')
   @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Upload a concert flyer/image for ingestion review' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        image: { type: 'string', format: 'binary' },
+        city: { type: 'string' },
+        state: { type: 'string' },
+        source: { type: 'string', example: 'flyer_upload' },
+      },
+    },
+  })
   @UseInterceptors(
     FileFieldsInterceptor(
       [
@@ -58,6 +82,9 @@ export class IngestionController {
 
   @Post('jobs')
   @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create an ingestion job for a previously uploaded asset' })
+  @ApiBody({ type: CreateIngestionJobDto })
   async createJob(
     @Body() body: CreateIngestionJobDto,
     @CurrentUser() user: DecodedIdToken,
@@ -70,6 +97,9 @@ export class IngestionController {
 
   @Get('uploads/:id')
   @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get an uploaded ingestion asset' })
+  @ApiParam({ name: 'id', description: 'Concert upload id' })
   async getUpload(
     @Param('id') id: string,
     @CurrentUser() user: DecodedIdToken,
@@ -79,6 +109,9 @@ export class IngestionController {
 
   @Get('jobs/:id')
   @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get an ingestion job' })
+  @ApiParam({ name: 'id', description: 'Ingestion job id' })
   async getJob(
     @Param('id') id: string,
     @CurrentUser() user: DecodedIdToken,

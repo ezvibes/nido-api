@@ -68,6 +68,15 @@ The frontend will be available at `http://localhost:5173`.
 
 ## Configuration
 
+### Swagger API Docs
+
+Interactive API documentation is available after the API starts:
+
+- Swagger UI: `http://localhost:3001/api-docs`
+- OpenAPI JSON: `http://localhost:3001/api-docs-json`
+
+Use the Swagger Authorize button with a Firebase bearer token to test protected endpoints.
+
 ### CORS
 
 The backend is configured to accept cross-origin requests only from the frontend client. This is defined in `src/main.ts`. Any changes to the client's address (`http://localhost:5173`) must be reflected there.
@@ -150,6 +159,7 @@ Concert approval gate:
 
 - Only concerts with `isAdminApproved=true` are eligible for Top Picks scoring.
 - Admin approval endpoint: `PUT /admin/concerts/:id/approval` with body `{ "approved": true | false }`.
+- Doctor S workflow and QA scenarios: `src/docs/DOCTOR_S_INGESTION_SYNC_PIPELINE.md`
 
 Sample-job mode:
 
