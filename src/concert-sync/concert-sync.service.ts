@@ -351,8 +351,7 @@ export class ConcertSyncService {
       .leftJoin('concert_upvotes', 'upvote', 'upvote.concert_id = concert.id')
       .addSelect('COUNT(DISTINCT upvote.id)', 'upvote_count')
       .groupBy('concert.id')
-      .orderBy('concert.startsAt', 'ASC')
-      .take(limit);
+      .orderBy('concert.startsAt', 'ASC');
 
     if (onlyUpcoming) {
       qb.andWhere('concert.startsAt >= :now', {
