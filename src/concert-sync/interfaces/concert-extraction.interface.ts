@@ -12,4 +12,9 @@ export interface ConcertExtractionResult {
   confidence: number;
   needsGuidance: boolean;
   guidanceQuestions: string[];
+  extractionSource?: 'gemini' | 'heuristic';
+  fallbackReason?: string;
+  providerStatus?: number;
+  providerMessage?: string;
+  model?: string;
 }

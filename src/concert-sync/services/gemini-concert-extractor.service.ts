@@ -35,21 +35,22 @@ export class GeminiConcertExtractorService {
       .get<string>('CONCERT_SYNC_ALLOWED_GENRES')
       ?.trim();
 
-    const allowedGenres = (configuredGenres
-      ? configuredGenres.split(',').map((value) => value.trim())
-      : [
-          'Hip Hop',
-          'Latin',
-          'Metal',
-          'Electronic',
-          'Jazz',
-          'Country',
-          'R&B',
-          'Indie',
-          'Rock',
-          'Pop',
-          'Live',
-        ]
+    const allowedGenres = (
+      configuredGenres
+        ? configuredGenres.split(',').map((value) => value.trim())
+        : [
+            'Hip Hop',
+            'Latin',
+            'Metal',
+            'Electronic',
+            'Jazz',
+            'Country',
+            'R&B',
+            'Indie',
+            'Rock',
+            'Pop',
+            'Live',
+          ]
     ).filter(Boolean);
 
     const minimumConfidence = this.normalizeFloatFromEnv(
@@ -83,6 +84,15 @@ export class GeminiConcertExtractorService {
     return this.sanitizeEventForPrompt(event);
   }
 
+  isGeminiEnabled() {
+    return (
+      this.configService
+        .get<string>('CONCERT_SYNC_GEMINI_ENABLED')
+        ?.trim()
+        .toLowerCase() !== 'false'
+    );
+  }
+
   buildPromptPreview(event: GoogleCalendarEvent, context: ExtractionContext) {
     return this.buildPrompt(this.sanitizeEventForPrompt(event), context);
   }
@@ -96,8 +106,18 @@ export class GeminiConcertExtractorService {
       this.configService.get<string>('GEMINI_MODEL')?.trim() ||
       'gemini-2.0-flash';
 
+    if (!this.isGeminiEnabled()) {
+      return this.buildHeuristicExtraction(event, {
+        fallbackReason: 'gemini_disabled',
+        model,
+      });
+    }
+
     if (!apiKey) {
-      return this.buildHeuristicExtraction(event);
+      return this.buildHeuristicExtraction(event, {
+        fallbackReason: 'missing_gemini_api_key',
+        model,
+      });
     }
 
     try {
@@ -127,10 +147,16 @@ export class GeminiConcertExtractorService {
 
       if (!response.ok) {
         const body = await response.text();
+        const providerMessage = this.extractProviderMessage(body);
         this.logger.warn(
           `Gemini extraction failed (${response.status}): ${body.slice(0, 300)}`,
         );
-        return this.buildHeuristicExtraction(event);
+        return this.buildHeuristicExtraction(event, {
+          fallbackReason: this.classifyGeminiHttpFailure(response.status, body),
+          providerStatus: response.status,
+          providerMessage,
+          model,
+        });
       }
 
       const json = (await response.json()) as {
@@ -139,20 +165,33 @@ export class GeminiConcertExtractorService {
 
       const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!text) {
-        return this.buildHeuristicExtraction(event);
+        return this.buildHeuristicExtraction(event, {
+          fallbackReason: 'empty_gemini_response',
+          model,
+        });
       }
 
       const parsed = this.tryParseJson(text);
       if (!parsed) {
-        return this.buildHeuristicExtraction(event);
+        return this.buildHeuristicExtraction(event, {
+          fallbackReason: 'invalid_gemini_json',
+          model,
+        });
       }
 
-      return this.normalizeExtraction(parsed, event);
+      return {
+        ...this.normalizeExtraction(parsed, event),
+        extractionSource: 'gemini',
+        model,
+      };
     } catch (error) {
-      this.logger.warn(
-        `Gemini extraction threw error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
-      return this.buildHeuristicExtraction(event);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`Gemini extraction threw error: ${message}`);
+      return this.buildHeuristicExtraction(event, {
+        fallbackReason: 'gemini_request_error',
+        providerMessage: message,
+        model,
+      });
     }
   }
 
@@ -281,6 +320,12 @@ export class GeminiConcertExtractorService {
 
   private buildHeuristicExtraction(
     event: GoogleCalendarEvent,
+    metadata: Partial<
+      Pick<
+        ConcertExtractionResult,
+        'fallbackReason' | 'providerStatus' | 'providerMessage' | 'model'
+      >
+    > = {},
   ): ConcertExtractionResult {
     const policy = this.getExtractionPolicy();
     const title = (event.summary || 'Untitled concert').trim();
@@ -324,7 +369,44 @@ export class GeminiConcertExtractorService {
       guidanceQuestions: needsGuidance
         ? ['Please confirm artist lineup and venue details for this event.']
         : [],
+      extractionSource: 'heuristic',
+      ...metadata,
     };
+  }
+
+  private classifyGeminiHttpFailure(status: number, body: string) {
+    if (status === 429) {
+      const normalizedBody = body.toLowerCase();
+      if (
+        normalizedBody.includes('prepayment credits are depleted') ||
+        normalizedBody.includes('billing')
+      ) {
+        return 'gemini_billing_or_quota_exhausted';
+      }
+      return 'gemini_rate_limited';
+    }
+
+    if (status >= 500) {
+      return 'gemini_server_error';
+    }
+
+    return 'gemini_http_error';
+  }
+
+  private extractProviderMessage(body: string) {
+    try {
+      const parsed = JSON.parse(body) as {
+        error?: { message?: unknown };
+      };
+      const message = parsed.error?.message;
+      if (typeof message === 'string') {
+        return message.slice(0, 500);
+      }
+    } catch {
+      // Use the raw body fallback below.
+    }
+
+    return body.slice(0, 500);
   }
 
   private extractArtistsFromTitle(title: string): Artist[] {

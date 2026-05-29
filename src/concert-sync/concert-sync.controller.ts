@@ -10,6 +10,8 @@ import {
 import {
   ApiBearerAuth,
   ApiBody,
+  ApiCreatedResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -19,21 +21,17 @@ import type { DecodedIdToken } from 'firebase-admin/auth';
 import { UserService } from '../apis/users/user.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { FirebaseAuthGuard } from '../auth/firebase-auth/firebase-auth.guard';
-import { ConcertSyncScheduleService } from './concert-sync-schedule.service';
 import { ConcertSyncService } from './concert-sync.service';
 import { CreateConcertSyncJobDto } from './dto/create-concert-sync-job.dto';
-import { CreateConcertSyncScheduleDto } from './dto/create-concert-sync-schedule.dto';
 import {
   ListConcertSyncJobsDto,
   syncJobStatuses,
 } from './dto/list-concert-sync-jobs.dto';
-import { ListConcertSyncSchedulesDto } from './dto/list-concert-sync-schedules.dto';
-import { PromptPreviewDto } from './dto/prompt-preview.dto';
-import { RefreshTopPicksDto } from './dto/refresh-top-picks.dto';
 import {
-  scheduleStatuses,
-  UpdateConcertSyncScheduleDto,
-} from './dto/update-concert-sync-schedule.dto';
+  ConcertSyncJobDetailResponseDto,
+  ConcertSyncJobListResponseDto,
+  ConcertSyncJobResponseDto,
+} from './dto/concert-sync-job-response.dto';
 
 @Controller('concert-sync')
 @UseGuards(FirebaseAuthGuard)
@@ -42,7 +40,6 @@ import {
 export class ConcertSyncController {
   constructor(
     private readonly concertSyncService: ConcertSyncService,
-    private readonly concertSyncScheduleService: ConcertSyncScheduleService,
     private readonly userService: UserService,
   ) {}
 
@@ -54,9 +51,66 @@ export class ConcertSyncController {
   @ApiOperation({
     summary: 'Create a Doctor S calendar sync job',
     description:
-      'Starts an async sync job from Google Calendar or sampleEvents. Use sampleEvents for local QA without Google credentials.',
+      'Starts an async job that turns Google Calendar-style events into concert records. Use dryRun=true to preview sanitized prompts without Gemini calls or database writes.',
   })
-  @ApiBody({ type: CreateConcertSyncJobDto })
+  @ApiBody({
+    type: CreateConcertSyncJobDto,
+    examples: {
+      dryRun: {
+        summary: 'No-cost dry run with one sample event',
+        value: {
+          dryRun: true,
+          maxEvents: 1,
+          refreshTopPicks: false,
+          sampleEvents: [
+            {
+              id: 'qa-evt-1',
+              status: 'confirmed',
+              summary: 'Doctor S Presents: Neon Tide with DJ Luna',
+              description:
+                'Live electronic and indie-pop concert. Doors 8 PM. Show 9 PM.',
+              location: 'The Evening Muse, Charlotte, NC',
+              start: {
+                dateTime: '2026-06-15T21:00:00-04:00',
+                timeZone: 'America/New_York',
+              },
+              end: {
+                dateTime: '2026-06-15T23:30:00-04:00',
+                timeZone: 'America/New_York',
+              },
+            },
+          ],
+        },
+      },
+      sampleSync: {
+        summary: 'Create concerts from sample events',
+        value: {
+          calendarId: 'primary',
+          fromDate: '2026-06-01T00:00:00.000Z',
+          toDate: '2026-07-01T00:00:00.000Z',
+          maxEvents: 1,
+          refreshTopPicks: true,
+          geminiContext:
+            'Doctor S focuses on high-signal live music listings in Charlotte and nearby NC markets.',
+          sampleEvents: [
+            {
+              id: 'qa-evt-2',
+              status: 'confirmed',
+              summary: 'Doctor S Presents: Velvet Circuit Live',
+              description:
+                'Live synth funk concert with opener Solar Keys. Doors 7:30 PM, show 8:30 PM.',
+              location: 'Neighborhood Theatre, Charlotte, NC',
+              start: {
+                dateTime: '2026-06-22T20:30:00-04:00',
+                timeZone: 'America/New_York',
+              },
+            },
+          ],
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({ type: ConcertSyncJobResponseDto })
   async createJob(
     @CurrentUser() user: DecodedIdToken,
     @Body() body: CreateConcertSyncJobDto,
@@ -66,15 +120,26 @@ export class ConcertSyncController {
   }
 
   @Get('jobs')
-  @ApiOperation({ summary: 'List Doctor S sync jobs for the current user' })
-  @ApiQuery({ name: 'limit', required: false, example: 20 })
-  @ApiQuery({ name: 'offset', required: false, example: 0 })
+  @ApiOperation({
+    summary: 'List Doctor S sync jobs for the current user',
+    description:
+      'Use this endpoint to inspect recent queued, processing, completed, or failed sync attempts.',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    example: 20,
+    minimum: 1,
+    maximum: 100,
+  })
+  @ApiQuery({ name: 'offset', required: false, example: 0, minimum: 0 })
   @ApiQuery({
     name: 'status',
     required: false,
     enum: syncJobStatuses,
     example: 'completed',
   })
+  @ApiOkResponse({ type: ConcertSyncJobListResponseDto })
   async listJobs(
     @CurrentUser() user: DecodedIdToken,
     @Query() query: ListConcertSyncJobsDto,
@@ -83,132 +148,20 @@ export class ConcertSyncController {
     return this.concertSyncService.listJobsForOwner(owner, query);
   }
 
-  @Get('gemini/prompt-template')
-  @ApiOperation({
-    summary: 'Inspect the active Gemini prompt template and extraction policy',
-  })
-  getPromptTemplate() {
-    return this.concertSyncService.getGeminiPromptTemplate();
-  }
-
-  @Post('gemini/prompt-preview')
-  @ApiOperation({
-    summary: 'Preview the exact Gemini prompt and sanitized event payload',
-  })
-  @ApiBody({ type: PromptPreviewDto })
-  previewPrompt(@Body() body: PromptPreviewDto) {
-    return this.concertSyncService.previewGeminiPrompt({
-      event: body.event,
-      geminiPrompt: body.geminiPrompt,
-      geminiContext: body.geminiContext,
-    });
-  }
-
   @Get('jobs/:id')
-  @ApiOperation({ summary: 'Get a sync job and recent event mappings' })
-  @ApiParam({ name: 'id', description: 'Concert sync job id' })
+  @ApiOperation({
+    summary: 'Get a sync job and recent event mappings',
+    description:
+      'Returns job counters, metadata such as fallback reasons, dry-run prompt previews, and recent calendar-event-to-concert mappings.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Concert sync job id',
+    example: '0f0aaf91-1f31-4f0f-91f9-006a10b2ee81',
+  })
+  @ApiOkResponse({ type: ConcertSyncJobDetailResponseDto })
   async getJob(@CurrentUser() user: DecodedIdToken, @Param('id') id: string) {
     const owner = await this.ensureOwner(user);
     return this.concertSyncService.getJobForOwner(id, owner);
-  }
-
-  @Post('top-picks/refresh')
-  @ApiOperation({
-    summary: 'Refresh Top Picks for admin-approved concerts only',
-  })
-  @ApiBody({ type: RefreshTopPicksDto })
-  async refreshTopPicks(
-    @CurrentUser() user: DecodedIdToken,
-    @Body() body: RefreshTopPicksDto,
-  ) {
-    const owner = await this.ensureOwner(user);
-    return this.concertSyncService.refreshTopPicksForOwner(owner, body);
-  }
-
-  @Get('top-picks')
-  @ApiOperation({ summary: 'List current Top Picks for the current user' })
-  @ApiQuery({ name: 'limit', required: false, example: 20 })
-  async listTopPicks(
-    @CurrentUser() user: DecodedIdToken,
-    @Query('limit') limit?: string,
-  ) {
-    const owner = await this.ensureOwner(user);
-    const parsedLimit = limit ? Number(limit) : undefined;
-    return this.concertSyncService.listTopPicksForOwner(
-      owner,
-      Number.isFinite(parsedLimit) ? parsedLimit : undefined,
-    );
-  }
-
-  @Post('schedules')
-  @ApiOperation({
-    summary: 'Create an autonomous Doctor S calendar sync schedule',
-    description:
-      'Stores the Google refresh token encrypted at rest and runs recurring calendar syncs.',
-  })
-  @ApiBody({ type: CreateConcertSyncScheduleDto })
-  async createSchedule(
-    @CurrentUser() user: DecodedIdToken,
-    @Body() body: CreateConcertSyncScheduleDto,
-  ) {
-    const owner = await this.ensureOwner(user);
-    return this.concertSyncScheduleService.createScheduleForOwner(owner, body);
-  }
-
-  @Get('schedules')
-  @ApiOperation({ summary: 'List autonomous sync schedules' })
-  @ApiQuery({ name: 'limit', required: false, example: 20 })
-  @ApiQuery({ name: 'offset', required: false, example: 0 })
-  @ApiQuery({
-    name: 'status',
-    required: false,
-    enum: scheduleStatuses,
-    example: 'active',
-  })
-  async listSchedules(
-    @CurrentUser() user: DecodedIdToken,
-    @Query() query: ListConcertSyncSchedulesDto,
-  ) {
-    const owner = await this.ensureOwner(user);
-    return this.concertSyncScheduleService.listSchedulesForOwner(owner, query);
-  }
-
-  @Get('schedules/:id')
-  @ApiOperation({ summary: 'Get an autonomous sync schedule' })
-  @ApiParam({ name: 'id', description: 'Concert sync schedule id' })
-  async getSchedule(
-    @CurrentUser() user: DecodedIdToken,
-    @Param('id') id: string,
-  ) {
-    const owner = await this.ensureOwner(user);
-    return this.concertSyncScheduleService.getScheduleForOwner(id, owner);
-  }
-
-  @Post('schedules/:id/run')
-  @ApiOperation({ summary: 'Trigger a schedule immediately' })
-  @ApiParam({ name: 'id', description: 'Concert sync schedule id' })
-  async runScheduleNow(
-    @CurrentUser() user: DecodedIdToken,
-    @Param('id') id: string,
-  ) {
-    const owner = await this.ensureOwner(user);
-    return this.concertSyncScheduleService.runScheduleNowForOwner(id, owner);
-  }
-
-  @Post('schedules/:id/update')
-  @ApiOperation({ summary: 'Update cadence, status, prompt context, or token' })
-  @ApiParam({ name: 'id', description: 'Concert sync schedule id' })
-  @ApiBody({ type: UpdateConcertSyncScheduleDto })
-  async updateSchedule(
-    @CurrentUser() user: DecodedIdToken,
-    @Param('id') id: string,
-    @Body() body: UpdateConcertSyncScheduleDto,
-  ) {
-    const owner = await this.ensureOwner(user);
-    return this.concertSyncScheduleService.updateScheduleForOwner(
-      id,
-      owner,
-      body,
-    );
   }
 }

@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
 import { In, Repository } from 'typeorm';
@@ -34,6 +35,7 @@ export class ConcertSyncService {
     private readonly concertRepository: Repository<Concert>,
     private readonly calendarClient: GoogleCalendarClientService,
     private readonly geminiExtractor: GeminiConcertExtractorService,
+    private readonly configService: ConfigService,
   ) {}
 
   async createJobForOwner(owner: User, dto: CreateConcertSyncJobDto) {
@@ -64,8 +66,13 @@ export class ConcertSyncService {
         jobMetadata: {
           geminiPrompt: dto.geminiPrompt?.trim() || null,
           geminiContext: dto.geminiContext?.trim() || null,
+          dryRun: dto.dryRun ?? false,
+          maxEvents: this.resolveMaxEvents(dto.maxEvents),
+          geminiEnabled: this.geminiExtractor.isGeminiEnabled(),
           sampleMode: Boolean(sampleEvents?.length),
-          syncSource: sampleEvents?.length ? 'sample_events' : 'google_calendar',
+          syncSource: sampleEvents?.length
+            ? 'sample_events'
+            : 'google_calendar',
         },
       }),
     );
@@ -75,6 +82,8 @@ export class ConcertSyncService {
       customPrompt: dto.geminiPrompt,
       customContext: dto.geminiContext,
       sampleEvents: sampleEvents as GoogleCalendarEvent[] | undefined,
+      dryRun: dto.dryRun ?? false,
+      maxEvents: this.resolveMaxEvents(dto.maxEvents),
     });
 
     return this.formatJob(job);
@@ -123,71 +132,6 @@ export class ConcertSyncService {
     };
   }
 
-  async refreshTopPicksForOwner(owner: User, dto: RefreshTopPicksDto = {}) {
-    const refreshed = await this.refreshTopPicks(owner.id, dto);
-
-    return {
-      refreshedAt: new Date().toISOString(),
-      ...refreshed,
-    };
-  }
-
-  async listTopPicksForOwner(owner: User, limit = 20) {
-    const safeLimit = Math.min(Math.max(limit, 1), 100);
-
-    const concerts = await this.concertRepository.find({
-      where: { owner: { id: owner.id }, isTopPick: true },
-      order: {
-        topPickScore: 'DESC',
-        startsAt: 'ASC',
-      },
-      take: safeLimit,
-    });
-
-    return {
-      total: concerts.length,
-      items: concerts,
-    };
-  }
-
-  getGeminiPromptTemplate() {
-    const extractionPolicy = this.geminiExtractor.getExtractionPolicy();
-    return {
-      template: this.geminiExtractor.getPromptTemplate(),
-      extractionPolicy,
-      dataPolicy: {
-        sourceOfTruth: 'google_calendar',
-        redactions: ['email', 'phone', 'urls', 'attendees', 'organizer'],
-        transmittedFields: [
-          'id',
-          'status',
-          'summary',
-          'description',
-          'location',
-          'start',
-          'end',
-          'updated',
-          'created',
-        ],
-      },
-    };
-  }
-
-  previewGeminiPrompt(params: {
-    event: Record<string, unknown>;
-    geminiPrompt?: string;
-    geminiContext?: string;
-  }) {
-    const event = this.toGoogleCalendarEvent(params.event);
-    return {
-      prompt: this.geminiExtractor.buildPromptPreview(event, {
-        customPrompt: params.geminiPrompt,
-        customContext: params.geminiContext,
-      }),
-      sanitizedEvent: this.geminiExtractor.getSanitizedEventPreview(event),
-    };
-  }
-
   private async runJob(
     jobId: string,
     options: {
@@ -195,6 +139,8 @@ export class ConcertSyncService {
       customPrompt?: string;
       customContext?: string;
       sampleEvents?: GoogleCalendarEvent[];
+      dryRun?: boolean;
+      maxEvents?: number;
     },
   ): Promise<void> {
     const job = await this.jobRepository.findOne({
@@ -218,12 +164,47 @@ export class ConcertSyncService {
       job.totalEventsFetched = page.items.length;
       await this.jobRepository.save(job);
 
-      const liveEvents = page.items.filter((event) =>
+      const processableEvents = page.items.filter((event) =>
         this.isProcessableEvent(event),
       );
+      const liveEvents = processableEvents.slice(0, options.maxEvents);
+      const eventsLimited = processableEvents.length > liveEvents.length;
       if (!liveEvents.length) {
         job.status = 'completed';
         job.completedAt = new Date();
+        job.jobMetadata = {
+          ...(job.jobMetadata || {}),
+          eventsLimited,
+          processableEvents: processableEvents.length,
+        };
+        await this.jobRepository.save(job);
+        return;
+      }
+
+      if (options.dryRun) {
+        job.eventsProcessed = liveEvents.length;
+        job.eventsSkipped = Math.max(
+          0,
+          processableEvents.length - liveEvents.length,
+        );
+        job.status = 'completed';
+        job.completedAt = new Date();
+        job.jobMetadata = {
+          ...(job.jobMetadata || {}),
+          dryRun: true,
+          eventsLimited,
+          processableEvents: processableEvents.length,
+          dryRunEvents: liveEvents.slice(0, 10).map((event) => ({
+            id: event.id,
+            summary: event.summary ?? null,
+            sanitizedEvent:
+              this.geminiExtractor.getSanitizedEventPreview(event),
+            promptPreview: this.geminiExtractor.buildPromptPreview(event, {
+              customPrompt: options.customPrompt,
+              customContext: options.customContext,
+            }),
+          })),
+        };
         await this.jobRepository.save(job);
         return;
       }
@@ -239,6 +220,9 @@ export class ConcertSyncService {
       let skipped = 0;
       let processed = 0;
       const extractionWarnings = new Set<string>();
+      const fallbackReasons = new Map<string, number>();
+      let geminiExtractions = 0;
+      let heuristicExtractions = 0;
 
       for (const event of liveEvents) {
         const eventFingerprint = this.buildEventFingerprint(event);
@@ -257,6 +241,17 @@ export class ConcertSyncService {
           customPrompt: options.customPrompt,
           customContext: options.customContext,
         });
+        if (extraction.extractionSource === 'gemini') {
+          geminiExtractions += 1;
+        } else {
+          heuristicExtractions += 1;
+          if (extraction.fallbackReason) {
+            fallbackReasons.set(
+              extraction.fallbackReason,
+              (fallbackReasons.get(extraction.fallbackReason) ?? 0) + 1,
+            );
+          }
+        }
 
         const { concert, wasCreated } = await this.upsertConcertFromEvent(
           job.owner,
@@ -296,6 +291,11 @@ export class ConcertSyncService {
       job.status = 'completed';
       job.jobMetadata = {
         ...(job.jobMetadata || {}),
+        eventsLimited,
+        processableEvents: processableEvents.length,
+        geminiExtractions,
+        heuristicExtractions,
+        fallbackReasons: Object.fromEntries(fallbackReasons),
         extractionWarnings: Array.from(extractionWarnings).slice(0, 20),
       };
 
@@ -447,6 +447,15 @@ export class ConcertSyncService {
       timeMin: job.requestedRangeStart?.toISOString(),
       timeMax: job.requestedRangeEnd?.toISOString(),
     });
+  }
+
+  private resolveMaxEvents(requestedMaxEvents?: number) {
+    const configured = Number(
+      this.configService.get<string>('CONCERT_SYNC_MAX_EVENTS_PER_JOB'),
+    );
+    const fallback = Number.isFinite(configured) ? configured : 25;
+    const value = requestedMaxEvents ?? fallback;
+    return Math.min(Math.max(Math.trunc(value), 1), 100);
   }
 
   private async upsertConcertFromEvent(
@@ -603,42 +612,6 @@ export class ConcertSyncService {
       completedAt: job.completedAt,
       createdAt: job.createdAt,
       updatedAt: job.updatedAt,
-    };
-  }
-
-  private toGoogleCalendarEvent(payload: Record<string, unknown>): GoogleCalendarEvent {
-    const start = this.toDateTimePayload(payload.start);
-    const end = this.toDateTimePayload(payload.end);
-
-    return {
-      id:
-        (typeof payload.id === 'string' && payload.id.trim()) ||
-        `preview-${Date.now()}`,
-      status: typeof payload.status === 'string' ? payload.status : undefined,
-      summary: typeof payload.summary === 'string' ? payload.summary : undefined,
-      description:
-        typeof payload.description === 'string' ? payload.description : undefined,
-      location:
-        typeof payload.location === 'string' ? payload.location : undefined,
-      updated: typeof payload.updated === 'string' ? payload.updated : undefined,
-      created: typeof payload.created === 'string' ? payload.created : undefined,
-      start,
-      end,
-    };
-  }
-
-  private toDateTimePayload(value: unknown) {
-    if (!value || typeof value !== 'object') {
-      return undefined;
-    }
-
-    const record = value as Record<string, unknown>;
-    return {
-      dateTime:
-        typeof record.dateTime === 'string' ? record.dateTime : undefined,
-      date: typeof record.date === 'string' ? record.date : undefined,
-      timeZone:
-        typeof record.timeZone === 'string' ? record.timeZone : undefined,
     };
   }
 }

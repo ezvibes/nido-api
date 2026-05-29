@@ -6,8 +6,8 @@ This repository contains the full-stack application for Nido, which includes a N
 
 The project is organized into two main parts:
 
--   `src/`: The NestJS backend API. This handles business logic, database interactions, and authentication.
--   `client/`: The Vue.js frontend application. This is the user-facing interface that consumes the Nido API.
+- `src/`: The NestJS backend API. This handles business logic, database interactions, and authentication.
+- `client/`: The Vue.js frontend application. This is the user-facing interface that consumes the Nido API.
 
 ---
 
@@ -21,19 +21,19 @@ First, set up and run the NestJS server.
 
 #### **Prerequisites**
 
--   A PostgreSQL database. You can run one easily using Docker:
-    ```bash
-    docker-compose up -d
-    ```
--   A `.env` file in the project root. Create it if it doesn't exist:
-    ```
-    DB_HOST=localhost
-    DB_PORT=5432
-    DB_USER=user
-    DB_PASSWORD=password
-    DB_NAME=nido
-    DB_SYNCHRONIZE=true
-    ```
+- A PostgreSQL database. You can run one easily using Docker:
+  ```bash
+  docker-compose up -d
+  ```
+- A `.env` file in the project root. Create it if it doesn't exist:
+  ```
+  DB_HOST=localhost
+  DB_PORT=5432
+  DB_USER=user
+  DB_PASSWORD=password
+  DB_NAME=nido
+  DB_SYNCHRONIZE=true
+  ```
 
 #### **Installation & Execution**
 
@@ -110,50 +110,34 @@ The API now includes a sync agent under `/concert-sync/*` that can:
 - Upsert concert data with event-level fingerprinting for idempotent sync runs
 - Refresh Top Picks rankings after sync jobs
 - Preserve low-confidence extraction warnings for review
-- Run autonomous recurring sync schedules using Google OAuth refresh tokens
 - Keep Top Picks limited to admin-approved concerts only
 
 Required env for AI enrichment:
 
 - `GEMINI_API_KEY`
 - Optional `GEMINI_MODEL` (defaults to `gemini-2.0-flash`)
+- Optional `CONCERT_SYNC_GEMINI_ENABLED=false` disables paid Gemini calls and uses deterministic fallback extraction.
 - Optional extraction policy controls:
   - `CONCERT_SYNC_ALLOWED_GENRES`
   - `CONCERT_SYNC_MIN_CONFIDENCE`
   - `CONCERT_SYNC_REQUIRE_VENUE`
   - `CONCERT_SYNC_REQUIRE_ARTIST`
   - `CONCERT_SYNC_MAX_DESCRIPTION_LENGTH`
-
-Required env for autonomous schedules:
-
-- `CONCERT_SYNC_TOKEN_ENCRYPTION_KEY` (base64 32-byte key)
-- `GOOGLE_OAUTH_CLIENT_ID`
-- `GOOGLE_OAUTH_CLIENT_SECRET`
-- Optional scheduler toggles:
-  - `CONCERT_SYNC_SCHEDULER_ENABLED`
-  - `CONCERT_SYNC_SCHEDULER_POLL_MS`
+  - `CONCERT_SYNC_MAX_EVENTS_PER_JOB` (defaults to 25, max 100)
 
 Important security behavior:
 
 - `googleAccessToken` is accepted per sync request and not persisted to the database.
 - Sync job records store operational metadata only (counts/status/extraction warnings).
 - Gemini prompt payload is sanitized before transmission (attendees/organizer omitted, emails/phones/URLs redacted).
-- Refresh tokens for autonomous schedules are encrypted-at-rest before DB persistence.
+- Sync jobs record whether extraction used Gemini or fallback heuristics, including quota/billing fallback reasons.
+- `POST /concert-sync/jobs` supports `dryRun=true` to load and sanitize source events without calling Gemini or writing concerts.
 
 Core endpoints:
 
 - `POST /concert-sync/jobs` starts a sync job
 - `GET /concert-sync/jobs` lists sync jobs
 - `GET /concert-sync/jobs/:id` gets a sync job with recent mapped events
-- `GET /concert-sync/gemini/prompt-template` returns the default Gemini prompt template and data policy
-- `POST /concert-sync/gemini/prompt-preview` previews the exact prompt + sanitized event payload before execution
-- `POST /concert-sync/top-picks/refresh` recomputes Top Picks for upcoming events
-- `GET /concert-sync/top-picks` returns the current Top Picks list
-- `POST /concert-sync/schedules` creates an autonomous sync schedule
-- `GET /concert-sync/schedules` lists schedules
-- `GET /concert-sync/schedules/:id` retrieves a schedule
-- `POST /concert-sync/schedules/:id/update` updates cadence/status/policy/token
-- `POST /concert-sync/schedules/:id/run` triggers immediate execution
 
 Concert approval gate:
 

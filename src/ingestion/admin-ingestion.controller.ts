@@ -5,24 +5,27 @@ import {
   Param,
   Put,
   Query,
-  Res,
   UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
+  ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import type { Response } from 'express';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { UserService } from '../apis/users/user.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AdminEmailGuard } from '../auth/guards/admin-email.guard';
 import { FirebaseAuthGuard } from '../auth/firebase-auth/firebase-auth.guard';
 import { ReviewConcertUploadDto } from './dto/review-concert-upload.dto';
+import {
+  AdminConcertUploadListResponseDto,
+  AdminConcertUploadResponseDto,
+} from './dto/ingestion-response.dto';
 import { IngestionService } from './ingestion.service';
 
 @Controller('admin/ingestion')
@@ -36,10 +39,20 @@ export class AdminIngestionController {
   ) {}
 
   @Get('uploads')
-  @ApiOperation({ summary: 'List uploaded concert assets for admin review' })
-  @ApiQuery({ name: 'limit', required: false, example: 25 })
-  @ApiQuery({ name: 'offset', required: false, example: 0 })
-  @ApiQuery({ name: 'reviewStatus', required: false, example: 'submitted' })
+  @ApiOperation({
+    summary: 'List uploaded concert assets for admin review',
+    description:
+      'Admin-only queue of uploaded concert images and their review status. Use this before deciding whether to approve, reject, or mark an upload as past.',
+  })
+  @ApiQuery({ name: 'limit', required: false, example: 25, minimum: 1 })
+  @ApiQuery({ name: 'offset', required: false, example: 0, minimum: 0 })
+  @ApiQuery({
+    name: 'reviewStatus',
+    required: false,
+    enum: ['submitted', 'approved', 'rejected', 'past'],
+    example: 'submitted',
+  })
+  @ApiOkResponse({ type: AdminConcertUploadListResponseDto })
   async listUploads(
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
@@ -55,17 +68,19 @@ export class AdminIngestionController {
     });
   }
 
-  @Get('uploads/:id/image')
-  @ApiOperation({ summary: 'Stream an uploaded concert image for review' })
-  @ApiParam({ name: 'id', description: 'Concert upload id' })
-  async streamUploadImage(@Param('id') id: string, @Res() res: Response) {
-    await this.ingestionService.adminStreamUploadImage(id, res);
-  }
-
   @Put('uploads/:id/review')
-  @ApiOperation({ summary: 'Set review status for an uploaded concert asset' })
-  @ApiParam({ name: 'id', description: 'Concert upload id' })
+  @ApiOperation({
+    summary: 'Set review status for an uploaded concert asset',
+    description:
+      'Admin-only endpoint for marking whether an uploaded flyer should remain submitted, be approved, rejected, or marked as a past event.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Concert upload id',
+    example: '87c28620-0a38-4187-89c8-c83a0246e828',
+  })
   @ApiBody({ type: ReviewConcertUploadDto })
+  @ApiOkResponse({ type: AdminConcertUploadResponseDto })
   async reviewUpload(
     @Param('id') id: string,
     @Body() body: ReviewConcertUploadDto,

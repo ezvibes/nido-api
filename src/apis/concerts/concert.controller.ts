@@ -1,4 +1,15 @@
 import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
+import {
   Body,
   Controller,
   Delete,
@@ -18,9 +29,16 @@ import { CreateConcertDto } from './dto/create-concert.dto';
 import { UpdateConcertDto } from './dto/update-concert.dto';
 import { ListConcertsDto } from './dto/list-concerts.dto';
 import { UserService } from '../users/user.service';
+import {
+  ConcertEngagementResponseDto,
+  ConcertListResponseDto,
+  ConcertResponseDto,
+} from './dto/concert-response.dto';
 
 @Controller('concerts')
 @UseGuards(FirebaseAuthGuard)
+@ApiTags('Concerts')
+@ApiBearerAuth()
 export class ConcertController {
   constructor(
     private readonly concertService: ConcertService,
@@ -32,6 +50,32 @@ export class ConcertController {
   }
 
   @Get()
+  @ApiOperation({
+    summary: 'List concerts for the current user',
+    description:
+      'Returns paginated concert records created manually, uploaded through ingestion, or produced by calendar sync.',
+  })
+  @ApiQuery({ name: 'q', required: false, example: 'doctor s' })
+  @ApiQuery({ name: 'genre', required: false, example: 'Electronic' })
+  @ApiQuery({
+    name: 'startsAfter',
+    required: false,
+    example: '2026-06-01T00:00:00.000Z',
+  })
+  @ApiQuery({
+    name: 'startsBefore',
+    required: false,
+    example: '2026-07-01T00:00:00.000Z',
+  })
+  @ApiQuery({
+    name: 'sort',
+    required: false,
+    enum: ['soonest', 'featured', 'top_picks', 'trending_week'],
+    example: 'soonest',
+  })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'pageSize', required: false, example: 20 })
+  @ApiOkResponse({ type: ConcertListResponseDto })
   async listConcerts(
     @CurrentUser() user: DecodedIdToken,
     @Query() query: ListConcertsDto,
@@ -41,6 +85,13 @@ export class ConcertController {
   }
 
   @Post()
+  @ApiOperation({
+    summary: 'Create a concert manually',
+    description:
+      'Creates a normalized concert record owned by the current user. Calendar sync jobs use the same concert shape internally.',
+  })
+  @ApiBody({ type: CreateConcertDto })
+  @ApiCreatedResponse({ type: ConcertResponseDto })
   async createConcert(
     @CurrentUser() user: DecodedIdToken,
     @Body() body: CreateConcertDto,
@@ -50,6 +101,9 @@ export class ConcertController {
   }
 
   @Post(':id/upvote')
+  @ApiOperation({ summary: 'Upvote a concert for the current user' })
+  @ApiParam({ name: 'id', description: 'Concert id', example: 'concert-uuid' })
+  @ApiCreatedResponse({ type: ConcertEngagementResponseDto })
   async upvoteConcert(
     @CurrentUser() user: DecodedIdToken,
     @Param('id') id: string,
@@ -59,6 +113,9 @@ export class ConcertController {
   }
 
   @Delete(':id/upvote')
+  @ApiOperation({ summary: 'Remove the current user upvote from a concert' })
+  @ApiParam({ name: 'id', description: 'Concert id', example: 'concert-uuid' })
+  @ApiOkResponse({ type: ConcertEngagementResponseDto })
   async removeConcertUpvote(
     @CurrentUser() user: DecodedIdToken,
     @Param('id') id: string,
@@ -68,6 +125,9 @@ export class ConcertController {
   }
 
   @Get(':id')
+  @ApiOperation({ summary: 'Get one concert by id' })
+  @ApiParam({ name: 'id', description: 'Concert id', example: 'concert-uuid' })
+  @ApiOkResponse({ type: ConcertResponseDto })
   async getConcert(
     @CurrentUser() user: DecodedIdToken,
     @Param('id') id: string,
@@ -77,6 +137,10 @@ export class ConcertController {
   }
 
   @Patch(':id')
+  @ApiOperation({ summary: 'Update one concert by id' })
+  @ApiParam({ name: 'id', description: 'Concert id', example: 'concert-uuid' })
+  @ApiBody({ type: UpdateConcertDto })
+  @ApiOkResponse({ type: ConcertResponseDto })
   async updateConcert(
     @CurrentUser() user: DecodedIdToken,
     @Param('id') id: string,
@@ -88,6 +152,9 @@ export class ConcertController {
 
   @Delete(':id')
   @HttpCode(204)
+  @ApiOperation({ summary: 'Delete one concert by id' })
+  @ApiParam({ name: 'id', description: 'Concert id', example: 'concert-uuid' })
+  @ApiNoContentResponse({ description: 'Concert deleted.' })
   async deleteConcert(
     @CurrentUser() user: DecodedIdToken,
     @Param('id') id: string,
