@@ -181,53 +181,60 @@ describe('IngestionService', () => {
     expect(result.uploadedAt).toBe(createdAt.toISOString());
   });
 
-  it('should complete needs_review jobs when an admin approves an upload', async () => {
-    const createdAt = new Date('2026-06-07T17:30:54.784Z');
-    const upload = {
-      id: 'asset-1',
-      storageUri: 'gs://bucket/path/file.jpg',
-      objectName: 'path/file.jpg',
-      bucket: 'test-bucket',
-      mimeType: 'image/jpeg',
-      originalFilename: 'poster.jpg',
-      city: 'raleigh',
-      state: 'NC',
-      source: 'flyer_upload',
-      size: 12,
-      uploadedByUid: 'uid-1',
-      uploadedByUserId: 3,
-      uploadedByUser: { email: 'user@example.local' },
-      createdAt,
-      reviewStatus: 'submitted',
-    };
+  it.each([
+    ['approved', 'admin_approved'],
+    ['rejected', 'admin_rejected'],
+    ['past', 'admin_marked_past'],
+  ] as const)(
+    'should complete needs_review jobs when an admin marks an upload %s',
+    async (reviewStatus, expectedStage) => {
+      const createdAt = new Date('2026-06-07T17:30:54.784Z');
+      const upload = {
+        id: 'asset-1',
+        storageUri: 'gs://bucket/path/file.jpg',
+        objectName: 'path/file.jpg',
+        bucket: 'test-bucket',
+        mimeType: 'image/jpeg',
+        originalFilename: 'poster.jpg',
+        city: 'raleigh',
+        state: 'NC',
+        source: 'flyer_upload',
+        size: 12,
+        uploadedByUid: 'uid-1',
+        uploadedByUserId: 3,
+        uploadedByUser: { email: 'user@example.local' },
+        createdAt,
+        reviewStatus: 'submitted',
+      };
 
-    concertUploadRepository.findOne.mockResolvedValue(upload);
-    concertUploadRepository.save.mockImplementation(async (value) => value);
-    concertUploadRepository.findOneOrFail.mockResolvedValue({
-      ...upload,
-      reviewStatus: 'approved',
-      reviewNotes: 'valid',
-      reviewedAt: new Date('2026-06-07T17:40:00.000Z'),
-      reviewedByUserId: 7,
-      reviewedByUser: { email: 'admin@example.local' },
-    });
+      concertUploadRepository.findOne.mockResolvedValue(upload);
+      concertUploadRepository.save.mockImplementation(async (value) => value);
+      concertUploadRepository.findOneOrFail.mockResolvedValue({
+        ...upload,
+        reviewStatus,
+        reviewNotes: 'reviewed',
+        reviewedAt: new Date('2026-06-07T17:40:00.000Z'),
+        reviewedByUserId: 7,
+        reviewedByUser: { email: 'admin@example.local' },
+      });
 
-    const result = await service.adminReviewConcertUpload(
-      'asset-1',
-      { status: 'approved', notes: 'valid' },
-      7,
-    );
+      const result = await service.adminReviewConcertUpload(
+        'asset-1',
+        { status: reviewStatus, notes: 'reviewed' },
+        7,
+      );
 
-    expect(ingestionJobRepository.update).toHaveBeenCalledWith(
-      { concertUploadId: 'asset-1', status: 'needs_review' },
-      {
-        status: 'completed',
-        stage: 'admin_approved',
-      },
-    );
-    expect(result.reviewStatus).toBe('approved');
-    expect(result.reviewedByUserEmail).toBe('admin@example.local');
-  });
+      expect(ingestionJobRepository.update).toHaveBeenCalledWith(
+        { concertUploadId: 'asset-1', status: 'needs_review' },
+        {
+          status: 'completed',
+          stage: expectedStage,
+        },
+      );
+      expect(result.reviewStatus).toBe(reviewStatus);
+      expect(result.reviewedByUserEmail).toBe('admin@example.local');
+    },
+  );
 
   it('should not complete jobs when an admin returns an upload to submitted', async () => {
     const createdAt = new Date('2026-06-07T17:30:54.784Z');
@@ -330,5 +337,12 @@ describe('IngestionService', () => {
     await expect(
       service.createJob('asset-404', 'uid-1'),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('should reject missing concert upload ids when creating a job', async () => {
+    await expect(service.createJob(undefined, 'uid-1')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(concertUploadRepository.findOne).not.toHaveBeenCalled();
   });
 });

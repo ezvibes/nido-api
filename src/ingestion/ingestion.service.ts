@@ -269,7 +269,7 @@ export class IngestionService {
     uid: string,
   ): Promise<IngestionJobResponse> {
     if (!concertUploadId) {
-      throw new NotFoundException('Concert upload not found');
+      throw new BadRequestException('concertUploadId is required.');
     }
 
     const concertUpload = await this.concertUploadRepository.findOne({
