@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { IngestionService } from './ingestion.service';
 import { ConcertUpload } from './entities/concert-upload.entity';
 import { IngestionJob } from './entities/ingestion-job.entity';
@@ -14,6 +18,7 @@ describe('IngestionService', () => {
     create: jest.fn(),
     save: jest.fn(),
     findOne: jest.fn(),
+    findOneOrFail: jest.fn(),
   };
 
   const ingestionJobRepository = {
@@ -176,6 +181,88 @@ describe('IngestionService', () => {
     expect(result.uploadedAt).toBe(createdAt.toISOString());
   });
 
+  it('should complete needs_review jobs when an admin approves an upload', async () => {
+    const createdAt = new Date('2026-06-07T17:30:54.784Z');
+    const upload = {
+      id: 'asset-1',
+      storageUri: 'gs://bucket/path/file.jpg',
+      objectName: 'path/file.jpg',
+      bucket: 'test-bucket',
+      mimeType: 'image/jpeg',
+      originalFilename: 'poster.jpg',
+      city: 'raleigh',
+      state: 'NC',
+      source: 'flyer_upload',
+      size: 12,
+      uploadedByUid: 'uid-1',
+      uploadedByUserId: 3,
+      uploadedByUser: { email: 'user@example.local' },
+      createdAt,
+      reviewStatus: 'submitted',
+    };
+
+    concertUploadRepository.findOne.mockResolvedValue(upload);
+    concertUploadRepository.save.mockImplementation(async (value) => value);
+    concertUploadRepository.findOneOrFail.mockResolvedValue({
+      ...upload,
+      reviewStatus: 'approved',
+      reviewNotes: 'valid',
+      reviewedAt: new Date('2026-06-07T17:40:00.000Z'),
+      reviewedByUserId: 7,
+      reviewedByUser: { email: 'admin@example.local' },
+    });
+
+    const result = await service.adminReviewConcertUpload(
+      'asset-1',
+      { status: 'approved', notes: 'valid' },
+      7,
+    );
+
+    expect(ingestionJobRepository.update).toHaveBeenCalledWith(
+      { concertUploadId: 'asset-1', status: 'needs_review' },
+      {
+        status: 'completed',
+        stage: 'admin_approved',
+      },
+    );
+    expect(result.reviewStatus).toBe('approved');
+    expect(result.reviewedByUserEmail).toBe('admin@example.local');
+  });
+
+  it('should not complete jobs when an admin returns an upload to submitted', async () => {
+    const createdAt = new Date('2026-06-07T17:30:54.784Z');
+    const upload = {
+      id: 'asset-1',
+      storageUri: 'gs://bucket/path/file.jpg',
+      objectName: 'path/file.jpg',
+      bucket: 'test-bucket',
+      mimeType: 'image/jpeg',
+      originalFilename: 'poster.jpg',
+      source: 'flyer_upload',
+      size: 12,
+      uploadedByUid: 'uid-1',
+      createdAt,
+      reviewStatus: 'approved',
+    };
+
+    concertUploadRepository.findOne.mockResolvedValue(upload);
+    concertUploadRepository.save.mockImplementation(async (value) => value);
+    concertUploadRepository.findOneOrFail.mockResolvedValue({
+      ...upload,
+      reviewStatus: 'submitted',
+      reviewedAt: new Date('2026-06-07T17:40:00.000Z'),
+      reviewedByUserId: 7,
+    });
+
+    await service.adminReviewConcertUpload(
+      'asset-1',
+      { status: 'submitted' },
+      7,
+    );
+
+    expect(ingestionJobRepository.update).not.toHaveBeenCalled();
+  });
+
   it('should reject upload when the bucket is not configured', async () => {
     const missingBucketModule: TestingModule = await Test.createTestingModule({
       providers: [
@@ -197,7 +284,8 @@ describe('IngestionService', () => {
       ],
     }).compile();
 
-    const missingBucketService = missingBucketModule.get<IngestionService>(IngestionService);
+    const missingBucketService =
+      missingBucketModule.get<IngestionService>(IngestionService);
 
     await expect(
       missingBucketService.uploadImage(
@@ -239,8 +327,8 @@ describe('IngestionService', () => {
   it('should reject unknown concert uploads when creating a job', async () => {
     concertUploadRepository.findOne.mockResolvedValue(null);
 
-    await expect(service.createJob('asset-404', 'uid-1')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.createJob('asset-404', 'uid-1'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

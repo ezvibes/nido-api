@@ -5,6 +5,7 @@ import {
   Param,
   Put,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -17,6 +18,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { DecodedIdToken } from 'firebase-admin/auth';
+import type { Response } from 'express';
 import { UserService } from '../apis/users/user.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AdminEmailGuard } from '../auth/guards/admin-email.guard';
@@ -88,5 +90,20 @@ export class AdminIngestionController {
   ) {
     const profile = await this.userService.syncFromToken(user);
     return this.ingestionService.adminReviewConcertUpload(id, body, profile.id);
+  }
+
+  @Get('uploads/:id/image')
+  @ApiOperation({
+    summary: 'Stream an uploaded concert image for admin preview',
+    description:
+      'Admin-only endpoint that streams the original uploaded image from GCS for review.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Concert upload id',
+    example: '87c28620-0a38-4187-89c8-c83a0246e828',
+  })
+  async streamUploadImage(@Param('id') id: string, @Res() res: Response) {
+    return this.ingestionService.adminStreamUploadImage(id, res);
   }
 }

@@ -1,6 +1,8 @@
 import {
   Body,
   Controller,
+  Get,
+  Param,
   Post,
   UploadedFiles,
   UseGuards,
@@ -11,7 +13,9 @@ import {
   ApiBody,
   ApiConsumes,
   ApiCreatedResponse,
+  ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
@@ -20,6 +24,7 @@ import { memoryStorage } from 'multer';
 import { UserService } from '../apis/users/user.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { FirebaseAuthGuard } from '../auth/firebase-auth/firebase-auth.guard';
+import { CreateIngestionJobDto } from './dto/create-ingestion-job.dto';
 import { CreateIngestionUploadDto } from './dto/create-ingestion-upload.dto';
 import { IngestionUploadResponseDto } from './dto/ingestion-response.dto';
 import { IngestionService } from './ingestion.service';
@@ -85,5 +90,42 @@ export class IngestionController {
     const profile = await this.userService.syncFromToken(user);
     const file = files?.file?.[0] ?? files?.image?.[0];
     return this.ingestionService.uploadImage(file, body, user.uid, profile.id);
+  }
+
+  @Post('jobs')
+  @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Create an ingestion job for an uploaded concert asset',
+    description:
+      'Starts the current Phase 1 ingestion job skeleton for an upload owned by the signed-in user.',
+  })
+  @ApiCreatedResponse({
+    description: 'The queued ingestion job and associated upload metadata.',
+  })
+  async createJob(
+    @Body() body: CreateIngestionJobDto,
+    @CurrentUser() user: DecodedIdToken,
+  ) {
+    return this.ingestionService.createJob(
+      body.concertUploadId ?? body.sourceAssetId,
+      user.uid,
+    );
+  }
+
+  @Get('jobs/:id')
+  @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get an ingestion job by id',
+    description:
+      'Returns a job only when it belongs to an upload owned by the signed-in user.',
+  })
+  @ApiParam({ name: 'id', description: 'Ingestion job id' })
+  @ApiOkResponse({
+    description: 'The ingestion job and associated upload metadata.',
+  })
+  async getJob(@Param('id') id: string, @CurrentUser() user: DecodedIdToken) {
+    return this.ingestionService.getJob(id, user.uid);
   }
 }

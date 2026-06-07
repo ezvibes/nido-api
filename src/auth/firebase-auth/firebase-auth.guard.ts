@@ -52,9 +52,11 @@ export class FirebaseAuthGuard implements CanActivate {
   }
 
   private buildDevUser(headers: Record<string, string | string[] | undefined>) {
+    const defaultEmail =
+      this.configService.get<string>('ADMIN_EMAILS')?.split(',')[0]?.trim() ||
+      'dev@example.local';
     const uid = this.getHeader(headers, 'x-dev-user-uid') || 'dev-user';
-    const email =
-      this.getHeader(headers, 'x-dev-user-email') || 'dev@example.local';
+    const email = this.getHeader(headers, 'x-dev-user-email') || defaultEmail;
     const name = this.getHeader(headers, 'x-dev-user-name') || 'Dev User';
 
     return {

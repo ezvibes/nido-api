@@ -62,7 +62,8 @@ nido-api-08fa5f15fac1.json
 
 # Local docs and planning docs
 /docs/
-/src/docs/
+/src/docs/*
+!/src/docs/ADMIN_INGESTION_REVIEW_ONBOARDING.md
 
 # Local agent briefs
 .agents/

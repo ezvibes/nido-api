@@ -100,6 +100,7 @@ Admin-only endpoints are under `/admin/ingestion/*` (list uploads, preview image
 
 - Backend allowlist: set `ADMIN_EMAILS` (comma-separated emails) in `.env`
 - Client menu allowlist: set `VITE_ADMIN_EMAILS` (comma-separated emails) in `client/.env`
+- Admin onboarding and validation guide: `src/docs/ADMIN_INGESTION_REVIEW_ONBOARDING.md`
 
 ### Concert Calendar Sync Agent
 
