@@ -23,6 +23,13 @@ export interface ConcertApiItem {
   upvoteCount?: number;
   upvotedByMe?: boolean;
   trendingWeekUpvotes?: number;
+  syncSource?: {
+    source: 'google_calendar';
+    calendarId: string;
+    calendarEventId: string;
+    lastSyncedAt?: string | null;
+    needsGuidance?: boolean;
+  } | null;
 }
 
 export interface ConcertApiResponse {
@@ -51,17 +58,21 @@ export function mapConcertToEventListItem(
       | 'upvoteCount'
       | 'upvotedByMe'
       | 'trendingWeekUpvotes'
+      | 'syncSource'
     >
-  >
+  >,
 ): EventListItem {
   return {
     ...concert,
-    posterUrl: overrides?.posterUrl ?? 'https://placehold.co/720x900?text=Live+Music',
+    posterUrl:
+      overrides?.posterUrl ?? 'https://placehold.co/720x900?text=Live+Music',
     sourceLabel: overrides?.sourceLabel ?? 'EZ Vibes Demo',
     displayTags: overrides?.displayTags ?? [concert.genre],
     demoRank: overrides?.demoRank ?? 0,
     upvoteCount: overrides?.upvoteCount ?? concert.upvoteCount ?? 0,
     upvotedByMe: overrides?.upvotedByMe ?? concert.upvotedByMe ?? false,
-    trendingWeekUpvotes: overrides?.trendingWeekUpvotes ?? concert.trendingWeekUpvotes ?? 0,
+    trendingWeekUpvotes:
+      overrides?.trendingWeekUpvotes ?? concert.trendingWeekUpvotes ?? 0,
+    syncSource: overrides?.syncSource ?? concert.syncSource ?? null,
   };
 }

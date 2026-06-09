@@ -2,6 +2,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { getAuth } from 'firebase/auth';
 import EventsPage from './pages/EventsPage.vue';
+import ConcertSyncPage from './pages/ConcertSyncPage.vue';
 import { routeLoading } from './stores/routeLoading';
 import HomePage from './views/HomePage.vue';
 import LoginPage from './views/LoginPage.vue';
@@ -40,6 +41,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/concert-sync',
+    name: 'ConcertSync',
+    component: ConcertSyncPage,
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/admin/ingestion/uploads',
     name: 'AdminIngestionUploads',
     component: AdminIngestionUploadsPage,
@@ -54,8 +61,10 @@ const router = createRouter({
 
 router.beforeEach((to, _from, next) => {
   routeLoading.value = true;
-  const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
-  const requiresAdmin = to.matched.some(record => (record.meta as any).requiresAdmin);
+  const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
+  const requiresAdmin = to.matched.some(
+    (record) => (record.meta as any).requiresAdmin,
+  );
   const isAuthenticated = getAuth().currentUser;
 
   if (to.path === '/login' && isAuthenticated) {

@@ -3,21 +3,35 @@ import type { EventListItem } from '../types/events';
 
 export type DateRangeOption = '7' | '30' | 'all';
 export type SortOption = 'soonest' | 'featured' | 'trending_week';
+export type SourceOption = 'all' | 'synced';
 
-export function useEventFilters(events: EventListItem[] | Ref<EventListItem[]>) {
+export function useEventFilters(
+  events: EventListItem[] | Ref<EventListItem[]>,
+) {
   const searchText = ref('');
   const dateRange = ref<DateRangeOption>('30');
   const sort = ref<SortOption>('soonest');
+  const source = ref<SourceOption>('all');
 
   const filteredEvents = computed(() => {
     const sourceEvents = unref(events);
     const now = Date.now();
-    let result = sourceEvents.filter((event) => new Date(event.startsAt).getTime() >= now);
+    let result = sourceEvents.filter(
+      (event) => new Date(event.startsAt).getTime() >= now,
+    );
 
     if (dateRange.value !== 'all') {
       const days = Number.parseInt(dateRange.value, 10);
       const maxTime = now + days * 24 * 60 * 60 * 1000;
-      result = result.filter((event) => new Date(event.startsAt).getTime() <= maxTime);
+      result = result.filter(
+        (event) => new Date(event.startsAt).getTime() <= maxTime,
+      );
+    }
+
+    if (source.value === 'synced') {
+      result = result.filter(
+        (event) => event.syncSource?.source === 'google_calendar',
+      );
     }
 
     const search = searchText.value.trim().toLowerCase();
@@ -57,7 +71,8 @@ export function useEventFilters(events: EventListItem[] | Ref<EventListItem[]>) 
 
     if (sort.value === 'trending_week') {
       return [...result].sort((a, b) => {
-        const trendingDelta = (b.trendingWeekUpvotes ?? 0) - (a.trendingWeekUpvotes ?? 0);
+        const trendingDelta =
+          (b.trendingWeekUpvotes ?? 0) - (a.trendingWeekUpvotes ?? 0);
         if (trendingDelta !== 0) {
           return trendingDelta;
         }
@@ -72,7 +87,7 @@ export function useEventFilters(events: EventListItem[] | Ref<EventListItem[]>) 
     }
 
     return [...result].sort(
-      (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
+      (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
     );
   });
 
@@ -80,12 +95,14 @@ export function useEventFilters(events: EventListItem[] | Ref<EventListItem[]>) 
     searchText.value = '';
     dateRange.value = '30';
     sort.value = 'soonest';
+    source.value = 'all';
   };
 
   return {
     searchText,
     dateRange,
     sort,
+    source,
     filteredEvents,
     clearFilters,
   };

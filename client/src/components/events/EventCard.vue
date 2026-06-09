@@ -9,6 +9,9 @@
     </div>
 
     <div class="event-card__body">
+      <div v-if="isSynced" class="event-card__badges" aria-label="Event source">
+        <span class="event-card__badge">Google Calendar Sync</span>
+      </div>
       <h3 class="event-card__title">{{ event.title }}</h3>
       <p class="event-card__venue">{{ primaryVenueName }}</p>
       <p class="event-card__location">{{ locationLabel }}</p>
@@ -53,6 +56,9 @@ defineEmits<{
 }>();
 
 const primaryVenue = computed(() => props.event.venues[0]);
+const isSynced = computed(
+  () => props.event.syncSource?.source === 'google_calendar',
+);
 
 const primaryVenueName = computed(
   () => primaryVenue.value?.name ?? 'Venue TBD',
@@ -115,6 +121,26 @@ const formattedStartTime = computed(() =>
 .event-card__time,
 .event-card__description {
   margin: 0;
+}
+
+.event-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.event-card__badge {
+  justify-self: start;
+  width: fit-content;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid rgba(44, 102, 74, 0.22);
+  border-radius: 999px;
+  background: rgba(44, 102, 74, 0.1);
+  color: #285d33;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .event-card__title {
