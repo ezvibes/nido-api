@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { ConcertModule } from './apis/concerts/concert.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { IngestionModule } from './ingestion/ingestion.module';
+import { ConcertSyncModule } from './concert-sync/concert-sync.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { IngestionModule } from './ingestion/ingestion.module';
     AuthModule,
     ConcertModule,
     IngestionModule,
+    ConcertSyncModule,
   ],
   controllers: [],
   providers: [],

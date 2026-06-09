@@ -5,7 +5,6 @@ describe('IngestionController', () => {
   const ingestionService = {
     uploadImage: jest.fn(),
     createJob: jest.fn(),
-    getConcertUpload: jest.fn(),
     getJob: jest.fn(),
   };
   const userService = {
@@ -16,7 +15,10 @@ describe('IngestionController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new IngestionController(ingestionService as any, userService as any);
+    controller = new IngestionController(
+      ingestionService as any,
+      userService as any,
+    );
   });
 
   it('should pass the simplified dto through on upload', async () => {
@@ -39,27 +41,41 @@ describe('IngestionController', () => {
     );
   });
 
-  it('should request a job for the current user', async () => {
+  it('should create an ingestion job for the current user', async () => {
     ingestionService.createJob.mockResolvedValue({ id: 'job-1' });
 
-    await controller.createJob({ concertUploadId: 'asset-1' }, { uid: 'uid-1' } as any);
+    const result = await controller.createJob(
+      { concertUploadId: '87c28620-0a38-4187-89c8-c83a0246e828' },
+      { uid: 'uid-1' } as any,
+    );
 
-    expect(ingestionService.createJob).toHaveBeenCalledWith('asset-1', 'uid-1');
+    expect(ingestionService.createJob).toHaveBeenCalledWith(
+      '87c28620-0a38-4187-89c8-c83a0246e828',
+      'uid-1',
+    );
+    expect(result).toEqual({ id: 'job-1' });
   });
 
-  it('should fetch a job for the current user', async () => {
+  it('should support sourceAssetId as a job creation alias', async () => {
+    ingestionService.createJob.mockResolvedValue({ id: 'job-1' });
+
+    await controller.createJob(
+      { sourceAssetId: '87c28620-0a38-4187-89c8-c83a0246e828' },
+      { uid: 'uid-1' } as any,
+    );
+
+    expect(ingestionService.createJob).toHaveBeenCalledWith(
+      '87c28620-0a38-4187-89c8-c83a0246e828',
+      'uid-1',
+    );
+  });
+
+  it('should fetch an ingestion job for the current user', async () => {
     ingestionService.getJob.mockResolvedValue({ id: 'job-1' });
 
-    await controller.getJob('job-1', { uid: 'uid-1' } as any);
+    const result = await controller.getJob('job-1', { uid: 'uid-1' } as any);
 
     expect(ingestionService.getJob).toHaveBeenCalledWith('job-1', 'uid-1');
-  });
-
-  it('should fetch an upload for the current user', async () => {
-    ingestionService.getConcertUpload.mockResolvedValue({ concertUploadId: 'asset-1' });
-
-    await controller.getUpload('asset-1', { uid: 'uid-1' } as any);
-
-    expect(ingestionService.getConcertUpload).toHaveBeenCalledWith('asset-1', 'uid-1');
+    expect(result).toEqual({ id: 'job-1' });
   });
 });

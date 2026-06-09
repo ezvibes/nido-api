@@ -8,6 +8,16 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { memoryStorage } from 'multer';
@@ -16,10 +26,12 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { FirebaseAuthGuard } from '../auth/firebase-auth/firebase-auth.guard';
 import { CreateIngestionJobDto } from './dto/create-ingestion-job.dto';
 import { CreateIngestionUploadDto } from './dto/create-ingestion-upload.dto';
+import { IngestionUploadResponseDto } from './dto/ingestion-response.dto';
 import { IngestionService } from './ingestion.service';
 import { UploadableFile } from './interfaces/uploadable-file.interface';
 
 @Controller('ingestion')
+@ApiTags('Ingestion')
 export class IngestionController {
   constructor(
     private readonly ingestionService: IngestionService,
@@ -28,6 +40,30 @@ export class IngestionController {
 
   @Post('uploads')
   @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Upload a concert flyer/image for ingestion review',
+    description:
+      'Stores one uploaded image for later admin review. This minimal endpoint does not parse the flyer into a concert yet.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        image: { type: 'string', format: 'binary' },
+        city: { type: 'string', example: 'Charlotte' },
+        state: { type: 'string', example: 'NC' },
+        source: {
+          type: 'string',
+          enum: ['flyer_upload', 'manual_upload', 'partner_upload'],
+          example: 'flyer_upload',
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({ type: IngestionUploadResponseDto })
   @UseInterceptors(
     FileFieldsInterceptor(
       [
@@ -58,6 +94,15 @@ export class IngestionController {
 
   @Post('jobs')
   @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Create an ingestion job for an uploaded concert asset',
+    description:
+      'Starts the current Phase 1 ingestion job skeleton for an upload owned by the signed-in user.',
+  })
+  @ApiCreatedResponse({
+    description: 'The queued ingestion job and associated upload metadata.',
+  })
   async createJob(
     @Body() body: CreateIngestionJobDto,
     @CurrentUser() user: DecodedIdToken,
@@ -68,21 +113,19 @@ export class IngestionController {
     );
   }
 
-  @Get('uploads/:id')
-  @UseGuards(FirebaseAuthGuard)
-  async getUpload(
-    @Param('id') id: string,
-    @CurrentUser() user: DecodedIdToken,
-  ) {
-    return this.ingestionService.getConcertUpload(id, user.uid);
-  }
-
   @Get('jobs/:id')
   @UseGuards(FirebaseAuthGuard)
-  async getJob(
-    @Param('id') id: string,
-    @CurrentUser() user: DecodedIdToken,
-  ) {
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get an ingestion job by id',
+    description:
+      'Returns a job only when it belongs to an upload owned by the signed-in user.',
+  })
+  @ApiParam({ name: 'id', description: 'Ingestion job id' })
+  @ApiOkResponse({
+    description: 'The ingestion job and associated upload metadata.',
+  })
+  async getJob(@Param('id') id: string, @CurrentUser() user: DecodedIdToken) {
     return this.ingestionService.getJob(id, user.uid);
   }
 }

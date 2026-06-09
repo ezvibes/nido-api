@@ -6,8 +6,8 @@ This repository contains the full-stack application for Nido, which includes a N
 
 The project is organized into two main parts:
 
--   `src/`: The NestJS backend API. This handles business logic, database interactions, and authentication.
--   `client/`: The Vue.js frontend application. This is the user-facing interface that consumes the Nido API.
+- `src/`: The NestJS backend API. This handles business logic, database interactions, and authentication.
+- `client/`: The Vue.js frontend application. This is the user-facing interface that consumes the Nido API.
 
 ---
 
@@ -21,19 +21,19 @@ First, set up and run the NestJS server.
 
 #### **Prerequisites**
 
--   A PostgreSQL database. You can run one easily using Docker:
-    ```bash
-    docker-compose up -d
-    ```
--   A `.env` file in the project root. Create it if it doesn't exist:
-    ```
-    DB_HOST=localhost
-    DB_PORT=5432
-    DB_USER=user
-    DB_PASSWORD=password
-    DB_NAME=nido
-    DB_SYNCHRONIZE=true
-    ```
+- A PostgreSQL database. You can run one easily using Docker:
+  ```bash
+  docker-compose up -d
+  ```
+- A `.env` file in the project root. Create it if it doesn't exist:
+  ```
+  DB_HOST=localhost
+  DB_PORT=5432
+  DB_USER=user
+  DB_PASSWORD=password
+  DB_NAME=nido
+  DB_SYNCHRONIZE=true
+  ```
 
 #### **Installation & Execution**
 
@@ -68,6 +68,15 @@ The frontend will be available at `http://localhost:5173`.
 
 ## Configuration
 
+### Swagger API Docs
+
+Interactive API documentation is available after the API starts:
+
+- Swagger UI: `http://localhost:3001/api-docs`
+- OpenAPI JSON: `http://localhost:3001/api-docs-json`
+
+Use the Swagger Authorize button with a Firebase bearer token to test protected endpoints.
+
 ### CORS
 
 The backend is configured to accept cross-origin requests only from the frontend client. This is defined in `src/main.ts`. Any changes to the client's address (`http://localhost:5173`) must be reflected there.
@@ -91,6 +100,56 @@ Admin-only endpoints are under `/admin/ingestion/*` (list uploads, preview image
 
 - Backend allowlist: set `ADMIN_EMAILS` (comma-separated emails) in `.env`
 - Client menu allowlist: set `VITE_ADMIN_EMAILS` (comma-separated emails) in `client/.env`
+- Admin onboarding and validation guide: `src/docs/ADMIN_INGESTION_REVIEW_ONBOARDING.md`
+
+### Concert Calendar Sync Agent
+
+The API now includes a sync agent under `/concert-sync/*` that can:
+
+- Pull Google Calendar events for a user and date range
+- Use Gemini to normalize event metadata into clean concert records
+- Upsert concert data with event-level fingerprinting for idempotent sync runs
+- Refresh Top Picks rankings after sync jobs
+- Preserve low-confidence extraction warnings for review
+- Keep Top Picks limited to admin-approved concerts only
+
+Required env for AI enrichment:
+
+- `GEMINI_API_KEY`
+- Optional `GEMINI_MODEL` (defaults to `gemini-2.0-flash`)
+- Optional `CONCERT_SYNC_GEMINI_ENABLED=false` disables paid Gemini calls and uses deterministic fallback extraction.
+- Optional extraction policy controls:
+  - `CONCERT_SYNC_ALLOWED_GENRES`
+  - `CONCERT_SYNC_MIN_CONFIDENCE`
+  - `CONCERT_SYNC_REQUIRE_VENUE`
+  - `CONCERT_SYNC_REQUIRE_ARTIST`
+  - `CONCERT_SYNC_MAX_DESCRIPTION_LENGTH`
+  - `CONCERT_SYNC_MAX_EVENTS_PER_JOB` (defaults to 25, max 100)
+
+Important security behavior:
+
+- `googleAccessToken` is accepted per sync request and not persisted to the database.
+- Sync job records store operational metadata only (counts/status/extraction warnings).
+- Gemini prompt payload is sanitized before transmission (attendees/organizer omitted, emails/phones/URLs redacted).
+- Sync jobs record whether extraction used Gemini or fallback heuristics, including quota/billing fallback reasons.
+- `POST /concert-sync/jobs` supports `dryRun=true` to load and sanitize source events without calling Gemini or writing concerts.
+
+Core endpoints:
+
+- `POST /concert-sync/jobs` starts a sync job
+- `GET /concert-sync/jobs` lists sync jobs
+- `GET /concert-sync/jobs/:id` gets a sync job with recent mapped events
+
+Concert approval gate:
+
+- Only concerts with `isAdminApproved=true` are eligible for Top Picks scoring.
+- Admin approval endpoint: `PUT /admin/concerts/:id/approval` with body `{ "approved": true | false }`.
+- Doctor S workflow and QA scenarios: `src/docs/DOCTOR_S_INGESTION_SYNC_PIPELINE.md`
+
+Sample-job mode:
+
+- `POST /concert-sync/jobs` can accept `sampleEvents` for local/test runs without live Google API calls.
+- Production source of truth remains Google Calendar for now, but the sync service already isolates event-source loading (`loadSourceEvents`) so a future ingestion-pipeline source can be added without rewriting extraction/upsert logic.
 
 ## User Signup Flow
 

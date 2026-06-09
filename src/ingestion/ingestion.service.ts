@@ -39,7 +39,8 @@ export class IngestionService {
     private readonly ingestionJobRepository: Repository<IngestionJob>,
   ) {
     this.bucketName =
-      this.configService.get<string>('GCS_INGESTION_BUCKET')?.trim() || undefined;
+      this.configService.get<string>('GCS_INGESTION_BUCKET')?.trim() ||
+      undefined;
 
     const serviceAccountFromEnv = this.resolveServiceAccountFromEnv();
     const serviceAccountFromPath = this.resolveServiceAccountFromPath();
@@ -54,8 +55,7 @@ export class IngestionService {
       serviceAccount?.client_email ??
       this.configService.get<string>('GCP_CLIENT_EMAIL') ??
       this.configService.get<string>('FIREBASE_CLIENT_EMAIL');
-    const privateKey =
-      serviceAccount?.private_key ?? this.resolvePrivateKey();
+    const privateKey = serviceAccount?.private_key ?? this.resolvePrivateKey();
 
     this.storage =
       projectId && clientEmail && privateKey
@@ -85,7 +85,9 @@ export class IngestionService {
             ? parsed.client_email
             : undefined,
         private_key:
-          typeof parsed.private_key === 'string' ? parsed.private_key : undefined,
+          typeof parsed.private_key === 'string'
+            ? parsed.private_key
+            : undefined,
       };
     } catch {
       throw new InternalServerErrorException(
@@ -111,7 +113,9 @@ export class IngestionService {
             ? parsed.client_email
             : undefined,
         private_key:
-          typeof parsed.private_key === 'string' ? parsed.private_key : undefined,
+          typeof parsed.private_key === 'string'
+            ? parsed.private_key
+            : undefined,
       };
     } catch (error) {
       const errorMessage =
@@ -130,13 +134,30 @@ export class IngestionService {
       return directPrivateKey.replace(/\\n/g, '\n');
     }
 
-    const legacyFirebasePrivateKey =
-      this.configService.get<string>('FIREBASE_PRIVATE_KEY_ID');
+    const legacyFirebasePrivateKey = this.configService.get<string>(
+      'FIREBASE_PRIVATE_KEY_ID',
+    );
     if (legacyFirebasePrivateKey?.includes('BEGIN PRIVATE KEY')) {
       return legacyFirebasePrivateKey.replace(/\\n/g, '\n');
     }
 
     return undefined;
+  }
+
+  private getTerminalReviewStage(
+    status: ReviewConcertUploadDto['status'],
+  ): string | undefined {
+    switch (status) {
+      case 'approved':
+        return 'admin_approved';
+      case 'rejected':
+        return 'admin_rejected';
+      case 'past':
+        return 'admin_marked_past';
+      case 'submitted':
+      default:
+        return undefined;
+    }
   }
 
   private normalizeReviewStatus(
@@ -243,9 +264,12 @@ export class IngestionService {
     };
   }
 
-  async createJob(concertUploadId: string | undefined, uid: string): Promise<IngestionJobResponse> {
+  async createJob(
+    concertUploadId: string | undefined,
+    uid: string,
+  ): Promise<IngestionJobResponse> {
     if (!concertUploadId) {
-      throw new NotFoundException('Concert upload not found');
+      throw new BadRequestException('concertUploadId is required.');
     }
 
     const concertUpload = await this.concertUploadRepository.findOne({
@@ -253,7 +277,9 @@ export class IngestionService {
     });
 
     if (!concertUpload) {
-      throw new NotFoundException(`Concert upload ${concertUploadId} not found`);
+      throw new NotFoundException(
+        `Concert upload ${concertUploadId} not found`,
+      );
     }
 
     const ingestionJob = await this.ingestionJobRepository.save(
@@ -268,10 +294,16 @@ export class IngestionService {
 
     void this.runJobSkeleton(ingestionJob.id);
 
-    return this.mapJobResponse({ ...ingestionJob, concertUpload } as IngestionJob);
+    return this.mapJobResponse({
+      ...ingestionJob,
+      concertUpload,
+    } as IngestionJob);
   }
 
-  async getConcertUpload(id: string, uid: string): Promise<IngestionUploadResult> {
+  async getConcertUpload(
+    id: string,
+    uid: string,
+  ): Promise<IngestionUploadResult> {
     const concertUpload = await this.concertUploadRepository.findOne({
       where: { id, uploadedByUid: uid },
     });
@@ -288,8 +320,12 @@ export class IngestionService {
     offset?: number;
     reviewStatus?: string;
   }): Promise<AdminConcertUploadListResponse> {
-    const requestedLimit = Number.isFinite(options?.limit) ? options?.limit : undefined;
-    const requestedOffset = Number.isFinite(options?.offset) ? options?.offset : undefined;
+    const requestedLimit = Number.isFinite(options?.limit)
+      ? options?.limit
+      : undefined;
+    const requestedOffset = Number.isFinite(options?.offset)
+      ? options?.offset
+      : undefined;
 
     const limit = Math.min(Math.max(requestedLimit ?? 25, 1), 100);
     const offset = Math.max(requestedOffset ?? 0, 0);
@@ -363,6 +399,17 @@ export class IngestionService {
     upload.reviewedByUserId = reviewedByUserId;
 
     const saved = await this.concertUploadRepository.save(upload);
+    const terminalReviewStage = this.getTerminalReviewStage(dto.status);
+    if (terminalReviewStage) {
+      await this.ingestionJobRepository.update(
+        { concertUploadId: saved.id, status: 'needs_review' },
+        {
+          status: 'completed',
+          stage: terminalReviewStage,
+        },
+      );
+    }
+
     const hydrated = await this.concertUploadRepository.findOneOrFail({
       where: { id: saved.id },
       relations: {
@@ -474,7 +521,9 @@ export class IngestionService {
     };
   }
 
-  private mapConcertUploadResponse(concertUpload: ConcertUpload): IngestionUploadResult {
+  private mapConcertUploadResponse(
+    concertUpload: ConcertUpload,
+  ): IngestionUploadResult {
     return {
       concertUploadId: concertUpload.id,
       bucket: concertUpload.bucket,
@@ -509,7 +558,9 @@ export class IngestionService {
       });
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : 'Unknown ingestion worker error';
+        error instanceof Error
+          ? error.message
+          : 'Unknown ingestion worker error';
       await this.ingestionJobRepository.update(jobId, {
         status: 'failed',
         stage: 'worker_failed',
