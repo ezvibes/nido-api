@@ -6,7 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
-import { In, Repository } from 'typeorm';
+import { Between, In, Repository } from 'typeorm';
 import { Concert } from '../apis/concerts/entities/concert.entity';
 import { User } from '../apis/users/entities/user.entity';
 import { CreateConcertSyncJobDto } from './dto/create-concert-sync-job.dto';
@@ -19,6 +19,7 @@ import { ConcertSyncEvent } from './entities/concert-sync-event.entity';
 import { ConcertSyncJob } from './entities/concert-sync-job.entity';
 import { GeminiConcertExtractorService } from './services/gemini-concert-extractor.service';
 import { GoogleCalendarClientService } from './services/google-calendar-client.service';
+import { IcalCalendarClientService } from './services/ical-calendar-client.service';
 import type { ConcertExtractionResult } from './interfaces/concert-extraction.interface';
 import type { GoogleCalendarEvent } from './interfaces/google-calendar-event.interface';
 
@@ -34,6 +35,7 @@ export class ConcertSyncService {
     @InjectRepository(Concert)
     private readonly concertRepository: Repository<Concert>,
     private readonly calendarClient: GoogleCalendarClientService,
+    private readonly icalCalendarClient: IcalCalendarClientService,
     private readonly geminiExtractor: GeminiConcertExtractorService,
     private readonly configService: ConfigService,
   ) {}
@@ -49,9 +51,17 @@ export class ConcertSyncService {
     if (rangeStart && rangeEnd && rangeStart > rangeEnd) {
       throw new BadRequestException('fromDate cannot be after toDate.');
     }
-    if (!dto.googleAccessToken && !sampleEvents?.length) {
+    const accessToken =
+      dto.googleAccessToken?.trim() || this.getConfiguredCalendarAccessToken();
+
+    if (
+      !accessToken &&
+      !sampleEvents?.length &&
+      !this.isPublicCalendarUrl(calendarId) &&
+      !this.calendarClient.hasConfiguredServerCredential()
+    ) {
       throw new BadRequestException(
-        'googleAccessToken is required unless sampleEvents are supplied.',
+        'Google Calendar access is not configured. Set GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON or GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL and GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY.',
       );
     }
 
@@ -72,13 +82,15 @@ export class ConcertSyncService {
           sampleMode: Boolean(sampleEvents?.length),
           syncSource: sampleEvents?.length
             ? 'sample_events'
-            : 'google_calendar',
+            : this.isPublicCalendarUrl(calendarId)
+              ? 'ical_calendar'
+              : 'google_calendar',
         },
       }),
     );
 
     void this.runJob(job.id, {
-      accessToken: dto.googleAccessToken,
+      accessToken,
       customPrompt: dto.geminiPrompt,
       customContext: dto.geminiContext,
       sampleEvents: sampleEvents as GoogleCalendarEvent[] | undefined,
@@ -92,6 +104,7 @@ export class ConcertSyncService {
   async listJobsForOwner(owner: User, query: ListConcertSyncJobsDto) {
     const qb = this.jobRepository
       .createQueryBuilder('job')
+      .leftJoinAndSelect('job.owner', 'owner')
       .where('job.owner_id = :ownerId', { ownerId: owner.id })
       .orderBy('job.createdAt', 'DESC')
       .take(query.limit)
@@ -124,6 +137,7 @@ export class ConcertSyncService {
       recentEvents: recentMappings.map((mapping) => ({
         calendarEventId: mapping.calendarEventId,
         concertId: mapping.concert?.id ?? null,
+        concertTitle: mapping.concert?.title ?? null,
         extractionConfidence: mapping.extractionConfidence ?? null,
         needsGuidance: mapping.needsGuidance,
         extractionWarnings: mapping.extractionWarnings,
@@ -435,14 +449,26 @@ export class ConcertSyncService {
         timeZone: 'UTC',
       };
     }
-    if (!options.accessToken?.trim()) {
+
+    if (this.isPublicCalendarUrl(job.calendarId)) {
+      return this.icalCalendarClient.fetchAllEvents({
+        url: job.calendarId,
+        timeMin: job.requestedRangeStart?.toISOString(),
+        timeMax: job.requestedRangeEnd?.toISOString(),
+      });
+    }
+
+    const accessToken =
+      options.accessToken?.trim() || this.getConfiguredCalendarAccessToken();
+
+    if (!accessToken && !this.calendarClient.hasConfiguredServerCredential()) {
       throw new BadRequestException(
-        'googleAccessToken is required for google_calendar sync runs.',
+        'Google Calendar access is not configured for google_calendar sync runs.',
       );
     }
 
     return this.calendarClient.fetchAllEvents({
-      accessToken: options.accessToken,
+      accessToken,
       calendarId: job.calendarId,
       timeMin: job.requestedRangeStart?.toISOString(),
       timeMax: job.requestedRangeEnd?.toISOString(),
@@ -458,6 +484,16 @@ export class ConcertSyncService {
     return Math.min(Math.max(Math.trunc(value), 1), 100);
   }
 
+  private getConfiguredCalendarAccessToken() {
+    return this.configService
+      .get<string>('GOOGLE_CALENDAR_ACCESS_TOKEN')
+      ?.trim();
+  }
+
+  private isPublicCalendarUrl(value: string) {
+    return /^https?:\/\//i.test(value.trim());
+  }
+
   private async upsertConcertFromEvent(
     owner: User,
     extraction: ConcertExtractionResult,
@@ -468,6 +504,10 @@ export class ConcertSyncService {
           where: { id: existingConcertId, owner: { id: owner.id } },
         })
       : null;
+
+    if (!concert) {
+      concert = await this.findLikelyDuplicateConcert(owner, extraction);
+    }
 
     const wasCreated = !concert;
 
@@ -498,6 +538,66 @@ export class ConcertSyncService {
       concert: saved,
       wasCreated,
     };
+  }
+
+  private async findLikelyDuplicateConcert(
+    owner: User,
+    extraction: ConcertExtractionResult,
+  ) {
+    const startsAt = new Date(extraction.startsAt);
+    if (Number.isNaN(startsAt.getTime())) {
+      return null;
+    }
+
+    const windowStart = new Date(startsAt.getTime() - 2 * 60 * 60 * 1000);
+    const windowEnd = new Date(startsAt.getTime() + 2 * 60 * 60 * 1000);
+    const normalizedTitle = this.normalizeDuplicateText(extraction.title);
+    const venueName = this.normalizeDuplicateText(extraction.venues[0]?.name);
+
+    const candidates = await this.concertRepository.find({
+      where: {
+        owner: { id: owner.id },
+        startsAt: Between(windowStart, windowEnd),
+      },
+      take: 25,
+    });
+
+    return (
+      candidates.find((candidate) => {
+        if (this.normalizeDuplicateText(candidate.title) !== normalizedTitle) {
+          return false;
+        }
+
+        const candidateVenue = this.normalizeDuplicateText(
+          candidate.venues?.[0]?.name,
+        );
+        return this.hasVenueOverlap(candidateVenue, venueName);
+      }) ?? null
+    );
+  }
+
+  private normalizeDuplicateText(value?: string | null) {
+    return (value ?? '')
+      .toLowerCase()
+      .replace(/&/g, 'and')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
+  }
+
+  private hasVenueOverlap(left: string, right: string) {
+    if (!left || !right) return false;
+    if (left === right) return true;
+    if (left.includes(right) || right.includes(left)) return true;
+
+    const leftTokens = new Set(
+      left.split(' ').filter((token) => token.length >= 4),
+    );
+    const rightTokens = right.split(' ').filter((token) => token.length >= 4);
+    if (!leftTokens.size || !rightTokens.length) return false;
+
+    const matches = rightTokens.filter((token) => leftTokens.has(token)).length;
+    return matches / Math.max(leftTokens.size, rightTokens.length) >= 0.6;
   }
 
   private async upsertSyncMapping(params: {
@@ -596,6 +696,8 @@ export class ConcertSyncService {
     return {
       id: job.id,
       status: job.status as SyncJobStatus,
+      performedByUserId: job.owner?.id ?? null,
+      performedByUserEmail: job.owner?.email ?? null,
       calendarId: job.calendarId,
       calendarTimezone: job.calendarTimezone ?? null,
       requestedRangeStart: job.requestedRangeStart,

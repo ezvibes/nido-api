@@ -44,6 +44,9 @@ describe('ConcertSyncService', () => {
   const calendarClient = {
     fetchAllEvents: jest.fn(),
   };
+  const icalCalendarClient = {
+    fetchAllEvents: jest.fn(),
+  };
   const geminiExtractor = {
     extractConcert: jest.fn(),
     isGeminiEnabled: jest.fn(),
@@ -65,11 +68,13 @@ describe('ConcertSyncService', () => {
       syncEventRepository as any,
       concertRepository as any,
       calendarClient as any,
+      icalCalendarClient as any,
       geminiExtractor as any,
       configService as any,
     );
     configService.get.mockReturnValue(undefined);
     geminiExtractor.isGeminiEnabled.mockReturnValue(true);
+    concertRepository.find.mockResolvedValue([]);
   });
 
   it('ranks all approved candidates before limiting top picks', async () => {
@@ -181,6 +186,53 @@ describe('ConcertSyncService', () => {
     );
   });
 
+  it('loads public iCal calendar feeds without Google credentials', async () => {
+    const job = {
+      id: 'job-ical',
+      owner: { id: 7 },
+      calendarId: 'https://example.com/jambase.ics',
+      requestedRangeStart: null,
+      requestedRangeEnd: null,
+      jobMetadata: {},
+      totalEventsFetched: 0,
+      eventsProcessed: 0,
+      eventsSkipped: 0,
+      status: 'queued',
+    };
+    const event = {
+      id: 'ical-event-1',
+      status: 'confirmed',
+      summary: 'Jambase Show',
+      start: { dateTime: '2026-06-20T20:00:00.000Z' },
+    };
+
+    jobRepository.findOne.mockResolvedValue(job);
+    jobRepository.save.mockImplementation(async (value) => value);
+    icalCalendarClient.fetchAllEvents.mockResolvedValue({
+      items: [event],
+      timeZone: 'America/New_York',
+    });
+    geminiExtractor.getSanitizedEventPreview.mockReturnValue({
+      id: 'ical-event-1',
+      summary: 'Jambase Show',
+    });
+    geminiExtractor.buildPromptPreview.mockReturnValue('prompt preview');
+
+    await (service as any).runJob('job-ical', {
+      dryRun: true,
+      maxEvents: 1,
+    });
+
+    expect(calendarClient.fetchAllEvents).not.toHaveBeenCalled();
+    expect(icalCalendarClient.fetchAllEvents).toHaveBeenCalledWith({
+      url: 'https://example.com/jambase.ics',
+      timeMin: undefined,
+      timeMax: undefined,
+    });
+    expect(job.status).toBe('completed');
+    expect(job.totalEventsFetched).toBe(1);
+  });
+
   it('records fallback reasons in job metadata', async () => {
     const job = {
       id: 'job-2',
@@ -241,6 +293,45 @@ describe('ConcertSyncService', () => {
         fallbackReasons: {
           gemini_billing_or_quota_exhausted: 1,
         },
+      }),
+    );
+  });
+
+  it('updates a likely duplicate manual concert instead of creating another concert', async () => {
+    const existingConcert = {
+      id: 'existing-concert',
+      title: 'Beer and Banjos',
+      startsAt: new Date('2026-06-09T22:00:00.000Z'),
+      venues: [{ name: 'Bowstring Brewyard' }],
+    };
+    const extraction = {
+      title: 'Beer & Banjos',
+      genre: 'Live',
+      startsAt: '2026-06-09T22:00:00.000Z',
+      endsAt: null,
+      description: null,
+      artists: [],
+      venues: [{ name: 'Bowstring Brewyard', city: 'Raleigh', state: 'NC' }],
+      confidence: 0.63,
+      needsGuidance: false,
+      guidanceQuestions: [],
+      extractionSource: 'heuristic',
+    };
+
+    concertRepository.find.mockResolvedValue([existingConcert]);
+    concertRepository.save.mockImplementation(async (value) => value);
+
+    const result = await (service as any).upsertConcertFromEvent(
+      { id: 7 },
+      extraction,
+    );
+
+    expect(result.wasCreated).toBe(false);
+    expect(concertRepository.create).not.toHaveBeenCalled();
+    expect(concertRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'existing-concert',
+        title: 'Beer & Banjos',
       }),
     );
   });

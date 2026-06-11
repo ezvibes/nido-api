@@ -74,6 +74,24 @@ export class ConcertResponseDto {
 
   @ApiProperty({ example: 0 })
   trendingWeekUpvotes: number;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: {
+      source: 'google_calendar',
+      calendarId: 'ezvibesinc@gmail.com',
+      calendarEventId: '1p6li36jn6s89hj8bnmeg0p04b_20260609T220000Z',
+      lastSyncedAt: '2026-06-09T01:32:55.900Z',
+      needsGuidance: false,
+    },
+  })
+  syncSource?: {
+    source: 'google_calendar';
+    calendarId: string;
+    calendarEventId: string;
+    lastSyncedAt?: string | null;
+    needsGuidance?: boolean;
+  } | null;
 }
 
 export class ConcertListResponseDto {

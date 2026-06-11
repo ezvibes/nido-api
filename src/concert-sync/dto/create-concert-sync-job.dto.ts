@@ -11,7 +11,6 @@ import {
   Max,
   MaxLength,
   Min,
-  ValidateIf,
 } from 'class-validator';
 
 export class CreateConcertSyncJobDto {
@@ -28,13 +27,11 @@ export class CreateConcertSyncJobDto {
 
   @ApiPropertyOptional({
     description:
-      'Short-lived Google Calendar access token. Required for live calendar sync; omit when sampleEvents are supplied.',
+      'Optional short-lived Google Calendar access token for Swagger/manual testing. Production live sync should use service-account env on the API server; omit when sampleEvents are supplied.',
     example: 'ya29.a0AfH6SMD_example_access_token',
   })
-  @ValidateIf(
-    (dto) => !Array.isArray(dto.sampleEvents) || !dto.sampleEvents.length,
-  )
   @IsString()
+  @IsOptional()
   googleAccessToken?: string;
 
   @ApiPropertyOptional({

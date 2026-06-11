@@ -126,9 +126,18 @@ Required env for AI enrichment:
   - `CONCERT_SYNC_MAX_DESCRIPTION_LENGTH`
   - `CONCERT_SYNC_MAX_EVENTS_PER_JOB` (defaults to 25, max 100)
 
+Required env for live Google Calendar sync:
+
+- Recommended deployed setup: create a Google service account, share the source calendar with the service account email, and grant `See all event details`.
+- Then configure one of:
+  - `GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON='{"client_email":"...","private_key":"..."}'`
+  - Or `GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL` and `GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY` (single-line key with `\n`)
+- Local/manual fallback: `GOOGLE_CALENDAR_ACCESS_TOKEN` or request-level `googleAccessToken`, but these are short-lived and not recommended for deployed demos.
+
 Important security behavior:
 
-- `googleAccessToken` is accepted per sync request and not persisted to the database.
+- Service-account credentials stay server-side; the Sync Doctor UI does not collect or transmit Google credentials.
+- `googleAccessToken` is still accepted for Swagger/manual testing and is not persisted to the database.
 - Sync job records store operational metadata only (counts/status/extraction warnings).
 - Gemini prompt payload is sanitized before transmission (attendees/organizer omitted, emails/phones/URLs redacted).
 - Sync jobs record whether extraction used Gemini or fallback heuristics, including quota/billing fallback reasons.

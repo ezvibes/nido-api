@@ -261,6 +261,114 @@ export async function fetchIngestionJob(token: string, jobId: string) {
   }
 }
 
+export type ConcertSyncJobStatus =
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'failed';
+
+export interface CreateConcertSyncJobPayload {
+  calendarId?: string;
+  fromDate?: string;
+  toDate?: string;
+  refreshTopPicks?: boolean;
+  dryRun?: boolean;
+  maxEvents?: number;
+  geminiPrompt?: string;
+  geminiContext?: string;
+  sampleEvents?: Array<Record<string, unknown>>;
+}
+
+export interface ConcertSyncRecentEvent {
+  calendarEventId: string;
+  concertId?: string | null;
+  concertTitle?: string | null;
+  extractionConfidence?: number | null;
+  needsGuidance: boolean;
+  extractionWarnings: string[];
+  updatedAt: string;
+}
+
+export interface ConcertSyncJobResponse {
+  id: string;
+  status: ConcertSyncJobStatus;
+  performedByUserId?: number | null;
+  performedByUserEmail?: string | null;
+  calendarId: string;
+  calendarTimezone?: string | null;
+  requestedRangeStart?: string | null;
+  requestedRangeEnd?: string | null;
+  refreshTopPicks: boolean;
+  totalEventsFetched: number;
+  eventsProcessed: number;
+  eventsCreated: number;
+  eventsUpdated: number;
+  eventsSkipped: number;
+  errorMessage?: string | null;
+  metadata: Record<string, unknown>;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConcertSyncJobDetailResponse extends ConcertSyncJobResponse {
+  recentEvents: ConcertSyncRecentEvent[];
+}
+
+export interface ConcertSyncJobListResponse {
+  total: number;
+  items: ConcertSyncJobResponse[];
+}
+
+export async function createConcertSyncJob(
+  token: string,
+  payload: CreateConcertSyncJobPayload,
+) {
+  const response = await apiClient.post<ConcertSyncJobResponse>(
+    '/concert-sync/jobs',
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+  return response.data;
+}
+
+export async function fetchConcertSyncJobs(
+  token: string,
+  params?: {
+    status?: ConcertSyncJobStatus;
+    limit?: number;
+    offset?: number;
+  },
+) {
+  const response = await apiClient.get<ConcertSyncJobListResponse>(
+    '/concert-sync/jobs',
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      params,
+    },
+  );
+  return response.data;
+}
+
+export async function fetchConcertSyncJob(token: string, jobId: string) {
+  const response = await apiClient.get<ConcertSyncJobDetailResponse>(
+    `/concert-sync/jobs/${jobId}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+  return response.data;
+}
+
 export type UploadReviewStatus = 'submitted' | 'approved' | 'rejected' | 'past';
 
 export interface AdminConcertUploadListItem {

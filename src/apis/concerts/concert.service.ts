@@ -16,6 +16,14 @@ export interface ConcertEngagement {
   trendingWeekUpvotes: number;
 }
 
+export interface ConcertSyncSource {
+  source: 'google_calendar';
+  calendarId: string;
+  calendarEventId: string;
+  lastSyncedAt?: Date | null;
+  needsGuidance?: boolean;
+}
+
 @Injectable()
 export class ConcertService {
   constructor(
@@ -59,6 +67,12 @@ export class ConcertService {
 
     qb.leftJoin('concert_upvotes', 'upvote', 'upvote.concert_id = concert.id')
       .leftJoin(
+        'concert_sync_events',
+        'syncEvent',
+        'syncEvent.concert_id = concert.id AND syncEvent.owner_id = :ownerId',
+        { ownerId: owner.id },
+      )
+      .leftJoin(
         'concert_upvotes',
         'myUpvote',
         'myUpvote.concert_id = concert.id AND myUpvote.user_id = :currentUserId',
@@ -70,6 +84,10 @@ export class ConcertService {
         'trending_week_upvotes',
       )
       .addSelect('COUNT(DISTINCT myUpvote.id)', 'upvoted_by_me_count')
+      .addSelect('MAX(syncEvent.calendar_id)', 'sync_calendar_id')
+      .addSelect('MAX(syncEvent.calendar_event_id)', 'sync_calendar_event_id')
+      .addSelect('MAX(syncEvent.last_synced_at)', 'sync_last_synced_at')
+      .addSelect('BOOL_OR(syncEvent.needs_guidance)', 'sync_needs_guidance')
       .setParameter('trendingSince', trendingSince)
       .groupBy('concert.id');
 
@@ -101,6 +119,7 @@ export class ConcertService {
       this.withEngagement(
         concert,
         this.mapRawEngagement(rawByConcertId.get(concert.id)),
+        this.mapRawSyncSource(rawByConcertId.get(concert.id)),
       ),
     );
 
@@ -278,13 +297,35 @@ export class ConcertService {
     };
   }
 
+  private mapRawSyncSource(
+    raw?: Record<string, unknown>,
+  ): ConcertSyncSource | null {
+    const calendarId = raw?.sync_calendar_id;
+    const calendarEventId = raw?.sync_calendar_event_id;
+    if (!calendarId || !calendarEventId) {
+      return null;
+    }
+
+    return {
+      source: 'google_calendar',
+      calendarId: String(calendarId),
+      calendarEventId: String(calendarEventId),
+      lastSyncedAt: raw?.sync_last_synced_at
+        ? new Date(String(raw.sync_last_synced_at))
+        : null,
+      needsGuidance: raw?.sync_needs_guidance === true,
+    };
+  }
+
   private withEngagement<T extends Concert>(
     concert: T,
     engagement: ConcertEngagement,
+    syncSource: ConcertSyncSource | null = null,
   ) {
     return {
       ...concert,
       ...engagement,
+      syncSource,
     };
   }
 

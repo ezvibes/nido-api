@@ -9,7 +9,9 @@ const menuOpen = ref(false);
 const accountMenuOpen = ref(false);
 const accountMenuRef = ref<HTMLElement | null>(null);
 const homeRoute = computed(() => (user.value ? '/events' : '/'));
-const displayName = computed(() => user.value?.displayName || user.value?.email || 'Account');
+const displayName = computed(
+  () => user.value?.displayName || user.value?.email || 'Account',
+);
 const isAdmin = computed(() => isAdminEmail(user.value?.email ?? null));
 
 const closeMenu = () => {
@@ -78,10 +80,36 @@ onBeforeUnmount(() => {
           Menu
         </button>
 
-        <nav id="header-menu" class="header-menu" :class="{ 'header-menu--open': menuOpen }">
-          <router-link v-if="user" to="/events" class="nav-link" @click="closeMenu">Events</router-link>
-          <router-link v-else to="/" class="nav-link" @click="closeMenu">Home</router-link>
-          <router-link v-if="!user" to="/login" class="nav-link nav-link--ghost" @click="closeMenu">Sign in</router-link>
+        <nav
+          id="header-menu"
+          class="header-menu"
+          :class="{ 'header-menu--open': menuOpen }"
+        >
+          <router-link
+            v-if="user"
+            to="/events"
+            class="nav-link"
+            @click="closeMenu"
+            >Events</router-link
+          >
+          <router-link
+            v-if="user"
+            to="/concert-sync"
+            class="nav-link"
+            @click="closeMenu"
+          >
+            Sync Doctor
+          </router-link>
+          <router-link v-else to="/" class="nav-link" @click="closeMenu"
+            >Home</router-link
+          >
+          <router-link
+            v-if="!user"
+            to="/login"
+            class="nav-link nav-link--ghost"
+            @click="closeMenu"
+            >Sign in</router-link
+          >
           <div v-if="user" ref="accountMenuRef" class="account-menu">
             <button
               type="button"
@@ -93,7 +121,11 @@ onBeforeUnmount(() => {
               Menu
               <span class="account-menu__chevron" aria-hidden="true">⌄</span>
             </button>
-            <div v-if="accountMenuOpen" id="account-menu-dropdown" class="account-menu__dropdown">
+            <div
+              v-if="accountMenuOpen"
+              id="account-menu-dropdown"
+              class="account-menu__dropdown"
+            >
               <div class="account-menu__identity">
                 <span class="account-menu__label">Signed in as</span>
                 <strong :title="displayName">{{ displayName }}</strong>
@@ -106,10 +138,18 @@ onBeforeUnmount(() => {
               >
                 Admin review
               </router-link>
-              <router-link to="/settings" class="account-menu__item" @click="closeMenu">
+              <router-link
+                to="/settings"
+                class="account-menu__item"
+                @click="closeMenu"
+              >
                 Settings
               </router-link>
-              <button type="button" class="account-menu__item account-menu__item--button" @click="handleSignOut">
+              <button
+                type="button"
+                class="account-menu__item account-menu__item--button"
+                @click="handleSignOut"
+              >
                 Log out
               </button>
             </div>
@@ -146,8 +186,15 @@ onBeforeUnmount(() => {
 
 body {
   margin: 0;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--background);

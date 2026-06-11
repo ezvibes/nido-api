@@ -106,9 +106,11 @@
       :search-text="searchText"
       :date-range="dateRange"
       :sort="sort"
+      :source="source"
       @update:search-text="searchText = $event"
       @update:date-range="dateRange = $event"
       @update:sort="sort = $event"
+      @update:source="source = $event"
     />
 
     <section class="events-page__results">
@@ -176,7 +178,7 @@ const feedEvents = computed(() =>
     : sampleFeedEvents.value,
 );
 const demoEvents = computed(() => [...feedEvents.value]);
-const { searchText, dateRange, sort, filteredEvents, clearFilters } =
+const { searchText, dateRange, sort, source, filteredEvents, clearFilters } =
   useEventFilters(demoEvents);
 
 const showAddForm = ref(false);

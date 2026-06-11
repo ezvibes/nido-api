@@ -27,22 +27,36 @@
         <option value="trending_week">Trending this week</option>
       </select>
     </label>
+
+    <label class="filters-bar__field">
+      <span class="filters-bar__label">Source</span>
+      <select :value="source" @change="onSourceChange">
+        <option value="all">All sources</option>
+        <option value="synced">Synced only</option>
+      </select>
+    </label>
   </section>
 </template>
 
 <script setup lang="ts">
-import type { DateRangeOption, SortOption } from '../../composables/useEventFilters';
+import type {
+  DateRangeOption,
+  SortOption,
+  SourceOption,
+} from '../../composables/useEventFilters';
 
 defineProps<{
   searchText: string;
   dateRange: DateRangeOption;
   sort: SortOption;
+  source: SourceOption;
 }>();
 
 const emit = defineEmits<{
   (event: 'update:searchText', value: string): void;
   (event: 'update:dateRange', value: DateRangeOption): void;
   (event: 'update:sort', value: SortOption): void;
+  (event: 'update:source', value: SourceOption): void;
 }>();
 
 const onSearchInput = (event: Event) => {
@@ -50,11 +64,21 @@ const onSearchInput = (event: Event) => {
 };
 
 const onDateRangeChange = (event: Event) => {
-  emit('update:dateRange', (event.target as HTMLSelectElement).value as DateRangeOption);
+  emit(
+    'update:dateRange',
+    (event.target as HTMLSelectElement).value as DateRangeOption,
+  );
 };
 
 const onSortChange = (event: Event) => {
   emit('update:sort', (event.target as HTMLSelectElement).value as SortOption);
+};
+
+const onSourceChange = (event: Event) => {
+  emit(
+    'update:source',
+    (event.target as HTMLSelectElement).value as SourceOption,
+  );
 };
 </script>
 
@@ -102,7 +126,7 @@ const onSortChange = (event: Event) => {
 
 @media (min-width: 760px) {
   .filters-bar {
-    grid-template-columns: minmax(0, 1.8fr) minmax(180px, 0.8fr) minmax(180px, 0.8fr);
+    grid-template-columns: minmax(0, 1.8fr) repeat(3, minmax(150px, 0.8fr));
     align-items: end;
   }
 }

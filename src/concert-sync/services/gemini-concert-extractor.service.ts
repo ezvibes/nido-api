@@ -332,15 +332,9 @@ export class GeminiConcertExtractorService {
     const startsAt = this.resolveStartDate(event);
     const endsAt = this.resolveEndDate(event);
 
-    const venueName = (event.location || '').trim();
+    const venue = this.parseVenueFromLocation(event.location);
     const artists = this.extractArtistsFromTitle(title);
-    const venues: Venue[] = venueName
-      ? [
-          {
-            name: venueName,
-          },
-        ]
-      : [];
+    const venues: Venue[] = venue ? [venue] : [];
 
     const genre = this.deriveGenre(
       title,
@@ -556,6 +550,50 @@ export class GeminiConcertExtractorService {
       .filter(Boolean) as Venue[];
 
     return venues.length ? venues : fallback;
+  }
+
+  private parseVenueFromLocation(location?: string): Venue | null {
+    const normalized = location?.trim();
+    if (!normalized) return null;
+
+    const parts = normalized
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    if (!parts.length) return null;
+
+    const venue: Venue = { name: parts[0] };
+    const countryCandidate = parts[parts.length - 1];
+    if (/^(usa|united states)$/i.test(countryCandidate)) {
+      venue.country = 'USA';
+    }
+
+    const stateZipIndex = parts.findIndex((part) =>
+      /\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\b/.test(part),
+    );
+    if (stateZipIndex > 0) {
+      venue.city = parts[stateZipIndex - 1];
+      const stateMatch = parts[stateZipIndex].match(/\b([A-Z]{2})\b/);
+      venue.state = stateMatch?.[1];
+      return venue;
+    }
+
+    const stateOnlyIndex = parts.findIndex((part) => /^[A-Z]{2}$/.test(part));
+    if (stateOnlyIndex > 0) {
+      venue.city = parts[stateOnlyIndex - 1];
+      venue.state = parts[stateOnlyIndex];
+      return venue;
+    }
+
+    if (parts.length >= 3) {
+      venue.city = parts[parts.length - (venue.country ? 3 : 2)];
+      const stateMatch =
+        parts[parts.length - (venue.country ? 2 : 1)]?.match(/\b([A-Z]{2})\b/);
+      venue.state = stateMatch?.[1];
+    }
+
+    return venue;
   }
 
   private resolveStartDate(event: GoogleCalendarEvent): string {

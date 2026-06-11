@@ -9,6 +9,7 @@ import { ConcertSyncEvent } from './entities/concert-sync-event.entity';
 import { ConcertSyncJob } from './entities/concert-sync-job.entity';
 import { GeminiConcertExtractorService } from './services/gemini-concert-extractor.service';
 import { GoogleCalendarClientService } from './services/google-calendar-client.service';
+import { IcalCalendarClientService } from './services/ical-calendar-client.service';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { GoogleCalendarClientService } from './services/google-calendar-client.s
   providers: [
     ConcertSyncService,
     GoogleCalendarClientService,
+    IcalCalendarClientService,
     GeminiConcertExtractorService,
   ],
   exports: [ConcertSyncService],
