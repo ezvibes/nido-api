@@ -282,6 +282,7 @@ export interface CreateConcertSyncJobPayload {
 export interface ConcertSyncRecentEvent {
   calendarEventId: string;
   concertId?: string | null;
+  concertTitle?: string | null;
   extractionConfidence?: number | null;
   needsGuidance: boolean;
   extractionWarnings: string[];
@@ -291,6 +292,8 @@ export interface ConcertSyncRecentEvent {
 export interface ConcertSyncJobResponse {
   id: string;
   status: ConcertSyncJobStatus;
+  performedByUserId?: number | null;
+  performedByUserEmail?: string | null;
   calendarId: string;
   calendarTimezone?: string | null;
   requestedRangeStart?: string | null;

@@ -14,6 +14,9 @@ export class ConcertSyncRecentEventDto {
   })
   concertId?: string | null;
 
+  @ApiPropertyOptional({ nullable: true, example: 'Beer & Banjos' })
+  concertTitle?: string | null;
+
   @ApiPropertyOptional({ nullable: true, example: 0.63 })
   extractionConfidence?: number | null;
 
@@ -33,6 +36,12 @@ export class ConcertSyncJobResponseDto {
 
   @ApiProperty({ enum: syncJobStatuses, example: 'completed' })
   status: SyncJobStatus;
+
+  @ApiPropertyOptional({ nullable: true, example: 15 })
+  performedByUserId?: number | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 'dev@example.local' })
+  performedByUserEmail?: string | null;
 
   @ApiProperty({ example: 'primary' })
   calendarId: string;

@@ -98,9 +98,10 @@
         <section class="concert-sync__panel">
           <div class="concert-sync__panel-header">
             <div>
-              <h3>Active job</h3>
+              <h3>Latest sync</h3>
               <p v-if="activeJob">
-                Created {{ formatDate(activeJob.createdAt) }}
+                {{ latestSyncTimestamp(activeJob) }} by
+                {{ formatPerformer(activeJob) }}
               </p>
               <p v-else>Run a sync to create concerts from calendar events.</p>
             </div>
@@ -109,27 +110,27 @@
             </span>
           </div>
 
-          <div v-if="activeJob" class="concert-sync__job">
-            <div class="concert-sync__metrics">
+          <div v-if="activeJob" class="concert-sync__job-summary">
+            <div class="concert-sync__summary-grid">
               <div>
-                <span>Fetched</span>
-                <strong>{{ activeJob.totalEventsFetched }}</strong>
+                <span>Started</span>
+                <strong>{{ formatDate(activeJob.startedAt) }}</strong>
               </div>
               <div>
-                <span>Processed</span>
-                <strong>{{ activeJob.eventsProcessed }}</strong>
+                <span>Completed</span>
+                <strong>{{ formatDate(activeJob.completedAt) }}</strong>
               </div>
               <div>
-                <span>Created</span>
-                <strong>{{ activeJob.eventsCreated }}</strong>
+                <span>Calendar</span>
+                <strong>{{ formatCalendarLabel(activeJob.calendarId) }}</strong>
               </div>
               <div>
-                <span>Updated</span>
-                <strong>{{ activeJob.eventsUpdated }}</strong>
+                <span>Concert</span>
+                <strong>{{ formatConcertNames(activeJob) }}</strong>
               </div>
               <div>
-                <span>Skipped</span>
-                <strong>{{ activeJob.eventsSkipped }}</strong>
+                <span>Result</span>
+                <strong>{{ formatJobResult(activeJob) }}</strong>
               </div>
             </div>
 
@@ -139,117 +140,6 @@
             <p v-if="activeJob.errorMessage" class="concert-sync__error">
               {{ activeJob.errorMessage }}
             </p>
-
-            <div class="concert-sync__details">
-              <div>
-                <span>Job</span>
-                <strong>{{ activeJob.id }}</strong>
-              </div>
-              <div>
-                <span>Calendar</span>
-                <strong>{{ activeJob.calendarId }}</strong>
-              </div>
-              <div>
-                <span>Started</span>
-                <strong>{{ formatDate(activeJob.startedAt) }}</strong>
-              </div>
-              <div>
-                <span>Completed</span>
-                <strong>{{ formatDate(activeJob.completedAt) }}</strong>
-              </div>
-            </div>
-
-            <div class="concert-sync__metadata">
-              <h4>Metadata</h4>
-              <dl>
-                <div>
-                  <dt>Sample mode</dt>
-                  <dd>
-                    {{ formatMetadataValue(activeJob.metadata.sampleMode) }}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Dry run</dt>
-                  <dd>{{ formatMetadataValue(activeJob.metadata.dryRun) }}</dd>
-                </div>
-                <div>
-                  <dt>Gemini enabled</dt>
-                  <dd>
-                    {{ formatMetadataValue(activeJob.metadata.geminiEnabled) }}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Gemini extractions</dt>
-                  <dd>
-                    {{
-                      formatMetadataValue(activeJob.metadata.geminiExtractions)
-                    }}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Heuristic extractions</dt>
-                  <dd>
-                    {{
-                      formatMetadataValue(
-                        activeJob.metadata.heuristicExtractions,
-                      )
-                    }}
-                  </dd>
-                </div>
-              </dl>
-              <div
-                v-if="fallbackReasonEntries.length"
-                class="concert-sync__meta-list"
-              >
-                <span>Fallback reasons</span>
-                <p
-                  v-for="[reason, count] in fallbackReasonEntries"
-                  :key="reason"
-                >
-                  {{ reason }}: {{ count }}
-                </p>
-              </div>
-              <div
-                v-if="extractionWarnings.length"
-                class="concert-sync__meta-list"
-              >
-                <span>Extraction warnings</span>
-                <p v-for="warning in extractionWarnings" :key="warning">
-                  {{ warning }}
-                </p>
-              </div>
-            </div>
-
-            <div
-              v-if="activeJob.recentEvents.length"
-              class="concert-sync__recent-events"
-            >
-              <h4>Recent event mappings</h4>
-              <div
-                v-for="event in activeJob.recentEvents"
-                :key="event.calendarEventId"
-                class="concert-sync__mapping"
-              >
-                <div>
-                  <span>Calendar event</span>
-                  <strong>{{ event.calendarEventId }}</strong>
-                </div>
-                <div>
-                  <span>Concert</span>
-                  <strong>{{ event.concertId ?? 'Not created' }}</strong>
-                </div>
-                <div>
-                  <span>Confidence</span>
-                  <strong>{{
-                    formatConfidence(event.extractionConfidence)
-                  }}</strong>
-                </div>
-                <div>
-                  <span>Needs guidance</span>
-                  <strong>{{ event.needsGuidance ? 'Yes' : 'No' }}</strong>
-                </div>
-              </div>
-            </div>
 
             <div v-if="showEventsHandoff" class="concert-sync__handoff">
               <p>Concerts were written to your event feed.</p>
@@ -273,7 +163,7 @@
       <div class="concert-sync__panel-header">
         <div>
           <h3>Recent jobs</h3>
-          <p>{{ recentJobs.length }} jobs loaded for this account.</p>
+          <p>Last {{ recentJobs.length }} sync jobs for this account.</p>
         </div>
         <button
           type="button"
@@ -287,10 +177,11 @@
 
       <div v-if="recentJobs.length" class="concert-sync__jobs-table">
         <div class="concert-sync__jobs-header" aria-hidden="true">
-          <span>Created</span>
           <span>Status</span>
-          <span>Processed</span>
-          <span>New</span>
+          <span>Started</span>
+          <span>Synced by</span>
+          <span>Calendar</span>
+          <span>Result</span>
           <span>Skipped</span>
         </div>
         <button
@@ -300,10 +191,11 @@
           class="concert-sync__job-row"
           @click="selectJob(job.id)"
         >
-          <span>{{ formatDate(job.createdAt) }}</span>
           <span :class="statusClass(job.status)">{{ job.status }}</span>
-          <span>{{ job.eventsProcessed }}</span>
-          <span>{{ job.eventsCreated }}</span>
+          <span>{{ latestSyncTimestamp(job) }}</span>
+          <span>{{ formatPerformer(job) }}</span>
+          <span>{{ formatCalendarLabel(job.calendarId) }}</span>
+          <span>{{ formatJobResult(job) }}</span>
           <span>{{ job.eventsSkipped }}</span>
         </button>
       </div>
@@ -404,22 +296,6 @@ const isLiveFormValid = computed(() => {
   return true;
 });
 
-const fallbackReasonEntries = computed(() => {
-  const value = activeJob.value?.metadata?.fallbackReasons;
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return [];
-  }
-
-  return Object.entries(value as Record<string, unknown>).map(
-    ([reason, count]) => [reason, String(count)] as const,
-  );
-});
-
-const extractionWarnings = computed(() => {
-  const value = activeJob.value?.metadata?.extractionWarnings;
-  return Array.isArray(value) ? value.map(String) : [];
-});
-
 const showEventsHandoff = computed(
   () =>
     activeJob.value?.status === 'completed' &&
@@ -502,7 +378,7 @@ const loadRecentJobs = async () => {
   try {
     const token = await getToken();
     const result = await fetchConcertSyncJobs(token, {
-      limit: 20,
+      limit: 10,
       offset: 0,
     });
     recentJobs.value = result.items;
@@ -598,17 +474,35 @@ const formatDate = (value?: string | null) => {
   return new Date(value).toLocaleString();
 };
 
-const formatMetadataValue = (value: unknown) => {
-  if (value === undefined || value === null || value === '') return '—';
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  if (typeof value === 'number') return value.toString();
-  if (typeof value === 'string') return value;
-  return JSON.stringify(value);
+const latestSyncTimestamp = (job: ConcertSyncJobResponse) =>
+  formatDate(job.completedAt ?? job.startedAt ?? job.createdAt);
+
+const formatPerformer = (job: ConcertSyncJobResponse) =>
+  job.performedByUserEmail ?? user.value?.email ?? 'Current user';
+
+const formatCalendarLabel = (calendarId: string) =>
+  calendarOptions.find((calendar) => calendar.value === calendarId)?.label ??
+  calendarId;
+
+const formatConcertNames = (job: ConcertSyncJobDetailResponse) => {
+  const titles = job.recentEvents
+    .map((event) => event.concertTitle?.trim())
+    .filter((title): title is string => Boolean(title));
+
+  if (!titles.length) return 'No concert created';
+
+  const uniqueTitles = Array.from(new Set(titles));
+  if (uniqueTitles.length === 1) return uniqueTitles[0];
+
+  return `${uniqueTitles[0]} +${uniqueTitles.length - 1} more`;
 };
 
-const formatConfidence = (value?: number | null) => {
-  if (value === undefined || value === null) return '—';
-  return `${Math.round(value * 100)}%`;
+const formatJobResult = (job: ConcertSyncJobResponse) => {
+  const changed = job.eventsCreated + job.eventsUpdated;
+  if (job.status === 'failed') return 'Failed';
+  if (job.metadata?.dryRun) return `${job.eventsProcessed} checked`;
+  if (changed > 0) return `${changed} written`;
+  return `${job.eventsProcessed} checked`;
 };
 
 watch(
@@ -646,9 +540,7 @@ onBeforeUnmount(() => {
 .concert-sync__header h2,
 .concert-sync__header p,
 .concert-sync__panel h3,
-.concert-sync__panel p,
-.concert-sync__metadata h4,
-.concert-sync__recent-events h4 {
+.concert-sync__panel p {
   margin: 0;
 }
 
@@ -720,16 +612,13 @@ onBeforeUnmount(() => {
 }
 
 .concert-sync__form label,
-.concert-sync__details div,
-.concert-sync__mapping div {
+.concert-sync__summary-grid div {
   display: grid;
   gap: 0.3rem;
 }
 
 .concert-sync__form span,
-.concert-sync__details span,
-.concert-sync__mapping span,
-.concert-sync__meta-list span {
+.concert-sync__summary-grid span {
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 700;
@@ -835,82 +724,29 @@ onBeforeUnmount(() => {
   border-radius: 8px;
 }
 
-.concert-sync__metrics {
+.concert-sync__job-summary {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.concert-sync__summary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
 }
 
-.concert-sync__metrics div {
+.concert-sync__summary-grid div {
   padding: 0.85rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-soft);
 }
 
-.concert-sync__metrics span,
-.concert-sync__metadata dt {
-  display: block;
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.concert-sync__metrics strong {
+.concert-sync__summary-grid strong {
   display: block;
   margin-top: 0.2rem;
-  font-size: 1.5rem;
-}
-
-.concert-sync__details,
-.concert-sync__metadata dl,
-.concert-sync__recent-events {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.concert-sync__details {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.concert-sync__details strong,
-.concert-sync__mapping strong {
+  font-size: 1rem;
   overflow-wrap: anywhere;
-}
-
-.concert-sync__metadata {
-  display: grid;
-  gap: 0.75rem;
-  padding-top: 0.25rem;
-}
-
-.concert-sync__metadata dl {
-  margin: 0;
-}
-
-.concert-sync__metadata dd {
-  margin: 0.2rem 0 0;
-  overflow-wrap: anywhere;
-}
-
-.concert-sync__meta-list {
-  display: grid;
-  gap: 0.25rem;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-soft);
-}
-
-.concert-sync__mapping {
-  display: grid;
-  gap: 0.65rem;
-  padding: 0.85rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #fff;
 }
 
 .concert-sync__jobs-table {
@@ -1023,14 +859,8 @@ onBeforeUnmount(() => {
     grid-column: 1 / -1;
   }
 
-  .concert-sync__metrics {
+  .concert-sync__summary-grid {
     grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-
-  .concert-sync__details,
-  .concert-sync__metadata dl,
-  .concert-sync__mapping {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
     align-items: center;
   }
 
@@ -1040,7 +870,13 @@ onBeforeUnmount(() => {
 
   .concert-sync__jobs-header,
   .concert-sync__job-row {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns:
+      minmax(108px, 0.7fr)
+      minmax(160px, 1fr)
+      minmax(160px, 1fr)
+      minmax(160px, 1fr)
+      minmax(92px, 0.7fr)
+      minmax(72px, 0.55fr);
     align-items: center;
   }
 }

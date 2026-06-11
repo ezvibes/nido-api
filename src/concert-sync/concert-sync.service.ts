@@ -104,6 +104,7 @@ export class ConcertSyncService {
   async listJobsForOwner(owner: User, query: ListConcertSyncJobsDto) {
     const qb = this.jobRepository
       .createQueryBuilder('job')
+      .leftJoinAndSelect('job.owner', 'owner')
       .where('job.owner_id = :ownerId', { ownerId: owner.id })
       .orderBy('job.createdAt', 'DESC')
       .take(query.limit)
@@ -136,6 +137,7 @@ export class ConcertSyncService {
       recentEvents: recentMappings.map((mapping) => ({
         calendarEventId: mapping.calendarEventId,
         concertId: mapping.concert?.id ?? null,
+        concertTitle: mapping.concert?.title ?? null,
         extractionConfidence: mapping.extractionConfidence ?? null,
         needsGuidance: mapping.needsGuidance,
         extractionWarnings: mapping.extractionWarnings,
@@ -694,6 +696,8 @@ export class ConcertSyncService {
     return {
       id: job.id,
       status: job.status as SyncJobStatus,
+      performedByUserId: job.owner?.id ?? null,
+      performedByUserEmail: job.owner?.email ?? null,
       calendarId: job.calendarId,
       calendarTimezone: job.calendarTimezone ?? null,
       requestedRangeStart: job.requestedRangeStart,
