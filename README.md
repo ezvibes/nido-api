@@ -126,9 +126,18 @@ Required env for AI enrichment:
   - `CONCERT_SYNC_MAX_DESCRIPTION_LENGTH`
   - `CONCERT_SYNC_MAX_EVENTS_PER_JOB` (defaults to 25, max 100)
 
+Required env for live Google Calendar sync:
+
+- Recommended deployed setup: create a Google service account, share the source calendar with the service account email, and grant `See all event details`.
+- Then configure one of:
+  - `GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON='{"client_email":"...","private_key":"..."}'`
+  - Or `GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL` and `GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY` (single-line key with `\n`)
+- Local/manual fallback: `GOOGLE_CALENDAR_ACCESS_TOKEN` or request-level `googleAccessToken`, but these are short-lived and not recommended for deployed demos.
+
 Important security behavior:
 
-- `googleAccessToken` is accepted per sync request and not persisted to the database.
+- Service-account credentials stay server-side; the client does not collect or transmit Google credentials.
+- `googleAccessToken` is accepted for Swagger/manual testing and is not persisted to the database.
 - Sync job records store operational metadata only (counts/status/extraction warnings).
 - Gemini prompt payload is sanitized before transmission (attendees/organizer omitted, emails/phones/URLs redacted).
 - Sync jobs record whether extraction used Gemini or fallback heuristics, including quota/billing fallback reasons.
@@ -150,6 +159,65 @@ Sample-job mode:
 
 - `POST /concert-sync/jobs` can accept `sampleEvents` for local/test runs without live Google API calls.
 - Production source of truth remains Google Calendar for now, but the sync service already isolates event-source loading (`loadSourceEvents`) so a future ingestion-pipeline source can be added without rewriting extraction/upsert logic.
+
+---
+
+## Deploy on Merge to Main
+
+This repo includes a GitHub Actions workflow at `.github/workflows/firebase-deploy.yml`.
+
+On every push to `main`, including a merged PR, the workflow:
+
+1. Installs API and client dependencies.
+2. Runs the concert sync test suite.
+3. Builds the Nest API.
+4. Builds and pushes an API Docker image to Artifact Registry.
+5. Deploys the API image to Cloud Run.
+6. Builds the Vue client with the deployed API URL.
+7. Deploys `client/dist` to Firebase Hosting.
+
+### Required GitHub Secret
+
+Create this repository secret:
+
+- `FIREBASE_SERVICE_ACCOUNT_NIDO_API_9ED65`
+
+The value should be the full JSON key for a Google service account that can deploy both Firebase Hosting and Cloud Run.
+
+Recommended IAM roles for the deploy service account:
+
+- Firebase Hosting Admin
+- Cloud Run Admin
+- Artifact Registry Admin, or Artifact Registry Writer if the `nido` repository already exists
+- Service Account User on the Cloud Run runtime service account
+
+### Required/Recommended GitHub Variables
+
+Client build variables:
+
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_ADMIN_EMAILS`
+
+Optional:
+
+- `VITE_API_BASE_URL`
+  - If omitted, the workflow uses the Cloud Run service URL after deploying the API.
+- `CORS_ORIGINS`
+  - Defaults to `https://nido-api-9ed65.web.app,https://nido-api-9ed65.firebaseapp.com`.
+
+### Cloud Run Runtime Configuration
+
+The workflow deploys a new API container image and updates only:
+
+- `NODE_ENV=production`
+- `CORS_ORIGINS`
+
+Database credentials, Firebase Admin credentials, Google Calendar service account credentials, Gemini keys, and ingestion bucket config should be configured on the Cloud Run service as environment variables or Secret Manager references. The deploy intentionally does not overwrite those runtime settings.
 
 ## User Signup Flow
 

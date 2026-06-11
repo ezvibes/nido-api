@@ -1,0 +1,118 @@
+name: Deploy Firebase and Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: firebase-cloud-run-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    env:
+      GCP_PROJECT_ID: nido-api-9ed65
+      FIREBASE_PROJECT_ID: nido-api-9ed65
+      GAR_LOCATION: us-east1
+      GAR_REPOSITORY: nido
+      CLOUD_RUN_SERVICE: nido-api
+      CLOUD_RUN_REGION: us-east1
+      CORS_ORIGINS: ${{ vars.CORS_ORIGINS || 'https://nido-api-9ed65.web.app,https://nido-api-9ed65.firebaseapp.com' }}
+      VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+      VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+      VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+      VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+      VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+      VITE_ADMIN_EMAILS: ${{ vars.VITE_ADMIN_EMAILS }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+
+      - name: Install API dependencies
+        run: npm ci
+
+      - name: Install client dependencies
+        run: npm ci --prefix client
+
+      - name: Test concert sync
+        run: npm test -- concert-sync
+
+      - name: Build API
+        run: npm run build
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NIDO_API_9ED65 }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${GAR_LOCATION}-docker.pkg.dev" --quiet
+
+      - name: Ensure Artifact Registry repository exists
+        run: |
+          gcloud artifacts repositories describe "$GAR_REPOSITORY" \
+            --project "$GCP_PROJECT_ID" \
+            --location "$GAR_LOCATION" >/dev/null 2>&1 || \
+          gcloud artifacts repositories create "$GAR_REPOSITORY" \
+            --project "$GCP_PROJECT_ID" \
+            --location "$GAR_LOCATION" \
+            --repository-format docker \
+            --description "Nido API container images"
+
+      - name: Build API container
+        run: |
+          IMAGE="${GAR_LOCATION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${CLOUD_RUN_SERVICE}:${GITHUB_SHA}"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          docker build -t "$IMAGE" .
+
+      - name: Push API container
+        run: docker push "$IMAGE"
+
+      - name: Deploy API to Cloud Run
+        run: |
+          gcloud run deploy "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$CLOUD_RUN_REGION" \
+            --platform managed \
+            --image "$IMAGE" \
+            --allow-unauthenticated \
+            --update-env-vars "^|^NODE_ENV=production|CORS_ORIGINS=${CORS_ORIGINS}"
+
+      - name: Resolve API URL for client build
+        run: |
+          API_URL="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$CLOUD_RUN_REGION" \
+            --format 'value(status.url)')"
+          if [ -z "$VITE_API_BASE_URL" ]; then
+            echo "VITE_API_BASE_URL=$API_URL" >> "$GITHUB_ENV"
+          fi
+          echo "Cloud Run API URL: $API_URL"
+
+      - name: Build client
+        run: npm run build --prefix client
+
+      - name: Deploy Firebase Hosting
+        run: npx firebase-tools@latest deploy --only hosting --project "$FIREBASE_PROJECT_ID"
