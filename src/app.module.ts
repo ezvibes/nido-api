@@ -7,6 +7,7 @@ import { ConcertModule } from './apis/concerts/concert.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { IngestionModule } from './ingestion/ingestion.module';
 import { ConcertSyncModule } from './concert-sync/concert-sync.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { ConcertSyncModule } from './concert-sync/concert-sync.module';
     ConcertModule,
     IngestionModule,
     ConcertSyncModule,
+    HealthModule,
   ],
   controllers: [],
   providers: [],

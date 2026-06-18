@@ -60,6 +60,10 @@ export class FirebaseService implements OnModuleInit {
     return getAuth(this.firebaseApp);
   }
 
+  isInitialized() {
+    return Boolean(this.firebaseApp);
+  }
+
   /**
    * Verifies a Firebase JWT token.
    * This is the "bootstrap" method you mentioned. It takes the token from the

@@ -1,0 +1,132 @@
+name: Deploy Dev
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-dev-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build, deploy, and verify dev
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    env:
+      PROJECT_ID: nido-api-9ed65
+      REGION: us-east1
+      SERVICE: nido-api
+      REPO: nido
+      SQL_INSTANCE: nido-postgres-dev
+      FIREBASE_PROJECT_ID: nido-api-9ed65
+      RUNTIME_SERVICE_ACCOUNT: nido-api-runtime@nido-api-9ed65.iam.gserviceaccount.com
+      CORS_ORIGINS: ${{ vars.CORS_ORIGINS || 'https://nido-api-9ed65.web.app,https://nido-api-9ed65.firebaseapp.com,http://localhost:5173' }}
+      VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+      VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+      VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+      VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+      VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+      VITE_ADMIN_EMAILS: ${{ vars.VITE_ADMIN_EMAILS }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set derived deploy values
+        run: |
+          echo "SQL_CONNECTION=${PROJECT_ID}:${REGION}:${SQL_INSTANCE}" >> "$GITHUB_ENV"
+          echo "IMAGE=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:${GITHUB_SHA}" >> "$GITHUB_ENV"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+
+      - name: Install API dependencies
+        run: npm ci
+
+      - name: Install client dependencies
+        run: npm ci --prefix client
+
+      - name: Run focused API tests
+        run: npm test -- user.service health.service concert-sync
+
+      - name: Build API
+        run: npm run build
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT_JSON }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push API container
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}
+
+      - name: Deploy API to Cloud Run
+        run: |
+          RUN_ENVS="^|^NODE_ENV=production|DB_HOST=/cloudsql/${SQL_CONNECTION}|DB_PORT=5432|DB_USER=nido_api|DB_NAME=nido|DB_SYNCHRONIZE=true|FIREBASE_PROJECT_ID=${PROJECT_ID}|FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@${PROJECT_ID}.iam.gserviceaccount.com|ADMIN_EMAILS=ezvibesinc@gmail.com|GCS_INGESTION_BUCKET=nido-concert-image-ingestion-dev|GEMINI_MODEL=gemini-2.0-flash|CONCERT_SYNC_GEMINI_ENABLED=true|CONCERT_SYNC_MAX_EVENTS_PER_JOB=25|GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL=sync-doctor-calendar@nido-api.iam.gserviceaccount.com|CORS_ORIGINS=${CORS_ORIGINS}"
+          RUN_SECRETS="DB_PASSWORD=nido-db-password:latest,FIREBASE_PRIVATE_KEY=nido-firebase-private-key:latest,GEMINI_API_KEY=nido-gemini-api-key:latest,GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY=nido-google-calendar-private-key:latest"
+
+          gcloud run deploy "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --platform managed \
+            --image "$IMAGE" \
+            --allow-unauthenticated \
+            --add-cloudsql-instances "$SQL_CONNECTION" \
+            --service-account "$RUNTIME_SERVICE_ACCOUNT" \
+            --set-env-vars "$RUN_ENVS" \
+            --set-secrets "$RUN_SECRETS"
+
+      - name: Resolve Cloud Run API URL
+        run: |
+          API_URL="$(gcloud run services describe "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --format 'value(status.url)')"
+          echo "API_URL=$API_URL" >> "$GITHUB_ENV"
+          if [ -z "$VITE_API_BASE_URL" ]; then
+            echo "VITE_API_BASE_URL=$API_URL" >> "$GITHUB_ENV"
+          fi
+          echo "Cloud Run API URL: $API_URL"
+
+      - name: Verify API health
+        run: |
+          curl -fsS "$API_URL/health"
+          curl -fsS "$API_URL/health/deep"
+          curl -fsS "$API_URL/api-docs-json" >/dev/null
+
+      - name: Build client
+        run: npm run build --prefix client
+
+      - name: Deploy Firebase Hosting
+        run: npx firebase-tools@latest deploy --only hosting --project "$FIREBASE_PROJECT_ID"
+
+      - name: Verify Firebase Hosting
+        run: curl -fsSI "https://${FIREBASE_PROJECT_ID}.web.app" >/dev/null

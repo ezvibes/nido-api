@@ -59,6 +59,7 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 firebase-creds.json
 nido-api-08fa5f15fac1.json
+.firebase/
 
 # Local docs and planning docs
 /docs/
