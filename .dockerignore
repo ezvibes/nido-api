@@ -1,0 +1,17 @@
+.git
+.github
+.agents
+client
+coverage
+dist
+docs
+node_modules
+test
+.env
+.env.*
+!.env.example
+firebase-creds.json
+nido-api-08fa5f15fac1.json
+firebase-debug.log
+npm-debug.log*
+.DS_Store

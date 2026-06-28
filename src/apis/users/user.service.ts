@@ -25,12 +25,28 @@ export class UserService {
       throw new Error('Database not configured. User data cannot be saved.');
     }
 
-    const user = await this.userRepository.findOne({
+    const userByUid = await this.userRepository.findOne({
       where: { uid: createUserDto.uid },
     });
 
-    if (user) {
-      return user;
+    if (userByUid) {
+      this.userRepository.merge(userByUid, {
+        email: createUserDto.email,
+        picture: createUserDto.picture,
+      });
+      return this.userRepository.save(userByUid);
+    }
+
+    const userByEmail = await this.userRepository.findOne({
+      where: { email: createUserDto.email },
+    });
+
+    if (userByEmail) {
+      this.userRepository.merge(userByEmail, {
+        uid: createUserDto.uid,
+        picture: createUserDto.picture,
+      });
+      return this.userRepository.save(userByEmail);
     }
 
     const newUser = this.userRepository.create(createUserDto);

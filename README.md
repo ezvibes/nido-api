@@ -21,12 +21,14 @@ First, set up and run the NestJS server.
 
 #### **Prerequisites**
 
-- A PostgreSQL database. You can run one easily using Docker:
+- A PostgreSQL database. You can use either a local Docker container or connect to the Dev Cloud SQL database via the Auth Proxy:
+
+  **Option A: Local Docker PostgreSQL**
   ```bash
   docker-compose up -d
   ```
-- A `.env` file in the project root. Create it if it doesn't exist:
-  ```
+  Ensure your `.env` has:
+  ```env
   DB_HOST=localhost
   DB_PORT=5432
   DB_USER=user
@@ -34,6 +36,26 @@ First, set up and run the NestJS server.
   DB_NAME=nido
   DB_SYNCHRONIZE=true
   ```
+
+  **Option B: Dev Cloud SQL (PostgreSQL) via Auth Proxy**
+  1. Authenticate with Google Cloud Application Default Credentials (ADC):
+     ```bash
+     gcloud auth application-default login
+     ```
+     *(Make sure to check the box for the `cloud-platform` scope during the browser authorization).*
+  2. Start the proxy locally:
+     ```bash
+     cloud-sql-proxy nido-api-9ed65:us-east1:nido-postgres-dev --port 5433
+     ```
+  3. Ensure your `.env` has:
+     ```env
+     DB_HOST=localhost
+     DB_PORT=5433
+     DB_USER=nido_api
+     DB_PASSWORD=nico2015
+     DB_NAME=nido
+     DB_SYNCHRONIZE=true
+     ```
 
 #### **Installation & Execution**
 
