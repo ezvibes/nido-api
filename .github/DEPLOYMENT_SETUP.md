@@ -8,37 +8,40 @@ This file documents the GitHub repository secret and variables required by:
 
 The workflow deploys the API to Cloud Run and the frontend to Firebase Hosting after a merge to `main`, or manually through `workflow_dispatch`.
 
-## Required GitHub Secret
+## GitHub Authentication (Workload Identity Federation)
 
-Set this as a repository secret:
+We use **Workload Identity Federation (WIF)** to securely authenticate the GitHub Actions pipeline with Google Cloud without using long-lived JSON key secrets.
 
-```text
-GCP_DEPLOY_SERVICE_ACCOUNT_JSON
-```
+The pipeline automatically connects using the OIDC provider:
+* **Workload Identity Provider**: `projects/81555493719/locations/global/workloadIdentityPools/github-pool/providers/github-provider`
+* **Deploy Service Account**: `github-deployer@nido-api-9ed65.iam.gserviceaccount.com`
 
-This must be the full JSON key for a deploy-capable service account in project `nido-api-9ed65`.
+This setup allows the repository `ezvibes/nido-api` to assume the `github-deployer` service account to run the build and deploy.
 
-Required deploy-time permissions:
+### Required Deploy-Time Permissions
 
-- Artifact Registry Writer
-- Cloud Run Admin
-- Service Account User on `nido-api-runtime@nido-api-9ed65.iam.gserviceaccount.com`
-- Firebase Hosting Admin
+The `github-deployer` service account is already configured with the following roles in project `nido-api-9ed65`:
 
-Cloud Run runtime secrets remain in GCP Secret Manager. Do not store these in GitHub:
+- **Artifact Registry Writer** (`roles/artifactregistry.writer`) - to push Docker containers.
+- **Cloud Run Admin** (`roles/run.admin`) - to deploy/update the API service.
+- **Firebase Admin** (`roles/firebase.admin`) - to deploy resources to Firebase Hosting.
+- **Service Account User** (`roles/iam.serviceAccountUser`) on `nido-api-runtime@nido-api-9ed65.iam.gserviceaccount.com` - to deploy Cloud Run using that identity.
+
+### Secret Manager Config
+
+Sensitive credentials remain stored in GCP Secret Manager. Do not store these in GitHub:
 
 - `nido-db-password`
 - `nido-firebase-private-key`
 - `nido-gemini-api-key`
 - `nido-google-calendar-private-key`
 
-### Set Secret With GitHub CLI
-
-From the repo root:
-
+If you ever need to create or regenerate the WIF pool or provider, you can run the automated script in the repository:
 ```bash
-gh secret set GCP_DEPLOY_SERVICE_ACCOUNT_JSON < /path/to/deploy-service-account.json
+./setup-gcp-permissions.sh
 ```
+
+---
 
 ## Required GitHub Variables
 

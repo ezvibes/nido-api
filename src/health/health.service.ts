@@ -84,10 +84,17 @@ export class HealthService {
   }
 
   private checkFirebase(): DependencyHealth {
+    const hasPrivateKey =
+      this.hasConfig('FIREBASE_PRIVATE_KEY') ||
+      (this.hasConfig('FIREBASE_PRIVATE_KEY_ID') &&
+        this.configService
+          .get<string>('FIREBASE_PRIVATE_KEY_ID')
+          ?.includes('BEGIN PRIVATE KEY'));
+
     const required = {
       projectId: this.hasConfig('FIREBASE_PROJECT_ID'),
       clientEmail: this.hasConfig('FIREBASE_CLIENT_EMAIL'),
-      privateKey: this.hasConfig('FIREBASE_PRIVATE_KEY'),
+      privateKey: Boolean(hasPrivateKey),
     };
     const configured = Object.values(required).every(Boolean);
     const initialized = this.firebaseService.isInitialized();

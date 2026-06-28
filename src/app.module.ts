@@ -25,6 +25,8 @@ import { HealthModule } from './health/health.module';
         database: configService.get<string>('DB_NAME'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: configService.get<string>('DB_SYNCHRONIZE') === 'true',
+        migrations: [__dirname + '/migrations/**/*{.ts,.js}'],
+        migrationsRun: configService.get<string>('DB_MIGRATIONS_RUN') === 'true',
       }),
       inject: [ConfigService],
     }),
