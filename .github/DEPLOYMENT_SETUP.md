@@ -36,11 +36,6 @@ Sensitive credentials remain stored in GCP Secret Manager. Do not store these in
 - `nido-gemini-api-key`
 - `nido-google-calendar-private-key`
 
-If you ever need to create or regenerate the WIF pool or provider, you can run the automated script in the repository:
-```bash
-./setup-gcp-permissions.sh
-```
-
 ---
 
 ## Required GitHub Variables
