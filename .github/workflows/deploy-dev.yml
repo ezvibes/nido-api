@@ -128,7 +128,8 @@ jobs:
         run: npm run build --prefix client
 
       - name: Deploy Firebase Hosting
-        run: npx firebase-tools@latest deploy --only hosting --project "$FIREBASE_PROJECT_ID"
+        run: |
+          FIREBASE_TOKEN="$(gcloud auth print-access-token)" npx firebase-tools@latest deploy --only hosting --project "$FIREBASE_PROJECT_ID"
 
       - name: Verify Firebase Hosting
         run: curl -fsSI "https://${FIREBASE_PROJECT_ID}.web.app" >/dev/null
