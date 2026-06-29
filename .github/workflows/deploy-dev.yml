@@ -125,7 +125,9 @@ jobs:
           curl -fsS --retry 5 --retry-delay 5 "$API_URL/api-docs-json" >/dev/null
 
       - name: Build client
-        run: npm run build --prefix client
+        run: |
+          npm run build --prefix client
+          echo "<!-- Build: $(date +%s) -->" >> client/dist/index.html
 
       - name: Deploy Firebase Hosting
         run: |
