@@ -27,6 +27,12 @@ The `github-deployer` service account is already configured with the following r
 - **Firebase Admin** (`roles/firebase.admin`) - to deploy resources to Firebase Hosting.
 - **Service Account User** (`roles/iam.serviceAccountUser`) on `nido-api-runtime@nido-api-9ed65.iam.gserviceaccount.com` - to deploy Cloud Run using that identity.
 
+### Firebase Hosting Auth
+
+Firebase Hosting deploys use the same Workload Identity Federation credentials as the Cloud Run deploy. The workflow does not use `FIREBASE_TOKEN`, `firebase login:ci`, or a checked-in service account JSON file.
+
+The `google-github-actions/auth` step writes an Application Default Credentials file and exposes it through `GOOGLE_APPLICATION_CREDENTIALS`. The Firebase CLI can use that credential directly in CI.
+
 ### Secret Manager Config
 
 Sensitive credentials remain stored in GCP Secret Manager. Do not store these in GitHub:
@@ -96,10 +102,9 @@ Repository:
 Settings -> Secrets and variables -> Actions
 ```
 
-Use:
+Use the `Variables` tab for all `VITE_*` values and `CORS_ORIGINS`.
 
-- `Secrets` tab for `GCP_DEPLOY_SERVICE_ACCOUNT_JSON`
-- `Variables` tab for all `VITE_*` values and `CORS_ORIGINS`
+Do not add a long-lived GCP service account JSON secret for this workflow unless WIF is intentionally being replaced.
 
 ## First Run
 

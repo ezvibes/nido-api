@@ -26,6 +26,7 @@ jobs:
       REPO: nido
       SQL_INSTANCE: nido-postgres-dev
       FIREBASE_PROJECT_ID: nido-api-9ed65
+      FIREBASE_TOOLS_VERSION: 13.29.0
       RUNTIME_SERVICE_ACCOUNT: nido-api-runtime@nido-api-9ed65.iam.gserviceaccount.com
       CORS_ORIGINS: ${{ vars.CORS_ORIGINS || 'https://nido-api-9ed65.web.app,https://nido-api-9ed65.firebaseapp.com,http://localhost:5173' }}
       VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
@@ -132,8 +133,10 @@ jobs:
       - name: Deploy Firebase Hosting
         run: |
           echo "Starting Firebase Hosting deployment..."
-          DEPLOY_OUT=$(FIREBASE_TOKEN="$(gcloud auth print-access-token)" npx firebase-tools@latest deploy --only hosting --project "$FIREBASE_PROJECT_ID" 2>&1)
+          set +e
+          DEPLOY_OUT=$(npx --yes firebase-tools@"$FIREBASE_TOOLS_VERSION" deploy --only hosting --project "$FIREBASE_PROJECT_ID" --non-interactive 2>&1)
           STATUS=$?
+          set -e
           echo "$DEPLOY_OUT"
           if [ $STATUS -ne 0 ]; then
             if echo "$DEPLOY_OUT" | grep -q "is the current active version"; then
