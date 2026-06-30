@@ -131,7 +131,7 @@ jobs:
 
       - name: Deploy Firebase Hosting
         run: |
-          FIREBASE_TOKEN="$(gcloud auth print-access-token)" npx firebase-tools@latest deploy --only hosting --project "$FIREBASE_PROJECT_ID"
+          FIREBASE_TOKEN="$(gcloud auth print-access-token)" npx firebase-tools@13.29.0 deploy --only hosting --project "$FIREBASE_PROJECT_ID"
 
       - name: Verify Firebase Hosting
         run: curl -fsSI "https://${FIREBASE_PROJECT_ID}.web.app" >/dev/null
