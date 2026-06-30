@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 
@@ -141,10 +141,9 @@ async function buildManifest(files, publicDir) {
     const source = await readFile(absolutePath);
     const gzipped = gzipSync(source, { level: 9 });
     const hash = createHash('sha256').update(gzipped).digest('hex');
-    const stats = await stat(absolutePath);
 
     manifest[hostingPath(filePath)] = hash;
-    uploads.set(hash, { filePath, gzipped, size: stats.size });
+    uploads.set(hash, { filePath, gzipped });
   }
 
   return { manifest, uploads };
