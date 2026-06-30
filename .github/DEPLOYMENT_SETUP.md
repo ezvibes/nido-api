@@ -38,11 +38,11 @@ The current experiment branch validated this approach with a successful `Deploy 
 workflow run on `2026-06-30`:
 
 ```text
-Run: 28413477405
+Run: 28413924740
 Branch: codex/firebase-hosting-wif-experiment
-Commit: 39ca998398ceaa6d368c493ae858ba84614d624a
+Commit: 02c6b98a573e01abde1ab27ee274395b5650ac5a
 Result: success
-Duration: 3m17s
+Duration: 1m26s
 ```
 
 ## Architecture
