@@ -11,6 +11,12 @@ Workflow file:
 .github/workflows/deploy-dev.yml
 ```
 
+Pull request validation workflow:
+
+```text
+.github/workflows/validate-deployment.yml
+```
+
 Hosting REST deploy helper:
 
 ```text
@@ -30,12 +36,12 @@ Important design choices:
 - No long-lived deploy service account JSON is stored in GitHub.
 - API runtime secrets stay in Google Cloud Secret Manager.
 - Vite variables are treated as public browser configuration.
-- The API deploy is verified before the frontend is built and deployed.
+- The API and frontend builds both pass before any deployment mutates dev infrastructure.
+- The API deploy is verified before Firebase Hosting is released.
 - Firebase Hosting is deployed through the Firebase Hosting REST API, not the Firebase CLI.
 - The frontend deploy reads `firebase.json` so Hosting config stays reviewable and versioned.
 
-The current experiment branch validated this approach with a successful `Deploy Dev`
-workflow run on `2026-06-30`:
+Initial validation snapshot for this approach:
 
 ```text
 Run: 28413924740
@@ -113,6 +119,11 @@ The `Deploy Dev` workflow runs on:
 - pushes to `main`
 - manual `workflow_dispatch`
 
+The `Validate Deployment` workflow runs on:
+
+- pull requests that touch deployment, API, or client build inputs
+- manual `workflow_dispatch`
+
 The job sequence is intentionally ordered to fail fast before expensive deploy work:
 
 1. Check out the repository.
@@ -125,20 +136,22 @@ The job sequence is intentionally ordered to fail fast before expensive deploy w
 8. Build the API as a fast pre-Docker validation gate.
 9. Authenticate to Google Cloud through Workload Identity Federation.
 10. Install/configure `gcloud`.
-11. Configure Docker for Artifact Registry.
-12. Set up Docker Buildx.
-13. Build and push a `linux/amd64` API container to Artifact Registry.
-14. Deploy the API image to Cloud Run.
-15. Resolve the Cloud Run URL.
-16. Verify `/health`, `/health/deep`, and `/api-docs-json`.
-17. Build the client with the verified API URL available to Vite.
-18. Deploy Firebase Hosting through the REST API.
-19. Verify Firebase Hosting responds.
+11. Resolve the client API base URL if `VITE_API_BASE_URL` is not configured.
+12. Build the client before mutating Cloud Run or Firebase Hosting.
+13. Configure Docker for Artifact Registry.
+14. Set up Docker Buildx.
+15. Build and push a `linux/amd64` API container to Artifact Registry.
+16. Deploy the API image to Cloud Run.
+17. Resolve the deployed Cloud Run URL for health checks.
+18. Verify `/health`, `/health/deep`, and `/api-docs-json`.
+19. Deploy Firebase Hosting through the REST API.
+20. Verify Firebase Hosting responds.
 
-Why the frontend build happens after API verification:
+Why the frontend build happens before API deployment:
 
-- If `VITE_API_BASE_URL` is not set, the workflow resolves the deployed Cloud Run URL and injects it before building.
-- A frontend deploy should not publish a UI pointed at an API revision that failed health checks.
+- A broken frontend build should stop the release before Cloud Run changes.
+- If `VITE_API_BASE_URL` is not set, the workflow resolves the current Cloud Run service URL and injects it before building.
+- The API deploy is still health-checked before Firebase Hosting is released, preventing a new UI from being published against an unhealthy API revision.
 
 Why the Docker build happens after local API build/tests:
 
@@ -342,16 +355,18 @@ The REST deploy script performs the Firebase Hosting API sequence:
 1. Read `firebase.json`.
 2. Resolve the Hosting public directory.
 3. Convert supported Hosting config into REST API config.
-4. Gzip every static file and compute SHA-256 hashes.
-5. Create a Hosting version.
-6. Call `:populateFiles` with the file manifest.
-7. Upload only hashes Firebase reports as missing.
-8. Finalize the Hosting version with config.
-9. Release the version to the `live` channel.
+4. Apply `firebase.json` Hosting ignore patterns to the public directory.
+5. Gzip every static file and compute SHA-256 hashes.
+6. Create a Hosting version.
+7. Call `:populateFiles` with the file manifest in bounded batches.
+8. Upload only hashes Firebase reports as missing for each returned upload URL.
+9. Finalize the Hosting version with config.
+10. Release the version to the `live` channel.
 
 Current supported Hosting config:
 
 - `public`
+- `ignore`
 - destination `rewrites`
 - `redirects`
 - `headers`
@@ -385,6 +400,7 @@ Expected output shape:
 ```text
 Preparing Firebase Hosting deploy for site nido-api-9ed65.
 Found 4 file(s) in client/dist.
+Applied 3 firebase.json ignore pattern(s).
 Prepared 4 Hosting manifest entrie(s).
 Dry run complete. No Firebase Hosting version was created.
 ```
@@ -483,8 +499,9 @@ The deployed Cloud Run service reads them at runtime through Secret Manager bind
 8. Confirm runtime service account IAM roles.
 9. Confirm required Secret Manager secrets and versions.
 10. Confirm GitHub repository variables.
-11. Run `Deploy Dev` manually from the experiment branch.
-12. Merge only after the manual run is green.
+11. Confirm `Validate Deployment` is green on the pull request.
+12. Run `Deploy Dev` manually from the experiment branch when validating deployment changes.
+13. Merge only after validation and any required manual deploy run are green.
 
 ## Routine Deploy Checklist
 
@@ -503,10 +520,12 @@ After merge or manual dispatch, confirm these GitHub Actions steps pass:
 - Run focused API tests
 - Build API
 - Authenticate to Google Cloud
+- Resolve client API base URL
+- Build client
 - Build and push API container
 - Deploy API to Cloud Run
+- Resolve deployed Cloud Run API URL
 - Verify API health
-- Build client
 - Deploy Firebase Hosting
 - Verify Firebase Hosting
 
@@ -598,18 +617,19 @@ What is strong:
 
 - WIF avoids long-lived deploy keys.
 - Runtime secrets are in Secret Manager, not GitHub.
-- API deploy is health-checked before frontend deploy.
+- API and client builds gate deployment before infrastructure changes.
+- API deploy is health-checked before Firebase Hosting release.
 - Docker images are commit-addressable by SHA.
 - Branch-aware concurrency prevents experiment runs from canceling `main`.
 - REST Hosting deploy avoids deprecated Firebase token flows.
-- Local dry-run covers Hosting config parsing and manifest generation.
+- Pull request validation covers API tests, API build, client build, and Hosting REST dry-run.
+- Local dry-run covers Hosting config parsing, ignore handling, and manifest generation.
 
 What should be hardened next:
 
 - Scope Secret Manager access to specific secrets.
 - Replace broad Firebase Admin deploy permission with narrower custom permissions if practical.
 - Add a full smoke-test script that checks authenticated flows when a test token is available.
-- Split CI validation from deployment if the repo grows, so pull requests can run fast non-deploy checks.
 - Add Artifact Registry cleanup policy for old SHA images.
 - Add Cloud Run revision retention/cost review to the monthly runbook.
 

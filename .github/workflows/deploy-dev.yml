@@ -87,6 +87,24 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
 
+      - name: Resolve client API base URL
+        run: |
+          if [ -z "$VITE_API_BASE_URL" ]; then
+            API_URL="$(gcloud run services describe "$SERVICE" \
+              --project "$PROJECT_ID" \
+              --region "$REGION" \
+              --format 'value(status.url)')"
+            echo "VITE_API_BASE_URL=$API_URL" >> "$GITHUB_ENV"
+            echo "Client API URL: $API_URL"
+          else
+            echo "Client API URL: $VITE_API_BASE_URL"
+          fi
+
+      - name: Build client
+        run: |
+          npm run build --prefix client
+          echo "<!-- Build: $(date +%s) -->" >> client/dist/index.html
+
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
@@ -119,16 +137,13 @@ jobs:
             --set-env-vars "$RUN_ENVS" \
             --set-secrets "$RUN_SECRETS"
 
-      - name: Resolve Cloud Run API URL
+      - name: Resolve deployed Cloud Run API URL
         run: |
           API_URL="$(gcloud run services describe "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
             --format 'value(status.url)')"
           echo "API_URL=$API_URL" >> "$GITHUB_ENV"
-          if [ -z "$VITE_API_BASE_URL" ]; then
-            echo "VITE_API_BASE_URL=$API_URL" >> "$GITHUB_ENV"
-          fi
           echo "Cloud Run API URL: $API_URL"
 
       - name: Verify API health
@@ -136,11 +151,6 @@ jobs:
           curl -fsS --retry 5 --retry-delay 5 "$API_URL/health"
           curl -fsS --retry 5 --retry-delay 5 "$API_URL/health/deep"
           curl -fsS --retry 5 --retry-delay 5 "$API_URL/api-docs-json" >/dev/null
-
-      - name: Build client
-        run: |
-          npm run build --prefix client
-          echo "<!-- Build: $(date +%s) -->" >> client/dist/index.html
 
       - name: Deploy Firebase Hosting
         run: |

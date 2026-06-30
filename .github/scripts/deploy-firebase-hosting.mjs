@@ -61,6 +61,7 @@ async function readHostingConfig() {
 
   return {
     publicDir: path.resolve(FIREBASE_HOSTING_PUBLIC_DIR ?? hosting.public ?? 'public'),
+    ignore: hosting.ignore ?? [],
     config: convertHostingConfig(hosting),
   };
 }
@@ -112,6 +113,45 @@ function convertPattern(entry) {
   throw new Error('Hosting config entry is missing source, glob, or regex.');
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[|\\{}()[\]^$+?.]/g, '\\$&');
+}
+
+function globToRegExp(pattern) {
+  let source = '^';
+
+  for (let index = 0; index < pattern.length; index += 1) {
+    const char = pattern[index];
+    const next = pattern[index + 1];
+
+    if (char === '*') {
+      if (next === '*') {
+        const afterGlobstar = pattern[index + 2];
+        if (afterGlobstar === '/') {
+          source += '(?:.*\\/)?';
+          index += 2;
+        } else {
+          source += '.*';
+          index += 1;
+        }
+      } else {
+        source += '[^/]*';
+      }
+    } else {
+      source += escapeRegExp(char);
+    }
+  }
+
+  source += '$';
+  return new RegExp(source);
+}
+
+function createIgnoreMatcher(ignorePatterns) {
+  const matchers = ignorePatterns.map((pattern) => globToRegExp(pattern));
+
+  return (filePath) => matchers.some((matcher) => matcher.test(filePath));
+}
+
 async function walk(dir, root = dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = [];
@@ -126,6 +166,15 @@ async function walk(dir, root = dir) {
   }
 
   return files.sort();
+}
+
+function filterIgnoredFiles(files, ignorePatterns) {
+  if (ignorePatterns.length === 0) {
+    return files;
+  }
+
+  const isIgnored = createIgnoreMatcher(ignorePatterns);
+  return files.filter((filePath) => !isIgnored(filePath));
 }
 
 function hostingPath(filePath) {
@@ -159,8 +208,7 @@ function chunk(items, size) {
 
 async function uploadRequiredFiles(versionName, manifest, uploads) {
   const populateUrl = `${apiBase}/${versionName}:populateFiles`;
-  const requiredHashes = new Set();
-  let uploadUrl;
+  let requiredCount = 0;
 
   for (const entries of chunk(Object.entries(manifest), populateBatchSize)) {
     const populate = await firebaseRequest(populateUrl, {
@@ -168,18 +216,20 @@ async function uploadRequiredFiles(versionName, manifest, uploads) {
       body: JSON.stringify({ files: Object.fromEntries(entries) }),
     });
 
-    uploadUrl = populate.uploadUrl;
-    for (const hash of populate.uploadRequiredHashes ?? []) {
-      requiredHashes.add(hash);
+    const requiredHashes = populate.uploadRequiredHashes ?? [];
+    requiredCount += requiredHashes.length;
+
+    if (!populate.uploadUrl && requiredHashes.length > 0) {
+      throw new Error('Firebase did not return an upload URL.');
     }
+
+    await uploadHashes(populate.uploadUrl, requiredHashes, uploads);
   }
 
-  console.log(`Firebase Hosting requires ${requiredHashes.size} file upload(s).`);
+  console.log(`Firebase Hosting requires ${requiredCount} file upload(s).`);
+}
 
-  if (!uploadUrl && requiredHashes.size > 0) {
-    throw new Error('Firebase did not return an upload URL.');
-  }
-
+async function uploadHashes(uploadUrl, requiredHashes, uploads) {
   const uploadOne = async (hash) => {
     const upload = uploads.get(hash);
     if (!upload) {
@@ -213,8 +263,8 @@ async function uploadRequiredFiles(versionName, manifest, uploads) {
 }
 
 async function main() {
-  const { publicDir, config } = await readHostingConfig();
-  const files = await walk(publicDir);
+  const { publicDir, ignore, config } = await readHostingConfig();
+  const files = filterIgnoredFiles(await walk(publicDir), ignore);
   if (files.length === 0) {
     throw new Error(`No files found in ${path.relative(process.cwd(), publicDir)}.`);
   }
@@ -223,6 +273,9 @@ async function main() {
 
   console.log(`Preparing Firebase Hosting deploy for site ${FIREBASE_HOSTING_SITE}.`);
   console.log(`Found ${files.length} file(s) in ${publicDirLabel}.`);
+  if (ignore.length > 0) {
+    console.log(`Applied ${ignore.length} firebase.json ignore pattern(s).`);
+  }
 
   const { manifest, uploads } = await buildManifest(files, publicDir);
   console.log(`Prepared ${Object.keys(manifest).length} Hosting manifest entrie(s).`);
