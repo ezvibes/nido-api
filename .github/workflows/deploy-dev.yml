@@ -26,7 +26,7 @@ jobs:
       REPO: nido
       SQL_INSTANCE: nido-postgres-dev
       FIREBASE_PROJECT_ID: nido-api-9ed65
-      FIREBASE_TOOLS_VERSION: 13.29.0
+      FIREBASE_TOOLS_VERSION: latest
       RUNTIME_SERVICE_ACCOUNT: nido-api-runtime@nido-api-9ed65.iam.gserviceaccount.com
       CORS_ORIGINS: ${{ vars.CORS_ORIGINS || 'https://nido-api-9ed65.web.app,https://nido-api-9ed65.firebaseapp.com,http://localhost:5173' }}
       VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
