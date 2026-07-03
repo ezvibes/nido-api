@@ -7,7 +7,7 @@ on:
       - main
 
 concurrency:
-  group: deploy-dev-main
+  group: deploy-dev-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -26,6 +26,7 @@ jobs:
       REPO: nido
       SQL_INSTANCE: nido-postgres-dev
       FIREBASE_PROJECT_ID: nido-api-9ed65
+      FIREBASE_HOSTING_SITE: nido-api-9ed65
       RUNTIME_SERVICE_ACCOUNT: nido-api-runtime@nido-api-9ed65.iam.gserviceaccount.com
       CORS_ORIGINS: ${{ vars.CORS_ORIGINS || 'https://nido-api-9ed65.web.app,https://nido-api-9ed65.firebaseapp.com,http://localhost:5173' }}
       VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
@@ -39,15 +40,25 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set derived deploy values
         run: |
           echo "SQL_CONNECTION=${PROJECT_ID}:${REGION}:${SQL_INSTANCE}" >> "$GITHUB_ENV"
           echo "IMAGE=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:${GITHUB_SHA}" >> "$GITHUB_ENV"
 
+      - name: Validate deploy configuration
+        run: |
+          : "${VITE_FIREBASE_API_KEY:?Missing GitHub variable VITE_FIREBASE_API_KEY}"
+          : "${VITE_FIREBASE_AUTH_DOMAIN:?Missing GitHub variable VITE_FIREBASE_AUTH_DOMAIN}"
+          : "${VITE_FIREBASE_PROJECT_ID:?Missing GitHub variable VITE_FIREBASE_PROJECT_ID}"
+          : "${VITE_FIREBASE_STORAGE_BUCKET:?Missing GitHub variable VITE_FIREBASE_STORAGE_BUCKET}"
+          : "${VITE_FIREBASE_MESSAGING_SENDER_ID:?Missing GitHub variable VITE_FIREBASE_MESSAGING_SENDER_ID}"
+          : "${VITE_FIREBASE_APP_ID:?Missing GitHub variable VITE_FIREBASE_APP_ID}"
+          : "${VITE_ADMIN_EMAILS:?Missing GitHub variable VITE_ADMIN_EMAILS}"
+
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -68,27 +79,47 @@ jobs:
         run: npm run build
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: projects/81555493719/locations/global/workloadIdentityPools/github-pool/providers/github-provider
           service_account: github-deployer@nido-api-9ed65.iam.gserviceaccount.com
 
       - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Resolve client API base URL
+        run: |
+          if [ -z "$VITE_API_BASE_URL" ]; then
+            API_URL="$(gcloud run services describe "$SERVICE" \
+              --project "$PROJECT_ID" \
+              --region "$REGION" \
+              --format 'value(status.url)')"
+            echo "VITE_API_BASE_URL=$API_URL" >> "$GITHUB_ENV"
+            echo "Client API URL: $API_URL"
+          else
+            echo "Client API URL: $VITE_API_BASE_URL"
+          fi
+
+      - name: Build client
+        run: |
+          npm run build --prefix client
+          echo "<!-- Build: $(date +%s) -->" >> client/dist/index.html
 
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build and push API container
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64
           push: true
           tags: ${{ env.IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Deploy API to Cloud Run
         run: |
@@ -106,16 +137,13 @@ jobs:
             --set-env-vars "$RUN_ENVS" \
             --set-secrets "$RUN_SECRETS"
 
-      - name: Resolve Cloud Run API URL
+      - name: Resolve deployed Cloud Run API URL
         run: |
           API_URL="$(gcloud run services describe "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
             --format 'value(status.url)')"
           echo "API_URL=$API_URL" >> "$GITHUB_ENV"
-          if [ -z "$VITE_API_BASE_URL" ]; then
-            echo "VITE_API_BASE_URL=$API_URL" >> "$GITHUB_ENV"
-          fi
           echo "Cloud Run API URL: $API_URL"
 
       - name: Verify API health
@@ -124,26 +152,10 @@ jobs:
           curl -fsS --retry 5 --retry-delay 5 "$API_URL/health/deep"
           curl -fsS --retry 5 --retry-delay 5 "$API_URL/api-docs-json" >/dev/null
 
-      - name: Build client
-        run: |
-          npm run build --prefix client
-          echo "<!-- Build: $(date +%s) -->" >> client/dist/index.html
-
       - name: Deploy Firebase Hosting
         run: |
-          echo "Starting Firebase Hosting deployment..."
-          DEPLOY_OUT=$(FIREBASE_TOKEN="$(gcloud auth print-access-token)" npx firebase-tools@latest deploy --only hosting --project "$FIREBASE_PROJECT_ID" 2>&1)
-          STATUS=$?
-          echo "$DEPLOY_OUT"
-          if [ $STATUS -ne 0 ]; then
-            if echo "$DEPLOY_OUT" | grep -q "is the current active version"; then
-              echo "::warning::Firebase deploy reported 'active version' conflict, but files were successfully uploaded."
-              exit 0
-            else
-              echo "Firebase deploy failed with a real error."
-              exit $STATUS
-            fi
-          fi
+          FIREBASE_ACCESS_TOKEN="$(gcloud auth print-access-token)" \
+            node .github/scripts/deploy-firebase-hosting.mjs
 
       - name: Verify Firebase Hosting
         run: curl -fsSI "https://${FIREBASE_PROJECT_ID}.web.app" >/dev/null
