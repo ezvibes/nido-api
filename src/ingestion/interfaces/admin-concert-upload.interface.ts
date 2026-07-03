@@ -20,10 +20,10 @@ export interface AdminConcertUploadListItem {
   reviewedAt?: string;
   reviewedByUserId?: number;
   reviewedByUserEmail?: string;
+  concertId?: string;
 }
 
 export interface AdminConcertUploadListResponse {
   total: number;
   items: AdminConcertUploadListItem[];
 }
-

@@ -23,6 +23,7 @@ import type {
   AdminConcertUploadListResponse,
 } from './interfaces/admin-concert-upload.interface';
 import { UploadableFile } from './interfaces/uploadable-file.interface';
+import { Concert } from '../apis/concerts/entities/concert.entity';
 
 @Injectable()
 export class IngestionService {
@@ -37,6 +38,8 @@ export class IngestionService {
     private readonly concertUploadRepository: Repository<ConcertUpload>,
     @InjectRepository(IngestionJob)
     private readonly ingestionJobRepository: Repository<IngestionJob>,
+    @InjectRepository(Concert)
+    private readonly concertRepository: Repository<Concert>,
   ) {
     this.bucketName =
       this.configService.get<string>('GCS_INGESTION_BUCKET')?.trim() ||
@@ -351,27 +354,7 @@ export class IngestionService {
 
     const [uploads, total] = await qb.getManyAndCount();
 
-    const items: AdminConcertUploadListItem[] = uploads.map((upload) => ({
-      id: upload.id,
-      storageUri: upload.storageUri,
-      bucket: upload.bucket,
-      objectName: upload.objectName,
-      mimeType: upload.mimeType,
-      originalFilename: upload.originalFilename,
-      size: Number(upload.size),
-      city: upload.city,
-      state: upload.state,
-      source: upload.source,
-      uploadedByUid: upload.uploadedByUid,
-      uploadedByUserId: upload.uploadedByUserId,
-      uploadedByUserEmail: upload.uploadedByUser?.email,
-      createdAt: upload.createdAt.toISOString(),
-      reviewStatus: this.normalizeReviewStatus(upload.reviewStatus),
-      reviewNotes: upload.reviewNotes,
-      reviewedAt: upload.reviewedAt?.toISOString(),
-      reviewedByUserId: upload.reviewedByUserId,
-      reviewedByUserEmail: upload.reviewedByUser?.email,
-    }));
+    const items = uploads.map((upload) => this.mapAdminConcertUpload(upload));
 
     return { total, items };
   }
@@ -393,52 +376,138 @@ export class IngestionService {
       throw new NotFoundException(`Concert upload ${uploadId} not found`);
     }
 
-    upload.reviewStatus = dto.status;
-    upload.reviewNotes = dto.notes?.trim() || undefined;
-    upload.reviewedAt = new Date();
-    upload.reviewedByUserId = reviewedByUserId;
+    const hydrated = await this.concertUploadRepository.manager.transaction(
+      async (manager) => {
+        const uploadRepository = manager.getRepository(ConcertUpload);
+        const ingestionJobRepository = manager.getRepository(IngestionJob);
+        const concertRepository = manager.getRepository(Concert);
 
-    const saved = await this.concertUploadRepository.save(upload);
-    const terminalReviewStage = this.getTerminalReviewStage(dto.status);
-    if (terminalReviewStage) {
-      await this.ingestionJobRepository.update(
-        { concertUploadId: saved.id, status: 'needs_review' },
-        {
-          status: 'completed',
-          stage: terminalReviewStage,
-        },
+        upload.reviewStatus = dto.status;
+        upload.reviewNotes = dto.notes?.trim() || undefined;
+        upload.reviewedAt = new Date();
+        upload.reviewedByUserId = reviewedByUserId;
+
+        if (dto.status === 'approved') {
+          const concert = await this.publishApprovedUploadAsConcert(
+            upload,
+            dto,
+            reviewedByUserId,
+            concertRepository,
+          );
+          upload.concertId = concert.id;
+        }
+
+        const saved = await uploadRepository.save(upload);
+        const terminalReviewStage = this.getTerminalReviewStage(dto.status);
+        if (terminalReviewStage) {
+          await ingestionJobRepository.update(
+            { concertUploadId: saved.id, status: 'needs_review' },
+            {
+              status: 'completed',
+              stage: terminalReviewStage,
+            },
+          );
+        }
+
+        return uploadRepository.findOneOrFail({
+          where: { id: saved.id },
+          relations: {
+            uploadedByUser: true,
+            reviewedByUser: true,
+          },
+        });
+      },
+    );
+
+    return this.mapAdminConcertUpload(hydrated);
+  }
+
+  private mapAdminConcertUpload(
+    upload: ConcertUpload,
+  ): AdminConcertUploadListItem {
+    return {
+      id: upload.id,
+      storageUri: upload.storageUri,
+      bucket: upload.bucket,
+      objectName: upload.objectName,
+      mimeType: upload.mimeType,
+      originalFilename: upload.originalFilename,
+      size: Number(upload.size),
+      city: upload.city,
+      state: upload.state,
+      source: upload.source,
+      uploadedByUid: upload.uploadedByUid,
+      uploadedByUserId: upload.uploadedByUserId,
+      uploadedByUserEmail: upload.uploadedByUser?.email,
+      createdAt: upload.createdAt.toISOString(),
+      reviewStatus: this.normalizeReviewStatus(upload.reviewStatus),
+      reviewNotes: upload.reviewNotes ?? undefined,
+      reviewedAt: upload.reviewedAt?.toISOString(),
+      reviewedByUserId: upload.reviewedByUserId,
+      reviewedByUserEmail: upload.reviewedByUser?.email,
+      concertId: upload.concertId ?? undefined,
+    };
+  }
+
+  private async publishApprovedUploadAsConcert(
+    upload: ConcertUpload,
+    dto: ReviewConcertUploadDto,
+    reviewedByUserId: number,
+    concertRepository = this.concertRepository,
+  ) {
+    const title = dto.concertTitle?.trim();
+    const startsAt = dto.concertStartsAt?.trim();
+
+    if (!title || !startsAt) {
+      throw new BadRequestException(
+        'concertTitle and concertStartsAt are required when approving an upload.',
       );
     }
 
-    const hydrated = await this.concertUploadRepository.findOneOrFail({
-      where: { id: saved.id },
-      relations: {
-        uploadedByUser: true,
-        reviewedByUser: true,
-      },
-    });
+    const parsedStartsAt = new Date(startsAt);
+    if (Number.isNaN(parsedStartsAt.getTime())) {
+      throw new BadRequestException('concertStartsAt must be a valid date.');
+    }
 
-    return {
-      id: hydrated.id,
-      storageUri: hydrated.storageUri,
-      bucket: hydrated.bucket,
-      objectName: hydrated.objectName,
-      mimeType: hydrated.mimeType,
-      originalFilename: hydrated.originalFilename,
-      size: Number(hydrated.size),
-      city: hydrated.city,
-      state: hydrated.state,
-      source: hydrated.source,
-      uploadedByUid: hydrated.uploadedByUid,
-      uploadedByUserId: hydrated.uploadedByUserId,
-      uploadedByUserEmail: hydrated.uploadedByUser?.email,
-      createdAt: hydrated.createdAt.toISOString(),
-      reviewStatus: this.normalizeReviewStatus(hydrated.reviewStatus),
-      reviewNotes: hydrated.reviewNotes ?? undefined,
-      reviewedAt: hydrated.reviewedAt?.toISOString(),
-      reviewedByUserId: hydrated.reviewedByUserId,
-      reviewedByUserEmail: hydrated.reviewedByUser?.email,
-    };
+    const ownerId = upload.uploadedByUserId ?? reviewedByUserId;
+    const existingConcert = upload.concertId
+      ? await concertRepository.findOne({ where: { id: upload.concertId } })
+      : null;
+    const concert =
+      existingConcert ??
+      concertRepository.create({
+        owner: { id: ownerId },
+      });
+    const genre = dto.concertGenre?.trim() || 'Live Music';
+
+    concert.owner = { id: ownerId } as Concert['owner'];
+    concert.title = title;
+    concert.genre = genre;
+    concert.startsAt = parsedStartsAt;
+    concert.endsAt = null;
+    concert.venues = [
+      {
+        name: dto.concertVenueName?.trim() || 'Venue TBD',
+        city: upload.city,
+        state: upload.state,
+      },
+    ];
+    concert.artists = [
+      {
+        name: dto.concertArtistName?.trim() || title,
+        role: 'headliner',
+        genre,
+      },
+    ];
+    concert.description =
+      dto.concertDescription?.trim() ||
+      dto.notes?.trim() ||
+      `Approved flyer upload: ${upload.originalFilename}`;
+    concert.isAdminApproved = true;
+    concert.adminApprovedAt = new Date();
+    concert.adminApprovedByUserId = reviewedByUserId;
+
+    return concertRepository.save(concert);
   }
 
   async adminStreamUploadImage(uploadId: string, res: Response): Promise<void> {

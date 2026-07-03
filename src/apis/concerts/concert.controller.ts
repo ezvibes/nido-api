@@ -51,9 +51,9 @@ export class ConcertController {
 
   @Get()
   @ApiOperation({
-    summary: 'List concerts for the current user',
+    summary: 'List concerts for the shared discovery feed',
     description:
-      'Returns paginated concert records created manually, uploaded through ingestion, or produced by calendar sync.',
+      'Returns paginated upcoming concert records for the shared /events discovery feed. Results include concerts created manually, published from approved uploads, or produced by calendar sync across all users. Engagement state such as upvotedByMe is scoped to the signed-in user. Example: GET /concerts?sort=soonest&startsAfter=2026-07-03T19:04:08.267Z&pageSize=100.',
   })
   @ApiQuery({ name: 'q', required: false, example: 'doctor s' })
   @ApiQuery({ name: 'genre', required: false, example: 'Electronic' })
@@ -77,6 +77,41 @@ export class ConcertController {
   @ApiQuery({ name: 'pageSize', required: false, example: 20 })
   @ApiOkResponse({ type: ConcertListResponseDto })
   async listConcerts(
+    @CurrentUser() user: DecodedIdToken,
+    @Query() query: ListConcertsDto,
+  ) {
+    const currentUser = await this.ensureOwner(user);
+    return this.concertService.findAll(query, currentUser);
+  }
+
+  @Get('mine')
+  @ApiOperation({
+    summary: 'List concerts owned by the current user',
+    description:
+      'Returns paginated concert records created by, uploaded by, or synced for the signed-in user. This preserves the private My Concerts contract while GET /concerts serves the shared discovery feed. Example: GET /concerts/mine?sort=soonest&pageSize=20.',
+  })
+  @ApiQuery({ name: 'q', required: false, example: 'doctor s' })
+  @ApiQuery({ name: 'genre', required: false, example: 'Electronic' })
+  @ApiQuery({
+    name: 'startsAfter',
+    required: false,
+    example: '2026-06-01T00:00:00.000Z',
+  })
+  @ApiQuery({
+    name: 'startsBefore',
+    required: false,
+    example: '2026-07-01T00:00:00.000Z',
+  })
+  @ApiQuery({
+    name: 'sort',
+    required: false,
+    enum: ['soonest', 'featured', 'top_picks', 'trending_week'],
+    example: 'soonest',
+  })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'pageSize', required: false, example: 20 })
+  @ApiOkResponse({ type: ConcertListResponseDto })
+  async listMyConcerts(
     @CurrentUser() user: DecodedIdToken,
     @Query() query: ListConcertsDto,
   ) {

@@ -33,17 +33,38 @@ export class ConcertService {
     private readonly concertUpvoteRepository: Repository<ConcertUpvote>,
   ) {}
 
+  async findAll(query: ListConcertsDto, currentUser?: User) {
+    const qb = this.concertRepository.createQueryBuilder('concert');
+    return this.findWithQuery(qb, query, currentUser);
+  }
+
   async findAllForOwner(owner: User, query: ListConcertsDto) {
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
     const qb = this.concertRepository
       .createQueryBuilder('concert')
       .where('concert.owner_id = :ownerId', { ownerId: owner.id });
+    return this.findWithQuery(qb, query, owner);
+  }
+
+  private async findWithQuery(
+    qb: ReturnType<Repository<Concert>['createQueryBuilder']>,
+    query: ListConcertsDto,
+    currentUser?: User,
+  ) {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
 
     if (query.q) {
-      qb.andWhere('(concert.title ILIKE :q OR concert.description ILIKE :q)', {
-        q: `%${query.q}%`,
-      });
+      qb.andWhere(
+        `(
+          concert.title ILIKE :q
+          OR concert.description ILIKE :q
+          OR concert.venues::text ILIKE :q
+          OR concert.artists::text ILIKE :q
+        )`,
+        {
+          q: `%${query.q}%`,
+        },
+      );
     }
 
     if (query.genre) {
@@ -64,19 +85,20 @@ export class ConcertService {
 
     const total = await qb.clone().getCount();
     const trendingSince = this.getTrendingSince();
+    const currentUserId = currentUser?.id ?? null;
 
+    // Engagement and sync metadata are read-only decorations on the shared list.
     qb.leftJoin('concert_upvotes', 'upvote', 'upvote.concert_id = concert.id')
       .leftJoin(
         'concert_sync_events',
         'syncEvent',
-        'syncEvent.concert_id = concert.id AND syncEvent.owner_id = :ownerId',
-        { ownerId: owner.id },
+        'syncEvent.concert_id = concert.id',
       )
       .leftJoin(
         'concert_upvotes',
         'myUpvote',
         'myUpvote.concert_id = concert.id AND myUpvote.user_id = :currentUserId',
-        { currentUserId: owner.id },
+        { currentUserId },
       )
       .addSelect('COUNT(DISTINCT upvote.id)', 'upvote_count')
       .addSelect(

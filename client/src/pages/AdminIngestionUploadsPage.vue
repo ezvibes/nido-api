@@ -159,6 +159,38 @@
                 </select>
               </label>
             </details>
+            <div v-if="reviewStatusDraft === 'approved'" class="admin-uploads__publish-panel">
+              <div class="admin-uploads__publish-grid">
+                <label class="admin-uploads__control admin-uploads__control--stack">
+                  <span>Concert title</span>
+                  <input v-model="concertTitleDraft" type="text" placeholder="Doctor S at The Pour House" />
+                </label>
+                <label class="admin-uploads__control admin-uploads__control--stack">
+                  <span>Genre</span>
+                  <input v-model="concertGenreDraft" type="text" placeholder="Live Music" />
+                </label>
+                <label class="admin-uploads__control admin-uploads__control--stack">
+                  <span>Date</span>
+                  <input v-model="concertDateDraft" type="date" />
+                </label>
+                <label class="admin-uploads__control admin-uploads__control--stack">
+                  <span>Time</span>
+                  <input v-model="concertTimeDraft" type="time" />
+                </label>
+                <label class="admin-uploads__control admin-uploads__control--stack">
+                  <span>Venue</span>
+                  <input v-model="concertVenueNameDraft" type="text" placeholder="Venue TBD" />
+                </label>
+                <label class="admin-uploads__control admin-uploads__control--stack">
+                  <span>Artist / lineup</span>
+                  <input v-model="concertArtistNameDraft" type="text" placeholder="Artist or lineup" />
+                </label>
+              </div>
+              <label class="admin-uploads__control admin-uploads__control--stack">
+                <span>Public description</span>
+                <textarea v-model="concertDescriptionDraft" rows="3" placeholder="Short public note for the event card"></textarea>
+              </label>
+            </div>
             <label class="admin-uploads__control admin-uploads__control--stack">
               <span>Notes</span>
               <textarea v-model="reviewNotesDraft" rows="3" placeholder="Optional notes for the team"></textarea>
@@ -167,7 +199,7 @@
               <button
                 type="button"
                 class="admin-uploads__primary"
-                :disabled="!previewUpload || savingId === previewUpload.id"
+                :disabled="isSaveDisabled"
                 @click="saveReview"
               >
                 {{ savingId === previewUpload?.id ? 'Saving…' : 'Save review' }}
@@ -182,7 +214,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   fetchAdminIngestionUploadImageBlob,
   fetchAdminIngestionUploads,
@@ -211,6 +243,13 @@ const previewLoading = ref(false);
 const previewError = ref('');
 const reviewStatusDraft = ref<UploadReviewStatus>('submitted');
 const reviewNotesDraft = ref('');
+const concertTitleDraft = ref('');
+const concertGenreDraft = ref('Live Music');
+const concertDateDraft = ref('');
+const concertTimeDraft = ref('19:00');
+const concertVenueNameDraft = ref('');
+const concertArtistNameDraft = ref('');
+const concertDescriptionDraft = ref('');
 
 const limit = 25;
 const offset = ref(0);
@@ -267,6 +306,13 @@ const formatLocation = (city?: string, state?: string) =>
 const formatStatus = (value: UploadReviewStatus) =>
   value.replace(/_/g, ' ');
 
+const defaultTitleFromFilename = (filename: string) =>
+  filename
+    .replace(/\.[^.]+$/, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 const formatStorageUri = (value: string) => {
   if (value.length <= 72) {
     return value;
@@ -293,6 +339,13 @@ const openPreview = async (upload: AdminConcertUploadListItem) => {
 
   reviewStatusDraft.value = upload.reviewStatus;
   reviewNotesDraft.value = upload.reviewNotes ?? '';
+  concertTitleDraft.value = defaultTitleFromFilename(upload.originalFilename);
+  concertGenreDraft.value = 'Live Music';
+  concertDateDraft.value = '';
+  concertTimeDraft.value = '19:00';
+  concertVenueNameDraft.value = '';
+  concertArtistNameDraft.value = concertTitleDraft.value;
+  concertDescriptionDraft.value = '';
 
   try {
     const token = await getToken();
@@ -326,6 +379,22 @@ const setDraftStatus = (status: UploadReviewStatus) => {
   reviewStatusDraft.value = status;
 };
 
+const buildConcertStartsAt = () => {
+  if (!concertDateDraft.value || !concertTimeDraft.value) {
+    return undefined;
+  }
+
+  return new Date(`${concertDateDraft.value}T${concertTimeDraft.value}`).toISOString();
+};
+
+const isSaveDisabled = computed(
+  () =>
+    !previewUpload.value ||
+    savingId.value === previewUpload.value.id ||
+    (reviewStatusDraft.value === 'approved' &&
+      (!concertTitleDraft.value.trim() || !concertDateDraft.value || !concertTimeDraft.value)),
+);
+
 const saveReview = async () => {
   const upload = previewUpload.value;
   if (!upload) return;
@@ -336,6 +405,30 @@ const saveReview = async () => {
     const updated = await reviewAdminIngestionUpload(token, upload.id, {
       status: reviewStatusDraft.value,
       notes: reviewNotesDraft.value || undefined,
+      concertTitle:
+        reviewStatusDraft.value === 'approved'
+          ? concertTitleDraft.value.trim()
+          : undefined,
+      concertGenre:
+        reviewStatusDraft.value === 'approved'
+          ? concertGenreDraft.value.trim() || 'Live Music'
+          : undefined,
+      concertStartsAt:
+        reviewStatusDraft.value === 'approved'
+          ? buildConcertStartsAt()
+          : undefined,
+      concertVenueName:
+        reviewStatusDraft.value === 'approved'
+          ? concertVenueNameDraft.value.trim() || undefined
+          : undefined,
+      concertArtistName:
+        reviewStatusDraft.value === 'approved'
+          ? concertArtistNameDraft.value.trim() || concertTitleDraft.value.trim()
+          : undefined,
+      concertDescription:
+        reviewStatusDraft.value === 'approved'
+          ? concertDescriptionDraft.value.trim() || undefined
+          : undefined,
     });
     patchLocalUpload(updated);
   } catch (err: any) {
@@ -409,6 +502,7 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
 }
 
+.admin-uploads__control input,
 .admin-uploads__control select,
 .admin-uploads__control textarea {
   border: 1px solid var(--border);
@@ -420,6 +514,20 @@ onBeforeUnmount(() => {
   min-width: 180px;
 }
 
+.admin-uploads__control input {
+  min-width: 0;
+}
+
+.admin-uploads__control textarea {
+  resize: vertical;
+}
+
+.admin-uploads__control input[type='date'],
+.admin-uploads__control input[type='time'] {
+  min-width: 0;
+}
+
+.admin-uploads__control--stack input,
 .admin-uploads__control--stack select,
 .admin-uploads__control--stack textarea {
   min-width: 0;
@@ -766,6 +874,21 @@ onBeforeUnmount(() => {
   color: var(--accent);
 }
 
+.admin-uploads__publish-panel {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.72rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface-soft);
+}
+
+.admin-uploads__publish-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
 .admin-uploads__review-actions {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -843,6 +966,10 @@ onBeforeUnmount(() => {
   }
 
   .admin-uploads__decision-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-uploads__publish-grid {
     grid-template-columns: 1fr;
   }
 

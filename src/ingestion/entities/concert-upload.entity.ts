@@ -8,6 +8,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../../apis/users/entities/user.entity';
+import { Concert } from '../../apis/concerts/entities/concert.entity';
 import { IngestionJob } from './ingestion-job.entity';
 
 export type UploadReviewStatus = 'submitted' | 'approved' | 'rejected' | 'past';
@@ -80,6 +81,17 @@ export class ConcertUpload {
   })
   @JoinColumn({ name: 'reviewed_by_user_id' })
   reviewedByUser?: User;
+
+  @Column({ name: 'concert_id', type: 'uuid', nullable: true })
+  concertId?: string | null;
+
+  @ManyToOne(() => Concert, {
+    eager: false,
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'concert_id' })
+  concert?: Concert | null;
 
   @OneToMany(() => IngestionJob, (ingestionJob) => ingestionJob.concertUpload)
   ingestionJobs: IngestionJob[];

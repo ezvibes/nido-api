@@ -109,6 +109,9 @@ export class AdminConcertUploadResponseDto {
 
   @ApiPropertyOptional({ example: 'admin@example.local' })
   reviewedByUserEmail?: string;
+
+  @ApiPropertyOptional({ example: '87c28620-0a38-4187-89c8-c83a0246e828' })
+  concertId?: string;
 }
 
 export class AdminConcertUploadListResponseDto {
