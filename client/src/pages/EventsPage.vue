@@ -158,7 +158,7 @@ import { useEventFilters } from '../composables/useEventFilters';
 import { sampleEvents } from '../data/sampleEvents';
 import {
   createConcert,
-  fetchUserConcerts,
+  fetchConcerts,
   removeConcertUpvote,
   upvoteConcert,
 } from '../composables/useApi';
@@ -303,7 +303,7 @@ const loadPersistedEvents = async () => {
 
   try {
     const token = await user.value.getIdToken();
-    const response = await fetchUserConcerts(token, {
+    const response = await fetchConcerts(token, {
       sort: sort.value,
       startsAfter: new Date().toISOString(),
       pageSize: 100,

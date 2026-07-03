@@ -10,6 +10,7 @@ import { IngestionService } from './ingestion.service';
 import { ConcertUpload } from './entities/concert-upload.entity';
 import { IngestionJob } from './entities/ingestion-job.entity';
 import { UploadableFile } from './interfaces/uploadable-file.interface';
+import { Concert } from '../apis/concerts/entities/concert.entity';
 
 describe('IngestionService', () => {
   let service: IngestionService;
@@ -19,6 +20,9 @@ describe('IngestionService', () => {
     save: jest.fn(),
     findOne: jest.fn(),
     findOneOrFail: jest.fn(),
+    manager: {
+      transaction: jest.fn(),
+    },
   };
 
   const ingestionJobRepository = {
@@ -27,9 +31,25 @@ describe('IngestionService', () => {
     findOne: jest.fn(),
     update: jest.fn(),
   };
+  const concertRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+    findOne: jest.fn(),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    concertUploadRepository.manager.transaction.mockImplementation(
+      async (callback) =>
+        callback({
+          getRepository: (entity: unknown) => {
+            if (entity === ConcertUpload) return concertUploadRepository;
+            if (entity === IngestionJob) return ingestionJobRepository;
+            if (entity === Concert) return concertRepository;
+            throw new Error('Unexpected repository token');
+          },
+        }),
+    );
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -50,6 +70,10 @@ describe('IngestionService', () => {
         {
           provide: getRepositoryToken(IngestionJob),
           useValue: ingestionJobRepository,
+        },
+        {
+          provide: getRepositoryToken(Concert),
+          useValue: concertRepository,
         },
       ],
     }).compile();
@@ -218,9 +242,25 @@ describe('IngestionService', () => {
         reviewedByUser: { email: 'admin@example.local' },
       });
 
+      concertRepository.create.mockImplementation((value) => value);
+      concertRepository.save.mockResolvedValue({ id: 'concert-1' });
+
       const result = await service.adminReviewConcertUpload(
         'asset-1',
-        { status: reviewStatus, notes: 'reviewed' },
+        {
+          status: reviewStatus,
+          notes: 'reviewed',
+          concertTitle:
+            reviewStatus === 'approved' ? 'Poster Show' : undefined,
+          concertStartsAt:
+            reviewStatus === 'approved'
+              ? '2026-07-10T23:00:00.000Z'
+              : undefined,
+          concertVenueName:
+            reviewStatus === 'approved' ? 'The Venue' : undefined,
+          concertArtistName:
+            reviewStatus === 'approved' ? 'Poster Artist' : undefined,
+        },
         7,
       );
 
@@ -233,6 +273,16 @@ describe('IngestionService', () => {
       );
       expect(result.reviewStatus).toBe(reviewStatus);
       expect(result.reviewedByUserEmail).toBe('admin@example.local');
+      if (reviewStatus === 'approved') {
+        expect(concertRepository.save).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Poster Show',
+            startsAt: new Date('2026-07-10T23:00:00.000Z'),
+            isAdminApproved: true,
+            adminApprovedByUserId: 7,
+          }),
+        );
+      }
     },
   );
 
@@ -287,6 +337,10 @@ describe('IngestionService', () => {
         {
           provide: getRepositoryToken(IngestionJob),
           useValue: ingestionJobRepository,
+        },
+        {
+          provide: getRepositoryToken(Concert),
+          useValue: concertRepository,
         },
       ],
     }).compile();

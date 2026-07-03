@@ -74,14 +74,38 @@ export class AdminIngestionController {
   @ApiOperation({
     summary: 'Set review status for an uploaded concert asset',
     description:
-      'Admin-only endpoint for marking whether an uploaded flyer should remain submitted, be approved, rejected, or marked as a past event.',
+      'Admin-only endpoint for marking whether an uploaded flyer should remain submitted, be approved, rejected, or marked as a past event. When status is approved, concertTitle and concertStartsAt are required and the API publishes or updates a linked concert row in the shared /events feed. Example: PUT /admin/ingestion/uploads/87c28620-0a38-4187-89c8-c83a0246e828/review.',
   })
   @ApiParam({
     name: 'id',
     description: 'Concert upload id',
     example: '87c28620-0a38-4187-89c8-c83a0246e828',
   })
-  @ApiBody({ type: ReviewConcertUploadDto })
+  @ApiBody({
+    type: ReviewConcertUploadDto,
+    examples: {
+      approveAndPublish: {
+        summary: 'Approve upload and publish a concert',
+        value: {
+          status: 'approved',
+          notes: 'Flyer details confirmed.',
+          concertTitle: 'Doctor S at The Pour House',
+          concertGenre: 'Live Music',
+          concertStartsAt: '2026-07-10T23:00:00.000Z',
+          concertVenueName: 'The Pour House',
+          concertArtistName: 'Doctor S',
+          concertDescription: 'Approved flyer upload for the public feed.',
+        },
+      },
+      rejectUpload: {
+        summary: 'Reject upload without publishing',
+        value: {
+          status: 'rejected',
+          notes: 'Duplicate or not a concert flyer.',
+        },
+      },
+    },
+  })
   @ApiOkResponse({ type: AdminConcertUploadResponseDto })
   async reviewUpload(
     @Param('id') id: string,

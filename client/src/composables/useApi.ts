@@ -42,7 +42,7 @@ export async function updateUserProfile(
   }
 }
 
-export async function fetchUserConcerts(
+export async function fetchConcerts(
   token: string,
   params?: {
     sort?: 'soonest' | 'featured' | 'trending_week';
@@ -52,6 +52,28 @@ export async function fetchUserConcerts(
 ): Promise<ConcertApiResponse> {
   try {
     const response = await apiClient.get<ConcertApiResponse>('/concerts', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      params,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching user concerts:', error);
+    throw error;
+  }
+}
+
+export async function fetchUserConcerts(
+  token: string,
+  params?: {
+    sort?: 'soonest' | 'featured' | 'trending_week';
+    startsAfter?: string;
+    pageSize?: number;
+  },
+): Promise<ConcertApiResponse> {
+  try {
+    const response = await apiClient.get<ConcertApiResponse>('/concerts/mine', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -391,6 +413,7 @@ export interface AdminConcertUploadListItem {
   reviewedAt?: string;
   reviewedByUserId?: number;
   reviewedByUserEmail?: string;
+  concertId?: string;
 }
 
 export interface AdminConcertUploadListResponse {
@@ -419,7 +442,16 @@ export async function fetchAdminIngestionUploads(
 export async function reviewAdminIngestionUpload(
   token: string,
   uploadId: string,
-  payload: { status: UploadReviewStatus; notes?: string },
+  payload: {
+    status: UploadReviewStatus;
+    notes?: string;
+    concertTitle?: string;
+    concertGenre?: string;
+    concertStartsAt?: string;
+    concertVenueName?: string;
+    concertArtistName?: string;
+    concertDescription?: string;
+  },
 ) {
   const response = await apiClient.put<AdminConcertUploadListItem>(
     `/admin/ingestion/uploads/${uploadId}/review`,

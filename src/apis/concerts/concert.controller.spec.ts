@@ -6,6 +6,7 @@ import { ListConcertsDto } from './dto/list-concerts.dto';
 
 describe('ConcertController', () => {
   const concertService = {
+    findAll: jest.fn(),
     findAllForOwner: jest.fn(),
     createForOwner: jest.fn(),
     upvote: jest.fn(),
@@ -25,16 +26,28 @@ describe('ConcertController', () => {
     );
   });
 
-  it('lists concerts for the synced user with query options', async () => {
+  it('lists concerts for the shared feed with query options', async () => {
     const decodedToken = { uid: 'uid-1' } as DecodedIdToken;
-    const owner = { id: 3 };
+    const currentUser = { id: 3 };
     const query = { sort: 'trending_week' } as ListConcertsDto;
-    userService.syncFromToken.mockResolvedValue(owner);
-    concertService.findAllForOwner.mockResolvedValue({ data: [] });
+    userService.syncFromToken.mockResolvedValue(currentUser);
+    concertService.findAll.mockResolvedValue({ data: [] });
 
     await controller.listConcerts(decodedToken, query);
 
     expect(userService.syncFromToken).toHaveBeenCalledWith(decodedToken);
+    expect(concertService.findAll).toHaveBeenCalledWith(query, currentUser);
+  });
+
+  it('lists concerts owned by the synced user with query options', async () => {
+    const decodedToken = { uid: 'uid-1' } as DecodedIdToken;
+    const owner = { id: 3 };
+    const query = { sort: 'soonest' } as ListConcertsDto;
+    userService.syncFromToken.mockResolvedValue(owner);
+    concertService.findAllForOwner.mockResolvedValue({ data: [] });
+
+    await controller.listMyConcerts(decodedToken, query);
+
     expect(concertService.findAllForOwner).toHaveBeenCalledWith(owner, query);
   });
 
