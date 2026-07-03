@@ -195,6 +195,17 @@
               <span>Notes</span>
               <textarea v-model="reviewNotesDraft" rows="3" placeholder="Optional notes for the team"></textarea>
             </label>
+            <p
+              v-if="reviewMessage"
+              :class="[
+                'admin-uploads__review-message',
+                reviewMessageType === 'success'
+                  ? 'admin-uploads__review-message--success'
+                  : 'admin-uploads__review-message--error',
+              ]"
+            >
+              {{ reviewMessage }}
+            </p>
             <div class="admin-uploads__review-actions">
               <button
                 type="button"
@@ -202,7 +213,7 @@
                 :disabled="isSaveDisabled"
                 @click="saveReview"
               >
-                {{ savingId === previewUpload?.id ? 'Saving…' : 'Save review' }}
+                {{ saveButtonLabel }}
               </button>
               <button type="button" class="admin-uploads__secondary" @click="closePreview">Done</button>
             </div>
@@ -243,6 +254,8 @@ const previewLoading = ref(false);
 const previewError = ref('');
 const reviewStatusDraft = ref<UploadReviewStatus>('submitted');
 const reviewNotesDraft = ref('');
+const reviewMessage = ref('');
+const reviewMessageType = ref<'success' | 'error'>('success');
 const concertTitleDraft = ref('');
 const concertGenreDraft = ref('Live Music');
 const concertDateDraft = ref('');
@@ -334,6 +347,7 @@ const openPreview = async (upload: AdminConcertUploadListItem) => {
   previewOpen.value = true;
   previewUpload.value = upload;
   previewError.value = '';
+  reviewMessage.value = '';
   previewLoading.value = true;
   revokePreviewUrl();
 
@@ -362,6 +376,7 @@ const closePreview = () => {
   previewOpen.value = false;
   previewUpload.value = null;
   previewError.value = '';
+  reviewMessage.value = '';
   previewLoading.value = false;
   revokePreviewUrl();
 };
@@ -377,6 +392,7 @@ const patchLocalUpload = (updated: AdminConcertUploadListItem) => {
 
 const setDraftStatus = (status: UploadReviewStatus) => {
   reviewStatusDraft.value = status;
+  reviewMessage.value = '';
 };
 
 const buildConcertStartsAt = () => {
@@ -395,11 +411,33 @@ const isSaveDisabled = computed(
       (!concertTitleDraft.value.trim() || !concertDateDraft.value || !concertTimeDraft.value)),
 );
 
+const saveButtonLabel = computed(() => {
+  if (savingId.value === previewUpload.value?.id) {
+    return 'Saving...';
+  }
+
+  if (reviewStatusDraft.value === 'approved') {
+    return 'Approve and publish';
+  }
+
+  if (reviewStatusDraft.value === 'rejected') {
+    return 'Save rejection';
+  }
+
+  if (reviewStatusDraft.value === 'past') {
+    return 'Mark past';
+  }
+
+  return 'Save review';
+});
+
 const saveReview = async () => {
   const upload = previewUpload.value;
   if (!upload) return;
 
   savingId.value = upload.id;
+  previewError.value = '';
+  reviewMessage.value = '';
   try {
     const token = await getToken();
     const updated = await reviewAdminIngestionUpload(token, upload.id, {
@@ -431,8 +469,19 @@ const saveReview = async () => {
           : undefined,
     });
     patchLocalUpload(updated);
+    void load();
+    reviewMessageType.value = 'success';
+    reviewMessage.value =
+      updated.reviewStatus === 'approved'
+        ? 'Approved and published to the events feed.'
+        : 'Review saved.';
+    if (updated.reviewStatus === 'approved') {
+      window.dispatchEvent(new CustomEvent('concerts:changed'));
+      closePreview();
+    }
   } catch (err: any) {
-    previewError.value = err?.message ?? 'Failed to save review.';
+    reviewMessageType.value = 'error';
+    reviewMessage.value = err?.message ?? 'Failed to save review.';
   } finally {
     savingId.value = '';
   }
@@ -688,7 +737,7 @@ onBeforeUnmount(() => {
   z-index: 60;
   display: grid;
   place-items: center;
-  padding: 1rem;
+  padding: clamp(0.5rem, 2vw, 1rem);
 }
 
 .admin-uploads__modal-backdrop {
@@ -700,7 +749,7 @@ onBeforeUnmount(() => {
 .admin-uploads__modal-card {
   position: relative;
   width: min(1200px, 96vw);
-  max-height: min(820px, 90vh);
+  max-height: calc(100dvh - 2rem);
   background: var(--surface);
   border-radius: 18px;
   border: 1px solid var(--border);
@@ -743,11 +792,12 @@ onBeforeUnmount(() => {
 
 .admin-uploads__modal-body {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.85fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(380px, 0.95fr);
   gap: 0.85rem;
   padding: 0.85rem 0.95rem 0.95rem;
-  overflow: hidden;
+  overflow: auto;
   align-items: stretch;
+  min-height: 0;
 }
 
 .admin-uploads__preview {
@@ -758,12 +808,15 @@ onBeforeUnmount(() => {
   place-items: center;
   padding: 0.7rem;
   min-height: 0;
-  height: 100%;
+  height: fit-content;
+  max-height: 100%;
+  position: sticky;
+  top: 0;
 }
 
 .admin-uploads__preview-image {
   max-width: 100%;
-  max-height: min(62vh, 640px);
+  max-height: min(64dvh, 640px);
   border-radius: 12px;
   box-shadow: var(--shadow);
 }
@@ -781,7 +834,7 @@ onBeforeUnmount(() => {
 .admin-uploads__review {
   display: grid;
   gap: 0.6rem;
-  grid-template-rows: auto auto auto 1fr auto;
+  align-content: start;
   min-height: 0;
 }
 
@@ -876,8 +929,8 @@ onBeforeUnmount(() => {
 
 .admin-uploads__publish-panel {
   display: grid;
-  gap: 0.55rem;
-  padding: 0.72rem 0.8rem;
+  gap: 0.75rem;
+  padding: 0.85rem;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface-soft);
@@ -885,8 +938,41 @@ onBeforeUnmount(() => {
 
 .admin-uploads__publish-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+.admin-uploads__publish-panel .admin-uploads__control {
+  gap: 0.35rem;
+}
+
+.admin-uploads__publish-panel .admin-uploads__control input,
+.admin-uploads__publish-panel .admin-uploads__control textarea {
+  min-height: 3rem;
+}
+
+.admin-uploads__publish-panel .admin-uploads__control textarea {
+  min-height: 7rem;
+}
+
+.admin-uploads__review-message {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.admin-uploads__review-message--success {
+  border: 1px solid rgba(43, 130, 79, 0.28);
+  color: #21663f;
+  background: rgba(43, 130, 79, 0.1);
+}
+
+.admin-uploads__review-message--error {
+  border: 1px solid rgba(186, 64, 41, 0.28);
+  color: var(--accent);
+  background: rgba(186, 64, 41, 0.1);
 }
 
 .admin-uploads__review-actions {
@@ -894,6 +980,16 @@ onBeforeUnmount(() => {
   grid-template-columns: 1fr auto;
   gap: 0.45rem;
   align-self: end;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: 0 -0.1rem -0.1rem;
+  padding: 0.55rem 0.1rem 0.1rem;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0),
+    var(--surface) 32%
+  );
 }
 
 .admin-uploads__advanced {
@@ -959,6 +1055,15 @@ onBeforeUnmount(() => {
   .admin-uploads__modal-body {
     grid-template-columns: 1fr;
     overflow: auto;
+  }
+
+  .admin-uploads__preview {
+    position: static;
+    max-height: none;
+  }
+
+  .admin-uploads__preview-image {
+    max-height: min(42dvh, 420px);
   }
 
   .admin-uploads__details {
