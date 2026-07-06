@@ -10,6 +10,8 @@ interface ExtractionContext {
   customContext?: string;
 }
 
+const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+
 export interface ConcertExtractionPolicy {
   allowedGenres: string[];
   minimumConfidence: number;
@@ -104,7 +106,7 @@ export class GeminiConcertExtractorService {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY')?.trim();
     const model =
       this.configService.get<string>('GEMINI_MODEL')?.trim() ||
-      'gemini-2.0-flash';
+      DEFAULT_GEMINI_MODEL;
 
     if (!this.isGeminiEnabled()) {
       return this.buildHeuristicExtraction(event, {

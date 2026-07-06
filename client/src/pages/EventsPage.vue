@@ -150,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import EventCard from '../components/events/EventCard.vue';
 import EventFiltersBar from '../components/events/EventFiltersBar.vue';
 import IngestionUploadPanel from '../components/ingestion/IngestionUploadPanel.vue';
@@ -327,6 +327,10 @@ const loadPersistedEvents = async () => {
   }
 };
 
+const handleConcertsChanged = () => {
+  void loadPersistedEvents();
+};
+
 const handleToggleUpvote = async (event: EventListItem) => {
   if (
     !user.value ||
@@ -445,6 +449,14 @@ watch(sort, (nextSort) => {
   if (nextSort === 'trending_week' && hasLoadedPersistedEvents.value) {
     void loadPersistedEvents();
   }
+});
+
+onMounted(() => {
+  window.addEventListener('concerts:changed', handleConcertsChanged);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('concerts:changed', handleConcertsChanged);
 });
 </script>
 

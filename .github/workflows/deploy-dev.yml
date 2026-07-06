@@ -123,7 +123,7 @@ jobs:
 
       - name: Deploy API to Cloud Run
         run: |
-          RUN_ENVS="^|^NODE_ENV=production|DB_HOST=/cloudsql/${SQL_CONNECTION}|DB_PORT=5432|DB_USER=nido_api|DB_NAME=nido|DB_SYNCHRONIZE=false|DB_MIGRATIONS_RUN=true|FIREBASE_PROJECT_ID=${PROJECT_ID}|FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@${PROJECT_ID}.iam.gserviceaccount.com|ADMIN_EMAILS=ezvibesinc@gmail.com|GCS_INGESTION_BUCKET=nido-concert-image-ingestion-dev|GEMINI_MODEL=gemini-2.0-flash|CONCERT_SYNC_GEMINI_ENABLED=true|CONCERT_SYNC_MAX_EVENTS_PER_JOB=25|GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL=sync-doctor-calendar@nido-api.iam.gserviceaccount.com|CORS_ORIGINS=${CORS_ORIGINS}"
+          RUN_ENVS="^|^NODE_ENV=production|DB_HOST=/cloudsql/${SQL_CONNECTION}|DB_PORT=5432|DB_USER=nido_api|DB_NAME=nido|DB_SYNCHRONIZE=false|DB_MIGRATIONS_RUN=true|FIREBASE_PROJECT_ID=${PROJECT_ID}|FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@${PROJECT_ID}.iam.gserviceaccount.com|ADMIN_EMAILS=ezvibesinc@gmail.com|GCS_INGESTION_BUCKET=nido-concert-image-ingestion-dev|GEMINI_MODEL=gemini-2.5-flash|CONCERT_SYNC_GEMINI_ENABLED=false|CONCERT_SYNC_MAX_EVENTS_PER_JOB=25|GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL=sync-doctor-calendar@nido-api.iam.gserviceaccount.com|CORS_ORIGINS=${CORS_ORIGINS}"
           RUN_SECRETS="DB_PASSWORD=nido-db-password:latest,FIREBASE_PRIVATE_KEY=nido-firebase-private-key:latest,GEMINI_API_KEY=nido-gemini-api-key:latest,GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY=nido-google-calendar-private-key:latest"
 
           gcloud run deploy "$SERVICE" \

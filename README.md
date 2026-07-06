@@ -118,7 +118,7 @@ Required env:
 
 ### Admin Review
 
-Admin-only endpoints are under `/admin/ingestion/*` (list uploads, preview images, and set review status/notes).
+Admin-only endpoints are under `/admin/ingestion/*` (list uploads, preview images, and set review status/notes). When an upload is approved with concert title and start time, the API publishes or updates a linked concert in the shared `/events` feed. The public Events page only lists future concerts.
 
 - Backend allowlist: set `ADMIN_EMAILS` (comma-separated emails) in `.env`
 - Client menu allowlist: set `VITE_ADMIN_EMAILS` (comma-separated emails) in `client/.env`
@@ -138,8 +138,8 @@ The API now includes a sync agent under `/concert-sync/*` that can:
 Required env for AI enrichment:
 
 - `GEMINI_API_KEY`
-- Optional `GEMINI_MODEL` (defaults to `gemini-2.0-flash`)
-- Optional `CONCERT_SYNC_GEMINI_ENABLED=false` disables paid Gemini calls and uses deterministic fallback extraction.
+- Optional `GEMINI_MODEL` (defaults to `gemini-2.5-flash`)
+- Optional `CONCERT_SYNC_GEMINI_ENABLED=true` enables paid Gemini calls. Keep it `false` to use deterministic fallback extraction.
 - Optional extraction policy controls:
   - `CONCERT_SYNC_ALLOWED_GENRES`
   - `CONCERT_SYNC_MIN_CONFIDENCE`

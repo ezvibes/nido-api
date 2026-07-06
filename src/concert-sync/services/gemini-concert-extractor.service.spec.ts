@@ -38,4 +38,30 @@ describe('GeminiConcertExtractorService', () => {
       },
     ]);
   });
+
+  it('uses heuristic extraction with the current default model when Gemini is disabled', async () => {
+    configService.get.mockImplementation((key: string) =>
+      key === 'CONCERT_SYNC_GEMINI_ENABLED' ? 'false' : undefined,
+    );
+
+    const extraction = await service.extractConcert(
+      {
+        id: 'event-2',
+        status: 'confirmed',
+        summary: 'Doctor S Presents: Neon Tide with DJ Luna',
+        location: 'The Evening Muse, Charlotte, NC',
+        start: {
+          dateTime: '2026-07-10T20:00:00-04:00',
+          timeZone: 'America/New_York',
+        },
+      },
+      {},
+    );
+
+    expect(extraction).toMatchObject({
+      extractionSource: 'heuristic',
+      fallbackReason: 'gemini_disabled',
+      model: 'gemini-2.5-flash',
+    });
+  });
 });

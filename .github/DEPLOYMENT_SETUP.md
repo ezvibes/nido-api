@@ -112,6 +112,28 @@ Runtime service account: nido-api-runtime@nido-api-9ed65.iam.gserviceaccount.com
 Deploy service account: github-deployer@nido-api-9ed65.iam.gserviceaccount.com
 ```
 
+Current dev runtime posture:
+
+```text
+DB_SYNCHRONIZE=false
+DB_MIGRATIONS_RUN=true
+GEMINI_MODEL=gemini-2.5-flash
+CONCERT_SYNC_GEMINI_ENABLED=false
+CONCERT_SYNC_MAX_EVENTS_PER_JOB=25
+```
+
+Gemini extraction is intentionally disabled in the main dev deployment for now.
+Sync Doctor and ingestion approval should use deterministic fallback behavior unless
+`CONCERT_SYNC_GEMINI_ENABLED` is explicitly enabled for a targeted test. Keep the
+`nido-gemini-api-key` secret available so Gemini can be tested without changing the
+Secret Manager shape, but do not enable paid Gemini calls as the default dev deploy
+behavior.
+
+Admin ingestion approval currently publishes approved, future-dated flyer uploads
+into the shared `/events` discovery feed. The frontend events page requests
+`/concerts` with `startsAfter=<current time>`, so approved uploads whose event date
+is in the past will not appear in the public events list.
+
 ## Pipeline Sequence
 
 The `Deploy Dev` workflow runs on:
@@ -322,11 +344,34 @@ DB_SYNCHRONIZE=false
 DB_MIGRATIONS_RUN=true
 ```
 
+Current API runtime env set by `.github/workflows/deploy-dev.yml`:
+
+```text
+NODE_ENV=production
+DB_HOST=/cloudsql/nido-api-9ed65:us-east1:nido-postgres-dev
+DB_PORT=5432
+DB_USER=nido_api
+DB_NAME=nido
+DB_SYNCHRONIZE=false
+DB_MIGRATIONS_RUN=true
+FIREBASE_PROJECT_ID=nido-api-9ed65
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@nido-api-9ed65.iam.gserviceaccount.com
+ADMIN_EMAILS=ezvibesinc@gmail.com
+GCS_INGESTION_BUCKET=nido-concert-image-ingestion-dev
+GEMINI_MODEL=gemini-2.5-flash
+CONCERT_SYNC_GEMINI_ENABLED=false
+CONCERT_SYNC_MAX_EVENTS_PER_JOB=25
+GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL=sync-doctor-calendar@nido-api.iam.gserviceaccount.com
+CORS_ORIGINS=https://nido-api-9ed65.web.app,https://nido-api-9ed65.firebaseapp.com,http://localhost:5173
+```
+
 Production hardening:
 
 - Keep `DB_SYNCHRONIZE=false`.
 - Prefer explicit migrations.
 - Verify migrations are idempotent and logged.
+- Keep Gemini disabled by default until extraction quality, cost, and quota behavior
+  are ready for normal deploys.
 
 ## Firebase Hosting REST Deployment
 
@@ -478,6 +523,8 @@ nido-google-calendar-private-key
 
 Do not store these in GitHub Actions secrets unless there is a clear, reviewed reason.
 The deployed Cloud Run service reads them at runtime through Secret Manager bindings.
+The Gemini secret can stay configured while `CONCERT_SYNC_GEMINI_ENABLED=false`; the
+service will use fallback extraction and report `fallbackReason=gemini_disabled`.
 
 ## First-Time Setup Checklist
 
@@ -537,6 +584,19 @@ curl -fsS https://nido-api-81555493719.us-east1.run.app/health/deep
 curl -fsS https://nido-api-81555493719.us-east1.run.app/api-docs-json >/dev/null
 curl -fsSI https://nido-api-9ed65.web.app >/dev/null
 ```
+
+Admin approval smoke test:
+
+1. Sign in to `https://nido-api-9ed65.web.app` as an email listed in both
+   `ADMIN_EMAILS` and `VITE_ADMIN_EMAILS`.
+2. Upload a flyer through the public Events intake.
+3. Open `/admin/ingestion/uploads`.
+4. Select the uploaded flyer, choose `Approve`, and fill a future date/time.
+5. Click `Approve and publish`.
+6. Confirm the modal closes and the row reloads with approved status.
+7. Open `/events` and confirm the approved future show appears in the public list.
+8. If the show does not appear, verify the event date is future-dated because the
+   Events page filters with `startsAfter=<current time>`.
 
 ## Troubleshooting
 
