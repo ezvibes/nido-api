@@ -37,7 +37,7 @@ describe('VenueController', () => {
       const venues = [{ id: '1', name: 'Venue' }] as Venue[];
       mockVenueService.findAll.mockResolvedValue(venues);
 
-      const result = await controller.findAll();
+      const result = await controller.findAll({});
 
       expect(mockVenueService.findAll).toHaveBeenCalled();
       expect(result).toEqual(venues);
@@ -47,7 +47,7 @@ describe('VenueController', () => {
       const venues = [{ id: '1', name: 'Venue', citySlug: 'wilmington' }] as Venue[];
       mockVenueService.findByCity.mockResolvedValue(venues);
 
-      const result = await controller.findAll('wilmington');
+      const result = await controller.findAll({ citySlug: 'wilmington' });
 
       expect(mockVenueService.findByCity).toHaveBeenCalledWith('wilmington');
       expect(result).toEqual(venues);
