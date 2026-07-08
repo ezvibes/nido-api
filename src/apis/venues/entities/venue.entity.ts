@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 
 @Entity('venues')
 export class Venue {
@@ -14,13 +14,14 @@ export class Venue {
   @Column()
   city: string;
 
-  @Column()
+  @Column({ name: 'city_slug' })
+  @Index('IDX_venues_city_slug')
   citySlug: string;
 
   @Column()
   region: string;
 
-  @Column()
+  @Column({ name: 'region_slug' })
   regionSlug: string;
 
   @Column('decimal', { precision: 10, scale: 7, nullable: true })
@@ -29,9 +30,9 @@ export class Venue {
   @Column('decimal', { precision: 10, scale: 7, nullable: true })
   lng: number;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }
