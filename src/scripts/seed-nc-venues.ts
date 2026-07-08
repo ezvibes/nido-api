@@ -13,8 +13,6 @@ const sampleNcVenues = [
     citySlug: 'charlotte',
     region: 'North Carolina',
     regionSlug: 'nc',
-    lat: 35.24729,
-    lng: -80.80559,
   },
   {
     name: 'Neighborhood Theatre',
@@ -23,8 +21,6 @@ const sampleNcVenues = [
     citySlug: 'charlotte',
     region: 'North Carolina',
     regionSlug: 'nc',
-    lat: 35.24623,
-    lng: -80.80612,
   },
   {
     name: 'Bourgie Nights',
@@ -33,8 +29,6 @@ const sampleNcVenues = [
     citySlug: 'wilmington',
     region: 'North Carolina',
     regionSlug: 'nc',
-    lat: 34.23612,
-    lng: -77.94911,
   },
   {
     name: 'Greenfield Lake Amphitheater',
@@ -43,8 +37,6 @@ const sampleNcVenues = [
     citySlug: 'wilmington',
     region: 'North Carolina',
     regionSlug: 'nc',
-    lat: 34.21208,
-    lng: -77.93529,
   },
   {
     name: "Cat's Cradle",
@@ -53,8 +45,6 @@ const sampleNcVenues = [
     citySlug: 'carrboro',
     region: 'North Carolina',
     regionSlug: 'nc',
-    lat: 35.91039,
-    lng: -79.07095,
   },
   {
     name: 'The Orange Peel',
@@ -63,8 +53,6 @@ const sampleNcVenues = [
     citySlug: 'asheville',
     region: 'North Carolina',
     regionSlug: 'nc',
-    lat: 35.59124,
-    lng: -82.55102,
   },
   {
     name: 'Lincoln Theatre',
@@ -73,8 +61,6 @@ const sampleNcVenues = [
     citySlug: 'raleigh',
     region: 'North Carolina',
     regionSlug: 'nc',
-    lat: 35.77459,
-    lng: -78.63852,
   },
 ];
 

@@ -485,8 +485,6 @@ export interface VenueListItem {
   citySlug: string;
   region: string;
   regionSlug: string;
-  lat?: number;
-  lng?: number;
   createdAt: string;
   updatedAt: string;
 }

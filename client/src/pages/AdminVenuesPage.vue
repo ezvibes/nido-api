@@ -38,8 +38,6 @@ const newVenue = ref({
   citySlug: '',
   region: 'North Carolina',
   regionSlug: 'nc',
-  lat: null as number | null,
-  lng: null as number | null,
 });
 
 // Helper to generate slugs
@@ -66,8 +64,6 @@ const editForm = ref({
   citySlug: '',
   region: '',
   regionSlug: '',
-  lat: null as number | null,
-  lng: null as number | null,
 });
 
 watch(() => editForm.value.city, (newCity) => {
@@ -108,8 +104,6 @@ const handleCreate = async () => {
       citySlug: newVenue.value.citySlug || slugify(newVenue.value.city),
       region: newVenue.value.region,
       regionSlug: newVenue.value.regionSlug || slugify(newVenue.value.region),
-      lat: newVenue.value.lat ? Number(newVenue.value.lat) : undefined,
-      lng: newVenue.value.lng ? Number(newVenue.value.lng) : undefined,
     };
 
     const created = await createVenue(token, payload);
@@ -124,8 +118,6 @@ const handleCreate = async () => {
       citySlug: '',
       region: 'North Carolina',
       regionSlug: 'nc',
-      lat: null,
-      lng: null,
     };
   } catch (err: any) {
     console.error('Failed to create venue:', err);
@@ -142,8 +134,6 @@ const startEdit = (venue: VenueListItem) => {
     citySlug: venue.citySlug,
     region: venue.region,
     regionSlug: venue.regionSlug,
-    lat: venue.lat ? Number(venue.lat) : null,
-    lng: venue.lng ? Number(venue.lng) : null,
   };
 };
 
@@ -165,8 +155,6 @@ const handleUpdate = async (id: string) => {
       citySlug: editForm.value.citySlug || slugify(editForm.value.city),
       region: editForm.value.region,
       regionSlug: editForm.value.regionSlug || slugify(editForm.value.region),
-      lat: editForm.value.lat ? Number(editForm.value.lat) : undefined,
-      lng: editForm.value.lng ? Number(editForm.value.lng) : undefined,
     };
 
     const updated = await updateVenue(token, id, payload);
@@ -273,14 +261,6 @@ onMounted(() => {
             <span>State Slug *</span>
             <input v-model="newVenue.regionSlug" type="text" placeholder="e.g. nc" required />
           </label>
-          <label class="admin-venues__field">
-            <span>Latitude</span>
-            <input v-model="newVenue.lat" type="number" step="any" placeholder="e.g. 35.776" />
-          </label>
-          <label class="admin-venues__field">
-            <span>Longitude</span>
-            <input v-model="newVenue.lng" type="number" step="any" placeholder="e.g. -78.636" />
-          </label>
         </div>
         <div class="admin-venues__form-actions">
           <button type="submit" class="admin-venues__btn admin-venues__btn--primary">
@@ -308,7 +288,6 @@ onMounted(() => {
               <th>City Slug</th>
               <th>State</th>
               <th>State Slug</th>
-              <th>Lat / Lng</th>
               <th class="admin-venues__th--actions">Actions</th>
             </tr>
           </thead>
@@ -375,24 +354,6 @@ onMounted(() => {
                 </template>
                 <template v-else>
                   <code class="admin-venues__code">{{ venue.regionSlug }}</code>
-                </template>
-              </td>
-
-              <!-- Lat / Lng -->
-              <td>
-                <template v-if="editingId === venue.id">
-                  <div class="admin-venues__table-coords">
-                    <input v-model="editForm.lat" type="number" step="any" placeholder="Lat" class="admin-venues__table-input admin-venues__table-input--coord" />
-                    <input v-model="editForm.lng" type="number" step="any" placeholder="Lng" class="admin-venues__table-input admin-venues__table-input--coord" />
-                  </div>
-                </template>
-                <template v-else>
-                  <span v-if="venue.lat && venue.lng" class="admin-venues__coords">
-                    {{ Number(venue.lat).toFixed(4) }}, {{ Number(venue.lng).toFixed(4) }}
-                  </span>
-                  <span v-else class="admin-venues__coords admin-venues__coords--missing">
-                    Missing coords
-                  </span>
                 </template>
               </td>
 
@@ -638,33 +599,14 @@ onMounted(() => {
   box-sizing: border-box;
 }
 
-.admin-venues__table-coords {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.admin-venues__table-input--coord {
-  width: 50%;
-}
-
 .admin-venues__code {
   font-family: monospace;
   background-color: var(--surface-soft);
   padding: 0.15rem 0.35rem;
   border-radius: 4px;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   border: 1px solid var(--border);
   color: var(--text-muted);
-}
-
-.admin-venues__coords {
-  font-size: 0.85rem;
-  color: var(--text);
-}
-
-.admin-venues__coords--missing {
-  color: var(--text-muted);
-  font-style: italic;
 }
 
 /* Buttons */

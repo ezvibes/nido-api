@@ -13,8 +13,6 @@ export class CreateVenuesTable1760000007000 implements MigrationInterface {
         "city_slug" character varying NOT NULL,
         "region" character varying NOT NULL,
         "region_slug" character varying NOT NULL,
-        "lat" numeric(10,7),
-        "lng" numeric(10,7),
         "created_at" TIMESTAMP NOT NULL DEFAULT now(),
         "updated_at" TIMESTAMP NOT NULL DEFAULT now(),
         CONSTRAINT "PK_venues_id" PRIMARY KEY ("id")

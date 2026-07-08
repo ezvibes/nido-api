@@ -24,12 +24,6 @@ export class Venue {
   @Column({ name: 'region_slug' })
   regionSlug: string;
 
-  @Column('decimal', { precision: 10, scale: 7, nullable: true })
-  lat: number;
-
-  @Column('decimal', { precision: 10, scale: 7, nullable: true })
-  lng: number;
-
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

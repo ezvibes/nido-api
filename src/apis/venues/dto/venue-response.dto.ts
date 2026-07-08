@@ -44,20 +44,6 @@ export class VenueResponseDto {
   })
   regionSlug: string;
 
-  @ApiPropertyOptional({
-    description: 'Latitude coordinates of the venue location',
-    example: 35.24729,
-    nullable: true,
-  })
-  lat?: number;
-
-  @ApiPropertyOptional({
-    description: 'Longitude coordinates of the venue location',
-    example: -80.80559,
-    nullable: true,
-  })
-  lng?: number;
-
   @ApiProperty({
     description: 'Record creation timestamp',
     example: '2026-06-16T01:00:00.000Z',
