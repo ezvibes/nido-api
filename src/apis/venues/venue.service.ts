@@ -41,4 +41,15 @@ export class VenueService {
       where: { name, citySlug },
     });
   }
+
+  async update(id: string, venueData: Partial<Venue>): Promise<Venue> {
+    const venue = await this.findOne(id);
+    Object.assign(venue, venueData);
+    return this.venueRepository.save(venue);
+  }
+
+  async delete(id: string): Promise<void> {
+    const venue = await this.findOne(id);
+    await this.venueRepository.remove(venue);
+  }
 }

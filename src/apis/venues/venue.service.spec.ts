@@ -14,6 +14,7 @@ describe('VenueService', () => {
     save: jest.fn(),
     find: jest.fn(),
     findOne: jest.fn(),
+    remove: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -95,6 +96,36 @@ describe('VenueService', () => {
         order: { name: 'ASC' },
       });
       expect(result).toEqual(venues);
+    });
+  });
+
+  describe('update', () => {
+    it('should successfully update and save a venue', async () => {
+      const existingVenue = { id: '1', name: 'Old Name', citySlug: 'wilmington' } as Venue;
+      const updateDto = { name: 'New Name' };
+      const updatedVenue = { ...existingVenue, ...updateDto } as Venue;
+
+      mockVenueRepository.findOne.mockResolvedValue(existingVenue);
+      mockVenueRepository.save.mockResolvedValue(updatedVenue);
+
+      const result = await service.update('1', updateDto);
+
+      expect(mockVenueRepository.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
+      expect(mockVenueRepository.save).toHaveBeenCalledWith(updatedVenue);
+      expect(result).toEqual(updatedVenue);
+    });
+  });
+
+  describe('delete', () => {
+    it('should successfully remove a venue', async () => {
+      const venue = { id: '1', name: 'Venue' } as Venue;
+      mockVenueRepository.findOne.mockResolvedValue(venue);
+      mockVenueRepository.remove.mockResolvedValue(venue);
+
+      await service.delete('1');
+
+      expect(mockVenueRepository.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
+      expect(mockVenueRepository.remove).toHaveBeenCalledWith(venue);
     });
   });
 });

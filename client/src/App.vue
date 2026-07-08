@@ -139,6 +139,14 @@ onBeforeUnmount(() => {
                 Admin review
               </router-link>
               <router-link
+                v-if="isAdmin"
+                to="/admin/venues"
+                class="account-menu__item"
+                @click="closeMenu"
+              >
+                Admin venues
+              </router-link>
+              <router-link
                 to="/settings"
                 class="account-menu__item"
                 @click="closeMenu"
