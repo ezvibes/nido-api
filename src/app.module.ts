@@ -4,6 +4,7 @@ import { UserModule } from './apis/users/user.module';
 import { FirebaseModule } from './firebase/firebase.module';
 import { AuthModule } from './auth/auth.module';
 import { ConcertModule } from './apis/concerts/concert.module';
+import { VenueModule } from './apis/venues/venue.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { IngestionModule } from './ingestion/ingestion.module';
 import { ConcertSyncModule } from './concert-sync/concert-sync.module';
@@ -34,6 +35,7 @@ import { HealthModule } from './health/health.module';
     FirebaseModule,
     AuthModule,
     ConcertModule,
+    VenueModule,
     IngestionModule,
     ConcertSyncModule,
     HealthModule,
