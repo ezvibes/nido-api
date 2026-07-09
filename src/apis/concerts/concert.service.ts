@@ -115,8 +115,7 @@ export class ConcertService {
       .addSelect('MAX(syncEvent.calendar_event_id)', 'sync_calendar_event_id')
       .addSelect('MAX(syncEvent.last_synced_at)', 'sync_last_synced_at')
       .addSelect('BOOL_OR(syncEvent.needs_guidance)', 'sync_needs_guidance')
-      .addSelect('MAX(upload.bucket)', 'upload_bucket')
-      .addSelect('MAX(upload.object_name)', 'upload_object_name')
+      .addSelect('MAX(upload.id)', 'upload_id')
       .setParameter('trendingSince', trendingSince)
       .groupBy('concert.id');
 
@@ -348,12 +347,11 @@ export class ConcertService {
   }
 
   private mapRawPosterUrl(raw?: Record<string, unknown>): string | null {
-    const bucket = raw?.upload_bucket;
-    const objectName = raw?.upload_object_name;
-    if (!bucket || !objectName) {
+    const uploadId = raw?.upload_id;
+    if (!uploadId) {
       return null;
     }
-    return `https://storage.googleapis.com/${bucket}/${objectName}`;
+    return `/ingestion/uploads/${uploadId}/image`;
   }
 
   private withEngagement<T extends Concert>(

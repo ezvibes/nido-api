@@ -63,12 +63,21 @@ export function mapConcertToEventListItem(
     >
   >,
 ): EventListItem {
+  let resolvedPosterUrl =
+    overrides?.posterUrl ??
+    concert.posterUrl ??
+    'https://placehold.co/720x900?text=Live+Music';
+
+  if (resolvedPosterUrl && resolvedPosterUrl.startsWith('/')) {
+    const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+    // Strip trailing slash from apiBase and leading slash from resolvedPosterUrl if needed,
+    // but simply combining them is standard if apiBase has no trailing slash.
+    resolvedPosterUrl = `${apiBase}${resolvedPosterUrl}`;
+  }
+
   return {
     ...concert,
-    posterUrl:
-      overrides?.posterUrl ??
-      concert.posterUrl ??
-      'https://placehold.co/720x900?text=Live+Music',
+    posterUrl: resolvedPosterUrl,
     sourceLabel: overrides?.sourceLabel ?? 'EZ Vibes Demo',
     displayTags: overrides?.displayTags ?? [concert.genre],
     demoRank: overrides?.demoRank ?? 0,

@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Res,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -20,6 +21,7 @@ import {
 } from '@nestjs/swagger';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import type { DecodedIdToken } from 'firebase-admin/auth';
+import type { Response } from 'express';
 import { memoryStorage } from 'multer';
 import { UserService } from '../apis/users/user.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -127,5 +129,15 @@ export class IngestionController {
   })
   async getJob(@Param('id') id: string, @CurrentUser() user: DecodedIdToken) {
     return this.ingestionService.getJob(id, user.uid);
+  }
+
+  @Get('uploads/:id/image')
+  @ApiOperation({
+    summary: 'Stream an uploaded concert flyer image publicly',
+    description: 'Streams the original uploaded flyer image from GCS for public feed display.',
+  })
+  @ApiParam({ name: 'id', description: 'Concert upload id', example: '87c28620-0a38-4187-89c8-c83a0246e828' })
+  async streamUploadImage(@Param('id') id: string, @Res() res: Response) {
+    return this.ingestionService.adminStreamUploadImage(id, res);
   }
 }
