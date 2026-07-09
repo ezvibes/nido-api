@@ -115,7 +115,7 @@ export class ConcertService {
       .addSelect('MAX(syncEvent.calendar_event_id)', 'sync_calendar_event_id')
       .addSelect('MAX(syncEvent.last_synced_at)', 'sync_last_synced_at')
       .addSelect('BOOL_OR(syncEvent.needs_guidance)', 'sync_needs_guidance')
-      .addSelect('MAX(upload.id)', 'upload_id')
+      .addSelect('MAX(upload.id::text)', 'upload_id')
       .setParameter('trendingSince', trendingSince)
       .groupBy('concert.id');
 
