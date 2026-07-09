@@ -97,15 +97,18 @@ const formattedStartTime = computed(() =>
 }
 
 .event-card__poster {
-  background: #dfe6dc;
-  aspect-ratio: 4 / 3;
+  background: #111827; /* Dark charcoal/black framing */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 3 / 4; /* Portrait ratio matching standard show posters */
   overflow: hidden;
 }
 
 .event-card__poster img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain; /* Ensure text/lineups are never cropped */
   display: block;
 }
 

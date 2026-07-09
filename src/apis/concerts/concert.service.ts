@@ -95,6 +95,11 @@ export class ConcertService {
         'syncEvent.concert_id = concert.id',
       )
       .leftJoin(
+        'concert_uploads',
+        'upload',
+        'upload.concert_id = concert.id',
+      )
+      .leftJoin(
         'concert_upvotes',
         'myUpvote',
         'myUpvote.concert_id = concert.id AND myUpvote.user_id = :currentUserId',
@@ -110,6 +115,7 @@ export class ConcertService {
       .addSelect('MAX(syncEvent.calendar_event_id)', 'sync_calendar_event_id')
       .addSelect('MAX(syncEvent.last_synced_at)', 'sync_last_synced_at')
       .addSelect('BOOL_OR(syncEvent.needs_guidance)', 'sync_needs_guidance')
+      .addSelect('MAX(upload.id::text)', 'upload_id')
       .setParameter('trendingSince', trendingSince)
       .groupBy('concert.id');
 
@@ -142,6 +148,7 @@ export class ConcertService {
         concert,
         this.mapRawEngagement(rawByConcertId.get(concert.id)),
         this.mapRawSyncSource(rawByConcertId.get(concert.id)),
+        this.mapRawPosterUrl(rawByConcertId.get(concert.id)),
       ),
     );
 
@@ -339,15 +346,25 @@ export class ConcertService {
     };
   }
 
+  private mapRawPosterUrl(raw?: Record<string, unknown>): string | null {
+    const uploadId = raw?.upload_id;
+    if (!uploadId) {
+      return null;
+    }
+    return `/ingestion/uploads/${uploadId}/image`;
+  }
+
   private withEngagement<T extends Concert>(
     concert: T,
     engagement: ConcertEngagement,
     syncSource: ConcertSyncSource | null = null,
+    posterUrl: string | null = null,
   ) {
     return {
       ...concert,
       ...engagement,
       syncSource,
+      posterUrl,
     };
   }
 

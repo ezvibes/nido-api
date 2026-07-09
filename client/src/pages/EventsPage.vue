@@ -311,7 +311,7 @@ const loadPersistedEvents = async () => {
     const concerts = Array.isArray(response?.data) ? response.data : [];
     persistedEvents.value = concerts.map((concert) =>
       mapConcertToEventListItem(concert, {
-        posterUrl: 'https://placehold.co/720x900/e6ece4/31453a?text=DB+Show',
+        posterUrl: concert.posterUrl ?? 'https://placehold.co/720x900/e6ece4/31453a?text=DB+Show',
         sourceLabel: 'Concerts DB',
         displayTags: [concert.genre, 'saved'],
         demoRank: 100,
