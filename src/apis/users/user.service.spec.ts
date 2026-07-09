@@ -25,8 +25,14 @@ describe('UserService', () => {
       uid: 'firebase-uid',
       email: 'old@example.com',
     } as User;
+
     const { service, repository } = createService({
-      findOne: jest.fn().mockResolvedValueOnce(existingUser),
+      findOne: jest.fn().mockImplementation(async (query) => {
+        if (query.where?.uid === 'firebase-uid') {
+          return existingUser;
+        }
+        return null;
+      }),
     });
 
     await expect(
@@ -52,11 +58,14 @@ describe('UserService', () => {
       uid: 'old-firebase-uid',
       email: 'ezvibesinc@gmail.com',
     } as User;
+
     const { service, repository } = createService({
-      findOne: jest
-        .fn()
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(existingUser),
+      findOne: jest.fn().mockImplementation(async (query) => {
+        if (query.where?.email === 'ezvibesinc@gmail.com') {
+          return existingUser;
+        }
+        return null;
+      }),
     });
 
     await expect(

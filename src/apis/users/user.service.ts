@@ -25,18 +25,7 @@ export class UserService {
       throw new Error('Database not configured. User data cannot be saved.');
     }
 
-    const userByUid = await this.userRepository.findOne({
-      where: { uid: createUserDto.uid },
-    });
-
-    if (userByUid) {
-      this.userRepository.merge(userByUid, {
-        email: createUserDto.email,
-        picture: createUserDto.picture,
-      });
-      return this.userRepository.save(userByUid);
-    }
-
+    // 1. Look up by email first, as email is a unique constraint
     const userByEmail = await this.userRepository.findOne({
       where: { email: createUserDto.email },
     });
@@ -49,6 +38,20 @@ export class UserService {
       return this.userRepository.save(userByEmail);
     }
 
+    // 2. Fall back to UID lookup
+    const userByUid = await this.userRepository.findOne({
+      where: { uid: createUserDto.uid },
+    });
+
+    if (userByUid) {
+      this.userRepository.merge(userByUid, {
+        email: createUserDto.email,
+        picture: createUserDto.picture,
+      });
+      return this.userRepository.save(userByUid);
+    }
+
+    // 3. Create new user if neither matches
     const newUser = this.userRepository.create(createUserDto);
     return this.userRepository.save(newUser);
   }
