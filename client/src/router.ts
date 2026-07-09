@@ -9,6 +9,7 @@ import LoginPage from './views/LoginPage.vue';
 import ProfilePage from './views/ProfilePage.vue';
 import SettingsPage from './views/SettingsPage.vue';
 import AdminIngestionUploadsPage from './pages/AdminIngestionUploadsPage.vue';
+import AdminVenuesPage from './pages/AdminVenuesPage.vue';
 import { isAdminEmail } from './utils/admin';
 
 const routes = [
@@ -50,6 +51,12 @@ const routes = [
     path: '/admin/ingestion/uploads',
     name: 'AdminIngestionUploads',
     component: AdminIngestionUploadsPage,
+    meta: { requiresAuth: true, requiresAdmin: true },
+  },
+  {
+    path: '/admin/venues',
+    name: 'AdminVenues',
+    component: AdminVenuesPage,
     meta: { requiresAuth: true, requiresAdmin: true },
   },
 ];

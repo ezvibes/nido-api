@@ -476,3 +476,58 @@ export async function fetchAdminIngestionUploadImageBlob(
   );
   return response.data;
 }
+
+export interface VenueListItem {
+  id: string;
+  name: string;
+  address?: string;
+  city: string;
+  citySlug: string;
+  region: string;
+  regionSlug: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchVenues(
+  token: string,
+  params?: { citySlug?: string },
+) {
+  const response = await apiClient.get<VenueListItem[]>('/venues', {
+    headers: { Authorization: `Bearer ${token}` },
+    params,
+  });
+  return response.data;
+}
+
+export async function fetchVenue(token: string, id: string) {
+  const response = await apiClient.get<VenueListItem>(`/venues/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+}
+
+export async function createVenue(token: string, payload: Partial<VenueListItem>) {
+  const response = await apiClient.post<VenueListItem>('/venues', payload, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+}
+
+export async function updateVenue(
+  token: string,
+  id: string,
+  payload: Partial<VenueListItem>,
+) {
+  const response = await apiClient.put<VenueListItem>(`/venues/${id}`, payload, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+}
+
+export async function deleteVenue(token: string, id: string) {
+  const response = await apiClient.delete<void>(`/venues/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+}
