@@ -30,6 +30,7 @@ export interface ConcertApiItem {
     lastSyncedAt?: string | null;
     needsGuidance?: boolean;
   } | null;
+  posterUrl?: string | null;
 }
 
 export interface ConcertApiResponse {
@@ -65,7 +66,9 @@ export function mapConcertToEventListItem(
   return {
     ...concert,
     posterUrl:
-      overrides?.posterUrl ?? 'https://placehold.co/720x900?text=Live+Music',
+      overrides?.posterUrl ??
+      concert.posterUrl ??
+      'https://placehold.co/720x900?text=Live+Music',
     sourceLabel: overrides?.sourceLabel ?? 'EZ Vibes Demo',
     displayTags: overrides?.displayTags ?? [concert.genre],
     demoRank: overrides?.demoRank ?? 0,

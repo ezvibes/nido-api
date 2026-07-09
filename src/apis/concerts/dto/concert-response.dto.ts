@@ -92,6 +92,13 @@ export class ConcertResponseDto {
     lastSyncedAt?: string | null;
     needsGuidance?: boolean;
   } | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'The GCS public URL of the uploaded show poster',
+    example: 'https://storage.googleapis.com/nido-concert-image-ingestion-dev/uploads/abc.jpg',
+  })
+  posterUrl?: string | null;
 }
 
 export class ConcertListResponseDto {
