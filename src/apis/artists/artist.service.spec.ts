@@ -10,6 +10,7 @@ describe('ArtistService', () => {
   let repository: Repository<Artist>;
 
   const mockQueryBuilder = {
+    where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     getMany: jest.fn(),
@@ -151,6 +152,27 @@ describe('ArtistService', () => {
 
       expect(mockArtistRepository.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
       expect(mockArtistRepository.remove).toHaveBeenCalledWith(artist);
+    });
+  });
+
+  describe('findOrCreateManyByName', () => {
+    it('should return empty list on empty inputs', async () => {
+      const result = await service.findOrCreateManyByName([]);
+      expect(result).toEqual([]);
+    });
+
+    it('should find existing and create missing artists', async () => {
+      const existing = { id: 'uuid-1', name: 'The Floozies', slug: 'the-floozies' } as unknown as Artist;
+      const created = { id: 'uuid-2', name: 'Defunk', slug: 'defunk' } as unknown as Artist;
+
+      mockQueryBuilder.getMany.mockResolvedValue([existing]);
+      mockArtistRepository.findOne.mockResolvedValue(null);
+      mockArtistRepository.create.mockReturnValue(created);
+      mockArtistRepository.save.mockResolvedValue(created);
+
+      const result = await service.findOrCreateManyByName(['The Floozies', 'Defunk']);
+
+      expect(result).toEqual([existing, created]);
     });
   });
 });

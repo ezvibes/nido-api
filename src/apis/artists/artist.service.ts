@@ -109,4 +109,54 @@ export class ArtistService {
     const artist = await this.findOne(id);
     await this.artistRepository.remove(artist);
   }
+
+  async findOrCreateManyByName(names: string[]): Promise<Artist[]> {
+    if (!names || names.length === 0) return [];
+
+    const normalizedNames = names
+      .map((n) => n.trim())
+      .filter((n) => n.length > 0);
+
+    if (normalizedNames.length === 0) return [];
+
+    const existing = await this.artistRepository
+      .createQueryBuilder('artist')
+      .where('LOWER(artist.name) IN (:...names)', {
+        names: normalizedNames.map((n) => n.toLowerCase()),
+      })
+      .getMany();
+
+    const existingMap = new Map(existing.map((a) => [a.name.toLowerCase(), a]));
+    const results: Artist[] = [];
+
+    for (const name of normalizedNames) {
+      const lowerName = name.toLowerCase();
+      const found = existingMap.get(lowerName);
+      if (found) {
+        results.push(found);
+      } else {
+        let baseSlug = slugify(name);
+        if (!baseSlug) {
+          baseSlug = 'artist';
+        }
+        let slug = baseSlug;
+        let counter = 1;
+        while (await this.artistRepository.findOne({ where: { slug } })) {
+          slug = `${baseSlug}-${counter}`;
+          counter++;
+        }
+
+        const newArtist = this.artistRepository.create({
+          name,
+          slug,
+          genres: [],
+        });
+        const saved = await this.artistRepository.save(newArtist);
+        results.push(saved);
+        existingMap.set(lowerName, saved);
+      }
+    }
+
+    return results;
+  }
 }
