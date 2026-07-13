@@ -1,0 +1,97 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Nido: Agent Brief",
+      "type": "shell",
+      "command": "sed -n '1,260p' developer-docs/catalog-operating-system/nido-infrastructure-agent.md",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Nido: Local Infra Gate",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Nido: API Build",
+        "Nido: Client Build"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Nido: API Build",
+      "type": "npm",
+      "script": "build",
+      "group": "build",
+      "problemMatcher": "$tsc",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Nido: API Focused Tests",
+      "type": "shell",
+      "command": "npm test -- user.service health.service concert-sync ingestion",
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Nido: Client Build",
+      "type": "shell",
+      "command": "npm run build --prefix client",
+      "group": "build",
+      "problemMatcher": "$tsc",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Nido: Smoke Dev API",
+      "type": "npm",
+      "script": "smoke:dev",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Nido: Smoke Local API",
+      "type": "npm",
+      "script": "smoke:local",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Nido: Recent Deploy Runs",
+      "type": "shell",
+      "command": "gh run list --workflow deploy-dev.yml --limit 5",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Nido: Migration Show",
+      "type": "npm",
+      "script": "migration:show",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    }
+  ]
+}

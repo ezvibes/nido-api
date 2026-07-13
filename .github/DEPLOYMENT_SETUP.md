@@ -11,6 +11,13 @@ Workflow file:
 .github/workflows/deploy-dev.yml
 ```
 
+Environment config:
+
+```text
+.github/deploy/environments/dev.env
+.github/deploy/environments/prod.env.example
+```
+
 Pull request validation workflow:
 
 ```text
@@ -112,11 +119,30 @@ Runtime service account: nido-api-runtime@nido-api-9ed65.iam.gserviceaccount.com
 Deploy service account: github-deployer@nido-api-9ed65.iam.gserviceaccount.com
 ```
 
+Observed live Cloud Run posture as of the July 2026 deployment audit:
+
+```text
+Latest ready revision: nido-api-00023-d26
+Traffic: 100% to latest ready revision
+Ingress: all
+Unauthenticated access: allowed
+Container concurrency: 80
+Timeout: 300 seconds
+CPU: 1000m
+Memory: 512Mi
+Max instances: 20
+Runtime service account: nido-api-runtime@nido-api-9ed65.iam.gserviceaccount.com
+Cloud SQL attachment: nido-api-9ed65:us-east1:nido-postgres-dev
+Image: us-east1-docker.pkg.dev/nido-api-9ed65/nido/nido-api:22d7098e2cfcca6a4a022326cfb1f4d1284740e1
+```
+
 Current dev runtime posture:
 
 ```text
 DB_SYNCHRONIZE=false
-DB_MIGRATIONS_RUN=true
+RUN_MIGRATIONS=true
+DB_MIGRATIONS_RUN=false
+DB_MIGRATION_TRANSACTION_MODE=all
 GEMINI_MODEL=gemini-2.5-flash
 CONCERT_SYNC_GEMINI_ENABLED=false
 CONCERT_SYNC_MAX_EVENTS_PER_JOB=25
@@ -128,6 +154,78 @@ Sync Doctor and ingestion approval should use deterministic fallback behavior un
 `nido-gemini-api-key` secret available so Gemini can be tested without changing the
 Secret Manager shape, but do not enable paid Gemini calls as the default dev deploy
 behavior.
+
+### Current GCP Architecture Review
+
+The current dev architecture is directionally aligned with Google Cloud production
+patterns because it separates build orchestration, deploy identity, runtime identity,
+container storage, application runtime, database, and secret storage:
+
+```text
+GitHub Actions -> WIF -> github-deployer service account
+  -> Artifact Registry image
+  -> Cloud Run migration job
+  -> Cloud Run API service
+  -> Firebase Hosting release
+
+Cloud Run runtime service account
+  -> Cloud SQL
+  -> Secret Manager
+  -> GCS ingestion bucket
+```
+
+Cloud Run:
+
+- The service is stateless and runs on Cloud Run with commit-addressable images.
+- Concurrency, timeout, memory, CPU, and max instances are now explicit in
+  `.github/deploy/environments/dev.env`.
+- The checked-in dev config should match live capacity. Keep
+  `CLOUD_RUN_MAX_INSTANCES=20` unless a deliberate cost-control change is reviewed.
+- App startup migrations are being removed from the long-running service. This is the
+  most important reliability improvement in this PR because Cloud Run can start
+  multiple instances or revisions concurrently.
+
+Cloud SQL:
+
+- Dev currently uses `POSTGRES_15`, `db-f1-micro`, zonal availability, and public IPv4.
+- This is acceptable only as a cost-conscious dev posture.
+- Production must use an appropriately sized tier, automated backups, point-in-time
+  recovery, and a reviewed connectivity model before launch.
+- The deployment workflow should keep using the Cloud SQL connector attachment instead
+  of placing database credentials or IP allowlists into GitHub.
+
+IAM:
+
+- Deploy and runtime identities are separated.
+- `github-deployer@nido-api-9ed65.iam.gserviceaccount.com` handles deploy-time work.
+- `nido-api-runtime@nido-api-9ed65.iam.gserviceaccount.com` handles runtime access.
+- `iam.serviceAccountUser` is scoped on the runtime service account policy, which is
+  preferable to broad project-level impersonation.
+- Next hardening step: reduce project-level runtime Secret Manager access to specific
+  secret bindings.
+
+Secret Manager:
+
+- Runtime secret payloads are not stored in GitHub.
+- Dev currently references `:latest`, which is convenient for iteration.
+- Production should use pinned versions or stable aliases so rollbacks are
+  deterministic.
+
+Firebase Hosting:
+
+- Hosting deploys use short-lived Google credentials through the REST API rather than
+  deprecated CI tokens or service account JSON.
+- Add security headers in `firebase.json` before public launch, especially CSP,
+  `X-Content-Type-Options`, `Referrer-Policy`, and frame policy.
+
+Open production gaps:
+
+- Prod environment config is still a template, not live infrastructure.
+- Cloud SQL production backup/PITR and availability choices are not yet provisioned.
+- API rate limiting or Firebase App Check is not yet enforced.
+- Swagger UI remains public by design in dev; production must explicitly choose public
+  docs or protect them.
+- Production CORS must not include `http://localhost:5173`.
 
 Admin ingestion approval currently publishes approved, future-dated flyer uploads
 into the shared `/events` discovery feed. The frontend events page requests
@@ -149,25 +247,27 @@ The `Validate Deployment` workflow runs on:
 The job sequence is intentionally ordered to fail fast before expensive deploy work:
 
 1. Check out the repository.
-2. Derive deployment values such as the Cloud SQL connection name and image tag.
-3. Validate required GitHub repository variables.
-4. Set up Node with npm cache for API and client lockfiles.
-5. Install API dependencies with `npm ci`.
-6. Install client dependencies with `npm ci --prefix client`.
-7. Run focused API tests.
-8. Build the API as a fast pre-Docker validation gate.
-9. Authenticate to Google Cloud through Workload Identity Federation.
-10. Install/configure `gcloud`.
-11. Resolve the client API base URL if `VITE_API_BASE_URL` is not configured.
-12. Build the client before mutating Cloud Run or Firebase Hosting.
-13. Configure Docker for Artifact Registry.
-14. Set up Docker Buildx.
-15. Build and push a `linux/amd64` API container to Artifact Registry.
-16. Deploy the API image to Cloud Run.
-17. Resolve the deployed Cloud Run URL for health checks.
-18. Verify `/health`, `/health/deep`, and `/api-docs-json`.
-19. Deploy Firebase Hosting through the REST API.
-20. Verify Firebase Hosting responds.
+2. Load deployment settings from `.github/deploy/environments/<env>.env`.
+3. Derive deployment values such as the Cloud SQL connection name and image tag.
+4. Validate required GitHub repository variables and environment config.
+5. Set up Node with npm cache for API and client lockfiles.
+6. Install API dependencies with `npm ci`.
+7. Install client dependencies with `npm ci --prefix client`.
+8. Run focused API tests.
+9. Build the API as a fast pre-Docker validation gate.
+10. Authenticate to Google Cloud through Workload Identity Federation.
+11. Install/configure `gcloud`.
+12. Resolve the client API base URL if `VITE_API_BASE_URL` is not configured.
+13. Build the client before mutating Cloud Run or Firebase Hosting.
+14. Configure Docker for Artifact Registry.
+15. Set up Docker Buildx.
+16. Build and push a `linux/amd64` API container to Artifact Registry.
+17. Run database migrations through a one-task Cloud Run Job when `RUN_MIGRATIONS=true`.
+18. Deploy the API image to Cloud Run with app startup migrations disabled.
+19. Resolve the deployed Cloud Run URL for health checks.
+20. Verify `/health`, `/health/deep`, and `/api-docs-json`.
+21. Deploy Firebase Hosting through the REST API.
+22. Verify Firebase Hosting responds.
 
 Why the frontend build happens before API deployment:
 
@@ -341,7 +441,9 @@ Runtime database posture:
 
 ```text
 DB_SYNCHRONIZE=false
-DB_MIGRATIONS_RUN=true
+RUN_MIGRATIONS=true
+DB_MIGRATIONS_RUN=false
+DB_MIGRATION_TRANSACTION_MODE=all
 ```
 
 Current API runtime env set by `.github/workflows/deploy-dev.yml`:
@@ -353,7 +455,8 @@ DB_PORT=5432
 DB_USER=nido_api
 DB_NAME=nido
 DB_SYNCHRONIZE=false
-DB_MIGRATIONS_RUN=true
+DB_MIGRATIONS_RUN=false
+DB_MIGRATION_TRANSACTION_MODE=all
 FIREBASE_PROJECT_ID=nido-api-9ed65
 FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@nido-api-9ed65.iam.gserviceaccount.com
 ADMIN_EMAILS=ezvibesinc@gmail.com
@@ -365,13 +468,175 @@ GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL=sync-doctor-calendar@nido-api.iam.gservice
 CORS_ORIGINS=https://nido-api-9ed65.web.app,https://nido-api-9ed65.firebaseapp.com,http://localhost:5173
 ```
 
+Live dev previously had `DB_MIGRATIONS_RUN=true` on the Cloud Run service. The
+manual dev deploy run `29220822807` removed that drift. Live dev now reports
+`DB_MIGRATIONS_RUN=false` on the service after a successful `nido-api-migrations`
+job execution.
+
 Production hardening:
 
 - Keep `DB_SYNCHRONIZE=false`.
 - Prefer explicit migrations.
-- Verify migrations are idempotent and logged.
+- Run migrations before service deployment through the migration job instead of
+  letting every Cloud Run instance run migrations on startup.
+- Keep `DB_MIGRATIONS_RUN=false` on the long-running API service.
+- Verify migrations are idempotent, transactional, and logged.
 - Keep Gemini disabled by default until extraction quality, cost, and quota behavior
   are ready for normal deploys.
+
+## Environment Configuration
+
+Deployment-specific runtime settings live in environment files under:
+
+```text
+.github/deploy/environments/
+```
+
+Current active environment:
+
+```text
+dev.env
+```
+
+Future production template:
+
+```text
+prod.env.example
+```
+
+The workflow loads the environment file selected by `DEPLOY_ENV`. Pushes to `main`
+use `dev`; manual dispatch currently allows `dev`. When production infrastructure is
+ready, add `prod.env`, add `prod` to the workflow dispatch options, and protect the
+GitHub environment with required reviewers.
+
+Environment files control:
+
+- Project, region, Cloud Run service, migration job, Artifact Registry repo.
+- Cloud SQL instance, database name, database user.
+- Runtime service account.
+- Cloud Run CPU, memory, concurrency, timeout, and scaling.
+- Whether migrations run during deploy with `RUN_MIGRATIONS`.
+- Whether the app may run migrations on startup with `DB_MIGRATIONS_RUN`.
+- Secret Manager secret references.
+- CORS, admin allowlist, ingestion bucket, Gemini, and calendar settings.
+
+Dev environment matrix:
+
+```text
+PROJECT_ID=nido-api-9ed65
+REGION=us-east1
+SERVICE=nido-api
+MIGRATION_JOB=nido-api-migrations
+SQL_INSTANCE=nido-postgres-dev
+FIREBASE_HOSTING_SITE=nido-api-9ed65
+CLOUD_RUN_MEMORY=512Mi
+CLOUD_RUN_CPU=1
+CLOUD_RUN_CONCURRENCY=80
+CLOUD_RUN_TIMEOUT=300
+CLOUD_RUN_MIN_INSTANCES=0
+CLOUD_RUN_MAX_INSTANCES=20
+RUN_MIGRATIONS=true
+DB_MIGRATIONS_RUN=false
+```
+
+Production environment target:
+
+```text
+PROJECT_ID=<prod project>
+REGION=<prod region>
+SERVICE=nido-api
+MIGRATION_JOB=nido-api-migrations
+SQL_INSTANCE=<prod sql instance>
+FIREBASE_HOSTING_SITE=<prod site>
+CLOUD_RUN_MIN_INSTANCES=1 or a reviewed launch value
+CLOUD_RUN_MAX_INSTANCES=<capacity-tested launch value>
+RUN_MIGRATIONS=true
+DB_MIGRATIONS_RUN=false
+CORS_ORIGINS=<prod domains only>
+```
+
+Migration policy:
+
+```text
+RUN_MIGRATIONS=true
+DB_MIGRATIONS_RUN=false
+```
+
+`RUN_MIGRATIONS=true` means GitHub Actions executes a one-task Cloud Run Job from the
+new image before deploying the API service. `DB_MIGRATIONS_RUN=false` keeps the API
+service from racing migrations across multiple Cloud Run instances or revisions.
+
+Use `DB_MIGRATION_TRANSACTION_MODE=all` by default. Use `each` only when a migration
+set contains statements that cannot share one transaction. Use `none` only after a
+specific migration has been reviewed for non-transactional DDL.
+
+### Migration Job Deployment Mechanics
+
+The deploy workflow now treats migrations as a deployment phase, not an API startup
+side effect.
+
+The flow is:
+
+1. Build and push the new API image.
+2. If `RUN_MIGRATIONS=true`, deploy and execute the Cloud Run Job named by
+   `MIGRATION_JOB`.
+3. The job uses the same image, Cloud SQL instance, runtime service account,
+   non-secret env, and Secret Manager bindings as the API service.
+4. The job runs:
+
+   ```bash
+   node dist/scripts/run-migrations.js
+   ```
+
+5. The job runs with:
+
+   ```text
+   tasks=1
+   parallelism=1
+   max-retries=0
+   task-timeout=10m
+   ```
+
+6. If the migration job fails, the workflow stops before deploying the long-running
+   API service.
+7. The API service is then deployed with `DB_MIGRATIONS_RUN=false`.
+
+Why this matters:
+
+- Only one migration process touches the database during deployment.
+- Cloud Run service cold starts do not race each other to run migrations.
+- Migration logs are isolated in the Cloud Run Job execution.
+- Future production approval can review `RUN_MIGRATIONS`, transaction mode, and
+  target database independently from application runtime settings.
+
+Operational checks after a migration-job deploy:
+
+```bash
+gcloud run jobs executions list \
+  --job nido-api-migrations \
+  --project nido-api-9ed65 \
+  --region us-east1
+
+gcloud run services describe nido-api \
+  --project nido-api-9ed65 \
+  --region us-east1 \
+  --format 'value(spec.template.spec.containers[0].env)'
+```
+
+Expected API service posture after this enhancement:
+
+```text
+DB_SYNCHRONIZE=false
+DB_MIGRATIONS_RUN=false
+```
+
+If a migration deploy fails:
+
+- Do not manually deploy the API service unless the migration failure is understood.
+- Review the Cloud Run Job execution logs.
+- If the failed migration partially changed data or schema, use the database rollback
+  decision tree before rerunning.
+- Prefer a forward-fix migration over an ad hoc manual database edit.
 
 ## Firebase Hosting REST Deployment
 
@@ -647,7 +912,8 @@ Check:
 - TypeORM migration output.
 - Cloud SQL connectivity.
 - Secret Manager access denials.
-- `DB_MIGRATIONS_RUN=true` migration failures.
+- Migration job failures when `RUN_MIGRATIONS=true`, or app-startup migration
+  failures if an environment intentionally sets `DB_MIGRATIONS_RUN=true`.
 
 ### Firebase Hosting REST Deploy Fails
 
@@ -689,6 +955,7 @@ What should be hardened next:
 
 - Scope Secret Manager access to specific secrets.
 - Replace broad Firebase Admin deploy permission with narrower custom permissions if practical.
+- Enable and document Cloud SQL backups/PITR for production before launch.
 - Add a full smoke-test script that checks authenticated flows when a test token is available.
 - Add Artifact Registry cleanup policy for old SHA images.
 - Add Cloud Run revision retention/cost review to the monthly runbook.

@@ -10,6 +10,7 @@ const {
   FIREBASE_HOSTING_CHANNEL = 'live',
   FIREBASE_HOSTING_PUBLIC_DIR,
   FIREBASE_HOSTING_DRY_RUN,
+  FIREBASE_HOSTING_UPLOAD_CONCURRENCY,
   GITHUB_SHA = 'local',
 } = process.env;
 
@@ -21,21 +22,61 @@ if (!FIREBASE_ACCESS_TOKEN && !dryRun) {
 
 const apiBase = 'https://firebasehosting.googleapis.com/v1beta1';
 const populateBatchSize = 1000;
-const uploadConcurrency = 20;
+const fetchRetryAttempts = 3;
+
+function parsePositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const uploadConcurrency = parsePositiveInteger(FIREBASE_HOSTING_UPLOAD_CONCURRENCY, 4);
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function describeFetchError(error) {
+  const cause = error.cause?.message ? ` Cause: ${error.cause.message}` : '';
+  return `${error.message}${cause}`;
+}
+
+async function fetchWithRetry(label, request) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= fetchRetryAttempts; attempt += 1) {
+    try {
+      return await request();
+    } catch (error) {
+      lastError = error;
+      if (attempt === fetchRetryAttempts) {
+        break;
+      }
+
+      console.warn(`${label} failed on attempt ${attempt}: ${describeFetchError(error)}. Retrying...`);
+      await sleep(1000 * attempt);
+    }
+  }
+
+  throw new Error(`${label} failed after ${fetchRetryAttempts} attempts: ${describeFetchError(lastError)}`);
+}
 
 async function firebaseRequest(url, options = {}) {
   if (!FIREBASE_ACCESS_TOKEN) {
     throw new Error('FIREBASE_ACCESS_TOKEN is required.');
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${FIREBASE_ACCESS_TOKEN}`,
-      'Content-Type': 'application/json',
-      ...(options.headers ?? {}),
-    },
-  });
+  const response = await fetchWithRetry(`${options.method ?? 'GET'} ${url}`, () => (
+    fetch(url, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${FIREBASE_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json',
+        ...(options.headers ?? {}),
+      },
+    })
+  ));
 
   if (!response.ok) {
     const body = await response.text();
@@ -236,14 +277,16 @@ async function uploadHashes(uploadUrl, requiredHashes, uploads) {
       throw new Error(`Firebase requested unknown file hash ${hash}.`);
     }
 
-    const response = await fetch(`${uploadUrl}/${hash}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${FIREBASE_ACCESS_TOKEN}`,
-        'Content-Type': 'application/octet-stream',
-      },
-      body: upload.gzipped,
-    });
+    const response = await fetchWithRetry(`Upload ${upload.filePath}`, () => (
+      fetch(`${uploadUrl}/${hash}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${FIREBASE_ACCESS_TOKEN}`,
+          'Content-Type': 'application/octet-stream',
+        },
+        body: upload.gzipped,
+      })
+    ));
 
     if (!response.ok) {
       const body = await response.text();

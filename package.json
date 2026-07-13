@@ -21,6 +21,7 @@
     "smoke:dev:concerts": "API_BASE_URL=https://nido-api-81555493719.us-east1.run.app SMOKE_MODE=dev SMOKE_DEEP=true SMOKE_CONCERTS=true node scripts/smoke-test-api.mjs",
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:run": "npm run typeorm -- -d src/data-source.ts migration:run",
+    "migration:run:prod": "node dist/scripts/run-migrations.js",
     "migration:revert": "npm run typeorm -- -d src/data-source.ts migration:revert",
     "migration:show": "npm run typeorm -- -d src/data-source.ts migration:show",
     "seed:dev:concerts": "ts-node -r tsconfig-paths/register src/scripts/seed-dev-concerts.ts",
