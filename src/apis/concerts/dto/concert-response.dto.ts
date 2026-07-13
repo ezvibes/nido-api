@@ -1,6 +1,35 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ArtistDto } from './artist.dto';
-import { VenueDto } from './venue.dto';
+import { VenueResponseDto } from '../../venues/dto/venue-response.dto';
+import { BandResponseDto } from '../../bands/dto/band-response.dto';
+import { PerformanceRole } from '../entities/concert-band-lineup.entity';
+
+export class ConcertBandLineupResponseDto {
+  @ApiProperty({ description: 'Performance role / billing tier.', enum: PerformanceRole, example: PerformanceRole.HEADLINER })
+  performanceRole: PerformanceRole;
+
+  @ApiProperty({ description: 'Performance billing order index (0-indexed opener to headliner).', example: 0 })
+  performanceOrder: number;
+
+  @ApiProperty({ type: BandResponseDto })
+  band: BandResponseDto;
+}
+
+export class ConcertSetResponseDto {
+  @ApiProperty({ description: 'Unique UUID of the set.' })
+  id: string;
+
+  @ApiProperty({ description: 'The stage name.', example: 'Main Stage' })
+  stageName: string;
+
+  @ApiProperty({ example: '2026-06-16T01:00:00.000Z' })
+  startsAt: string;
+
+  @ApiProperty({ example: '2026-06-16T02:00:00.000Z' })
+  endsAt: string;
+
+  @ApiProperty({ type: BandResponseDto })
+  band: BandResponseDto;
+}
 
 export class ConcertResponseDto {
   @ApiProperty({
@@ -24,11 +53,14 @@ export class ConcertResponseDto {
   })
   endsAt?: string | null;
 
-  @ApiProperty({ type: [VenueDto] })
-  venues: VenueDto[];
+  @ApiProperty({ type: VenueResponseDto, nullable: true })
+  venue?: VenueResponseDto | null;
 
-  @ApiProperty({ type: [ArtistDto] })
-  artists: ArtistDto[];
+  @ApiProperty({ type: [ConcertBandLineupResponseDto] })
+  lineup: ConcertBandLineupResponseDto[];
+
+  @ApiProperty({ type: [ConcertSetResponseDto] })
+  sets: ConcertSetResponseDto[];
 
   @ApiPropertyOptional({
     nullable: true,

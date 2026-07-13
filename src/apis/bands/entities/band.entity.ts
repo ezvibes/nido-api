@@ -37,6 +37,9 @@ export class Band {
   @Column({ name: 'is_featured', default: false })
   isFeatured: boolean;
 
+  @Column('jsonb', { default: {} })
+  socials: Record<string, string>;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

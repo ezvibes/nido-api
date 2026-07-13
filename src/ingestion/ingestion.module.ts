@@ -3,6 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { UserModule } from '../apis/users/user.module';
+import { VenueModule } from '../apis/venues/venue.module';
+import { BandModule } from '../apis/bands/band.module';
 import { Concert } from '../apis/concerts/entities/concert.entity';
 import { IngestionJob } from './entities/ingestion-job.entity';
 import { ConcertUpload } from './entities/concert-upload.entity';
@@ -15,6 +17,8 @@ import { IngestionService } from './ingestion.service';
     ConfigModule,
     AuthModule,
     UserModule,
+    VenueModule,
+    BandModule,
     TypeOrmModule.forFeature([Concert, ConcertUpload, IngestionJob]),
   ],
   controllers: [IngestionController, AdminIngestionController],

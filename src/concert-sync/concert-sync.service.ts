@@ -8,6 +8,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
 import { Between, In, Repository } from 'typeorm';
 import { Concert } from '../apis/concerts/entities/concert.entity';
+import { Venue } from '../apis/venues/entities/venue.entity';
+import { Band } from '../apis/bands/entities/band.entity';
+import { ConcertBandLineup, PerformanceRole } from '../apis/concerts/entities/concert-band-lineup.entity';
+import { VenueService } from '../apis/venues/venue.service';
+import { BandService } from '../apis/bands/band.service';
 import { User } from '../apis/users/entities/user.entity';
 import { CreateConcertSyncJobDto } from './dto/create-concert-sync-job.dto';
 import {
@@ -38,6 +43,8 @@ export class ConcertSyncService {
     private readonly icalCalendarClient: IcalCalendarClientService,
     private readonly geminiExtractor: GeminiConcertExtractorService,
     private readonly configService: ConfigService,
+    private readonly venueService: VenueService,
+    private readonly bandService: BandService,
   ) {}
 
   async createJobForOwner(owner: User, dto: CreateConcertSyncJobDto) {
@@ -511,6 +518,33 @@ export class ConcertSyncService {
 
     const wasCreated = !concert;
 
+    const firstVenue = extraction.venues?.[0];
+    const resolvedVenue = firstVenue
+      ? await this.venueService.findOrCreateByName(
+          firstVenue.name,
+          firstVenue.city || undefined,
+          firstVenue.state || undefined,
+        )
+      : null;
+
+    const artistNames = extraction.artists?.map((a) => a.name) || [];
+    if (artistNames.length === 0) {
+      artistNames.push(extraction.title);
+    }
+    const resolvedBands = await this.bandService.findOrCreateManyByName(artistNames);
+
+    const mappedLineup = resolvedBands.map((band, index) => {
+      const cbl = new ConcertBandLineup();
+      if (concert && concert.id) {
+        cbl.concertId = concert.id;
+      }
+      cbl.bandId = band.id;
+      cbl.band = band;
+      cbl.performanceRole = PerformanceRole.HEADLINER;
+      cbl.performanceOrder = index;
+      return cbl;
+    });
+
     if (!concert) {
       concert = this.concertRepository.create({
         owner,
@@ -518,17 +552,18 @@ export class ConcertSyncService {
         genre: extraction.genre,
         startsAt: new Date(extraction.startsAt),
         endsAt: extraction.endsAt ? new Date(extraction.endsAt) : null,
-        venues: extraction.venues,
-        artists: extraction.artists,
+        venue: resolvedVenue,
+        lineup: mappedLineup,
         description: extraction.description ?? null,
       });
     } else {
+      await this.concertRepository.manager.delete(ConcertBandLineup, { concertId: concert.id });
       concert.title = extraction.title;
       concert.genre = extraction.genre;
       concert.startsAt = new Date(extraction.startsAt);
       concert.endsAt = extraction.endsAt ? new Date(extraction.endsAt) : null;
-      concert.venues = extraction.venues;
-      concert.artists = extraction.artists;
+      concert.venue = resolvedVenue;
+      concert.lineup = mappedLineup;
       concert.description = extraction.description ?? null;
     }
 
@@ -569,7 +604,7 @@ export class ConcertSyncService {
         }
 
         const candidateVenue = this.normalizeDuplicateText(
-          candidate.venues?.[0]?.name,
+          candidate.venue?.name,
         );
         return this.hasVenueOverlap(candidateVenue, venueName);
       }) ?? null

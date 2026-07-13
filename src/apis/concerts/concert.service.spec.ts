@@ -10,6 +10,7 @@ const createQueryBuilderMock = () => {
     'where',
     'andWhere',
     'leftJoin',
+    'leftJoinAndSelect',
     'addSelect',
     'setParameter',
     'groupBy',
@@ -42,6 +43,9 @@ describe('ConcertService', () => {
     save: jest.fn(),
     findOne: jest.fn(),
     remove: jest.fn(),
+    manager: {
+      delete: jest.fn().mockResolvedValue(undefined),
+    },
   };
   const concertUpvoteRepository = {
     createQueryBuilder: jest.fn(),
@@ -64,7 +68,7 @@ describe('ConcertService', () => {
       id: 'concert-1',
       title: 'Show',
       startsAt: new Date('2026-06-01T00:00:00.000Z'),
-    } as Concert;
+    } as unknown as Concert;
     concertRepository.createQueryBuilder.mockReturnValue(qb);
     qb.getCount.mockResolvedValue(1);
     qb.getRawAndEntities.mockResolvedValue({
@@ -110,13 +114,14 @@ describe('ConcertService', () => {
     } as Concert;
     concertRepository.create.mockImplementation((value) => value);
     concertRepository.save.mockResolvedValue(savedConcert);
+    concertRepository.findOne.mockResolvedValue(savedConcert);
 
     const result = await service.createForOwner(owner, {
       title: ' Show ',
       genre: ' Rock ',
       startsAt: '2026-06-01T00:00:00.000Z',
-      venues: [{ name: ' Venue ' }],
-      artists: [{ name: ' Artist ' }],
+      venueId: 'venue-uuid',
+      bandIds: ['band-uuid'],
     });
 
     expect(concertRepository.create).toHaveBeenCalledWith(

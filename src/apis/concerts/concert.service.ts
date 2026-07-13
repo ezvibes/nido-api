@@ -7,8 +7,10 @@ import { User } from '../users/entities/user.entity';
 import { CreateConcertDto } from './dto/create-concert.dto';
 import { UpdateConcertDto } from './dto/update-concert.dto';
 import { ListConcertsDto } from './dto/list-concerts.dto';
-import { Artist, ArtistDto } from './dto/artist.dto';
-import { Venue, VenueDto } from './dto/venue.dto';
+import { Venue } from '../venues/entities/venue.entity';
+import { Band } from '../bands/entities/band.entity';
+import { ConcertBandLineup, PerformanceRole } from './entities/concert-band-lineup.entity';
+import { ConcertSet } from './entities/concert-set.entity';
 
 export interface ConcertEngagement {
   upvoteCount: number;
@@ -53,13 +55,19 @@ export class ConcertService {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
 
+    qb.leftJoinAndSelect('concert.venue', 'venue')
+      .leftJoinAndSelect('concert.lineup', 'lineup')
+      .leftJoinAndSelect('lineup.band', 'band')
+      .leftJoinAndSelect('concert.sets', 'set')
+      .leftJoinAndSelect('set.band', 'setBand');
+
     if (query.q) {
       qb.andWhere(
         `(
           concert.title ILIKE :q
           OR concert.description ILIKE :q
-          OR concert.venues::text ILIKE :q
-          OR concert.artists::text ILIKE :q
+          OR venue.name ILIKE :q
+          OR band.name ILIKE :q
         )`,
         {
           q: `%${query.q}%`,
@@ -156,19 +164,61 @@ export class ConcertService {
   }
 
   async createForOwner(owner: User, dto: CreateConcertDto) {
+    const venue = dto.venueId ? { id: dto.venueId } as Venue : null;
+
+    let lineup: ConcertBandLineup[] = [];
+    if (dto.lineup && dto.lineup.length > 0) {
+      lineup = dto.lineup.map((item) => {
+        const cbl = new ConcertBandLineup();
+        cbl.bandId = item.bandId;
+        cbl.band = { id: item.bandId } as Band;
+        cbl.performanceRole = item.role ?? PerformanceRole.SUPPORT;
+        cbl.performanceOrder = item.order ?? 0;
+        return cbl;
+      });
+    } else if (dto.bandIds && dto.bandIds.length > 0) {
+      lineup = dto.bandIds.map((id, index) => {
+        const cbl = new ConcertBandLineup();
+        cbl.bandId = id;
+        cbl.band = { id } as Band;
+        cbl.performanceRole = PerformanceRole.HEADLINER;
+        cbl.performanceOrder = index;
+        return cbl;
+      });
+    }
+
+    let sets: ConcertSet[] = [];
+    if (dto.sets && dto.sets.length > 0) {
+      sets = dto.sets.map((setDto) => {
+        const cs = new ConcertSet();
+        cs.bandId = setDto.bandId;
+        cs.band = { id: setDto.bandId } as Band;
+        cs.stageName = setDto.stageName;
+        cs.startsAt = new Date(setDto.startsAt);
+        cs.endsAt = new Date(setDto.endsAt);
+        return cs;
+      });
+    }
+
     const concert = this.concertRepository.create({
       owner,
       title: this.normalizeRequiredString(dto.title),
       genre: this.normalizeRequiredString(dto.genre),
       startsAt: new Date(dto.startsAt),
       endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
-      venues: dto.venues.map((venue) => this.normalizeVenue(venue)),
-      artists: dto.artists.map((artist) => this.normalizeArtist(artist)),
+      venue,
+      lineup,
+      sets,
       description: this.normalizeOptionalString(dto.description),
     });
 
     const savedConcert = await this.concertRepository.save(concert);
-    return this.withEngagement(savedConcert, {
+    const reloaded = await this.concertRepository.findOne({
+      where: { id: savedConcert.id },
+      relations: ['venue', 'lineup', 'sets'],
+    });
+
+    return this.withEngagement(reloaded!, {
       upvoteCount: 0,
       upvotedByMe: false,
       trendingWeekUpvotes: 0,
@@ -178,7 +228,7 @@ export class ConcertService {
   async findOneForOwner(id: string, owner: User) {
     const concert = await this.concertRepository.findOne({
       where: { id, owner: { id: owner.id } },
-      relations: ['owner'],
+      relations: ['owner', 'venue', 'lineup', 'sets'],
     });
 
     if (!concert) {
@@ -207,21 +257,69 @@ export class ConcertService {
       concert.endsAt = dto.endsAt ? new Date(dto.endsAt) : null;
     }
 
-    if (dto.venues !== undefined) {
-      concert.venues = dto.venues.map((venue) => this.normalizeVenue(venue));
+    if (dto.venueId !== undefined) {
+      concert.venue = dto.venueId ? { id: dto.venueId } as Venue : null;
     }
 
-    if (dto.artists !== undefined) {
-      concert.artists = dto.artists.map((artist) =>
-        this.normalizeArtist(artist),
-      );
+    if (dto.lineup !== undefined || dto.bandIds !== undefined) {
+      await this.concertRepository.manager.delete(ConcertBandLineup, { concertId: concert.id });
+
+      let lineup: ConcertBandLineup[] = [];
+      if (dto.lineup && dto.lineup.length > 0) {
+        lineup = dto.lineup.map((item) => {
+          const cbl = new ConcertBandLineup();
+          cbl.concertId = concert.id;
+          cbl.bandId = item.bandId;
+          cbl.band = { id: item.bandId } as Band;
+          cbl.performanceRole = item.role ?? PerformanceRole.SUPPORT;
+          cbl.performanceOrder = item.order ?? 0;
+          return cbl;
+        });
+      } else if (dto.bandIds && dto.bandIds.length > 0) {
+        lineup = dto.bandIds.map((id, index) => {
+          const cbl = new ConcertBandLineup();
+          cbl.concertId = concert.id;
+          cbl.bandId = id;
+          cbl.band = { id } as Band;
+          cbl.performanceRole = PerformanceRole.HEADLINER;
+          cbl.performanceOrder = index;
+          return cbl;
+        });
+      }
+      concert.lineup = lineup;
+    }
+
+    if (dto.sets !== undefined) {
+      await this.concertRepository.manager.delete(ConcertSet, { concertId: concert.id });
+
+      let sets: ConcertSet[] = [];
+      if (dto.sets && dto.sets.length > 0) {
+        sets = dto.sets.map((setDto) => {
+          const cs = new ConcertSet();
+          cs.concertId = concert.id;
+          cs.bandId = setDto.bandId;
+          cs.band = { id: setDto.bandId } as Band;
+          cs.stageName = setDto.stageName;
+          cs.startsAt = new Date(setDto.startsAt);
+          cs.endsAt = new Date(setDto.endsAt);
+          return cs;
+        });
+      }
+      concert.sets = sets;
     }
 
     if (dto.description !== undefined) {
       concert.description = this.normalizeOptionalString(dto.description);
     }
 
-    return this.concertRepository.save(concert);
+    const saved = await this.concertRepository.save(concert);
+    const engagement = await this.getEngagement(saved.id, owner);
+    const reloaded = await this.concertRepository.findOne({
+      where: { id: saved.id },
+      relations: ['owner', 'venue', 'lineup', 'sets'],
+    });
+
+    return this.withEngagement(reloaded!, engagement);
   }
 
   async removeForOwner(id: string, owner: User) {
@@ -277,7 +375,10 @@ export class ConcertService {
   }
 
   private async findOne(id: string) {
-    const concert = await this.concertRepository.findOne({ where: { id } });
+    const concert = await this.concertRepository.findOne({
+      where: { id },
+      relations: ['venue', 'lineup', 'sets'],
+    });
 
     if (!concert) {
       throw new NotFoundException('Concert not found');
@@ -378,22 +479,5 @@ export class ConcertService {
     }
     const trimmed = value.trim();
     return trimmed.length ? trimmed : null;
-  }
-
-  private normalizeVenue(venue: VenueDto): Venue {
-    return {
-      name: this.normalizeRequiredString(venue.name),
-      city: venue.city?.trim() || undefined,
-      state: venue.state?.trim() || undefined,
-      country: venue.country?.trim() || undefined,
-    };
-  }
-
-  private normalizeArtist(artist: ArtistDto): Artist {
-    return {
-      name: this.normalizeRequiredString(artist.name),
-      role: artist.role?.trim() || undefined,
-      genre: artist.genre?.trim() || undefined,
-    };
   }
 }

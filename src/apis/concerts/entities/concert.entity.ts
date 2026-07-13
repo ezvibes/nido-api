@@ -4,12 +4,14 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
-import type { Venue } from '../dto/venue.dto';
-import type { Artist } from '../dto/artist.dto';
+import { Venue } from '../../venues/entities/venue.entity';
+import { ConcertBandLineup } from './concert-band-lineup.entity';
+import { ConcertSet } from './concert-set.entity';
 
 @Entity({ name: 'concerts' })
 export class Concert {
@@ -35,11 +37,28 @@ export class Concert {
   @Column({ name: 'ends_at', type: 'timestamptz', nullable: true })
   endsAt?: Date | null;
 
-  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
-  venues: Venue[];
+  @Column({ name: 'venue_id', type: 'uuid', nullable: true })
+  venueId?: string | null;
 
-  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
-  artists: Artist[];
+  @ManyToOne(() => Venue, {
+    onDelete: 'SET NULL',
+    nullable: true,
+    eager: true,
+  })
+  @JoinColumn({ name: 'venue_id' })
+  venue?: Venue | null;
+
+  @OneToMany(() => ConcertBandLineup, (cbl) => cbl.concert, {
+    cascade: true,
+    eager: true,
+  })
+  lineup: ConcertBandLineup[];
+
+  @OneToMany(() => ConcertSet, (set) => set.concert, {
+    cascade: true,
+    eager: true,
+  })
+  sets: ConcertSet[];
 
   @Column({ type: 'text', nullable: true })
   description?: string | null;
