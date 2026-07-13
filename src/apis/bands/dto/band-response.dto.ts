@@ -28,6 +28,9 @@ export class BandResponseDto {
   @ApiProperty({ description: 'Flag to prioritize band in curation feeds', example: false })
   isFeatured: boolean;
 
+  @ApiProperty({ description: 'Dynamic social media links', example: { youtube: 'https://youtube.com/user' } })
+  socials: Record<string, string>;
+
   @ApiProperty({ description: 'Record creation timestamp', example: '2026-06-16T01:00:00.000Z' })
   createdAt: string;
 

@@ -1,16 +1,75 @@
-import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsEnum,
+  IsInt,
   IsISO8601,
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   ValidateNested,
 } from 'class-validator';
-import { ArtistDto } from './artist.dto';
-import { VenueDto } from './venue.dto';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PerformanceRole } from '../entities/concert-band-lineup.entity';
+
+export class LineupItemDto {
+  @ApiProperty({
+    description: 'The UUID of the band performing.',
+    example: 'd3b07384-d113-41e8-ae36-418ae1688d35',
+  })
+  @IsUUID()
+  bandId: string;
+
+  @ApiPropertyOptional({
+    description: 'Performance role / billing tier.',
+    enum: PerformanceRole,
+    example: PerformanceRole.HEADLINER,
+  })
+  @IsOptional()
+  @IsEnum(PerformanceRole)
+  role?: PerformanceRole;
+
+  @ApiPropertyOptional({
+    description: 'Performance billing order index (0-indexed opener to headliner).',
+    example: 0,
+  })
+  @IsOptional()
+  @IsInt()
+  order?: number;
+}
+
+export class ConcertSetDto {
+  @ApiProperty({
+    description: 'The UUID of the band performing.',
+    example: 'd3b07384-d113-41e8-ae36-418ae1688d35',
+  })
+  @IsUUID()
+  bandId: string;
+
+  @ApiProperty({
+    description: 'The stage name.',
+    example: 'Main Stage',
+  })
+  @IsString()
+  @IsNotEmpty()
+  stageName: string;
+
+  @ApiProperty({
+    description: 'The start time of the set.',
+    example: '2026-06-16T01:00:00.000Z',
+  })
+  @IsISO8601()
+  startsAt: string;
+
+  @ApiProperty({
+    description: 'The end time of the set.',
+    example: '2026-06-16T02:00:00.000Z',
+  })
+  @IsISO8601()
+  endsAt: string;
+}
 
 export class CreateConcertDto {
   @ApiProperty({
@@ -45,39 +104,42 @@ export class CreateConcertDto {
   endsAt?: string;
 
   @ApiProperty({
-    description: 'One or more venues associated with the concert.',
-    type: [VenueDto],
-    example: [
-      {
-        name: 'The Evening Muse',
-        city: 'Charlotte',
-        state: 'NC',
-        country: 'US',
-      },
-    ],
+    description: 'The UUID of the venue hosting the concert.',
+    example: '74c3bcf1-f13e-40d6-bf25-3c27954f5f1e',
   })
-  @IsArray()
-  @ArrayMinSize(1)
-  @ValidateNested({ each: true })
-  @Type(() => VenueDto)
-  venues: VenueDto[];
+  @IsUUID()
+  @IsNotEmpty()
+  venueId: string;
 
-  @ApiProperty({
-    description: 'One or more artists or performers in the lineup.',
-    type: [ArtistDto],
-    example: [
-      {
-        name: 'DJ Luna',
-        role: 'headliner',
-        genre: 'Electronic',
-      },
-    ],
+  @ApiPropertyOptional({
+    description: 'Legacy array of band UUIDs (backwards-compatible).',
+    example: ['d3b07384-d113-41e8-ae36-418ae1688d35'],
+    type: [String],
   })
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
+  @IsUUID('all', { each: true })
+  bandIds?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Rich performance lineup with role and ordering.',
+    type: [LineupItemDto],
+  })
+  @IsOptional()
+  @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => ArtistDto)
-  artists: ArtistDto[];
+  @Type(() => LineupItemDto)
+  lineup?: LineupItemDto[];
+
+  @ApiPropertyOptional({
+    description: 'Sets with stages and performance timings.',
+    type: [ConcertSetDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ConcertSetDto)
+  sets?: ConcertSetDto[];
 
   @ApiPropertyOptional({
     description: 'Short public description for the concert.',

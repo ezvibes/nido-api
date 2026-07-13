@@ -1,8 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Artist } from '../../apis/concerts/dto/artist.dto';
-import type { Venue } from '../../apis/concerts/dto/venue.dto';
-import type { ConcertExtractionResult } from '../interfaces/concert-extraction.interface';
+import type {
+  ConcertExtractionResult,
+  ExtractedArtist as Artist,
+  ExtractedVenue as Venue,
+} from '../interfaces/concert-extraction.interface';
 import type { GoogleCalendarEvent } from '../interfaces/google-calendar-event.interface';
 
 interface ExtractionContext {

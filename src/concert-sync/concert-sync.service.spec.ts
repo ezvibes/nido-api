@@ -40,6 +40,9 @@ describe('ConcertSyncService', () => {
     save: jest.fn(),
     create: jest.fn(),
     createQueryBuilder: jest.fn(),
+    manager: {
+      delete: jest.fn().mockResolvedValue(undefined),
+    },
   };
   const calendarClient = {
     fetchAllEvents: jest.fn(),
@@ -59,6 +62,13 @@ describe('ConcertSyncService', () => {
     get: jest.fn(),
   };
 
+  const venueService = {
+    findOrCreateByName: jest.fn().mockResolvedValue({ id: 'venue-uuid', name: 'Mock Venue' }),
+  };
+  const bandService = {
+    findOrCreateManyByName: jest.fn().mockResolvedValue([{ id: 'band-uuid', name: 'Mock Band' }]),
+  };
+
   let service: ConcertSyncService;
 
   beforeEach(() => {
@@ -71,6 +81,8 @@ describe('ConcertSyncService', () => {
       icalCalendarClient as any,
       geminiExtractor as any,
       configService as any,
+      venueService as any,
+      bandService as any,
     );
     configService.get.mockReturnValue(undefined);
     geminiExtractor.isGeminiEnabled.mockReturnValue(true);
@@ -302,7 +314,7 @@ describe('ConcertSyncService', () => {
       id: 'existing-concert',
       title: 'Beer and Banjos',
       startsAt: new Date('2026-06-09T22:00:00.000Z'),
-      venues: [{ name: 'Bowstring Brewyard' }],
+      venue: { name: 'Bowstring Brewyard' },
     };
     const extraction = {
       title: 'Beer & Banjos',

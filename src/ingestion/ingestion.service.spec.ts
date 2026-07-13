@@ -11,6 +11,8 @@ import { ConcertUpload } from './entities/concert-upload.entity';
 import { IngestionJob } from './entities/ingestion-job.entity';
 import { UploadableFile } from './interfaces/uploadable-file.interface';
 import { Concert } from '../apis/concerts/entities/concert.entity';
+import { VenueService } from '../apis/venues/venue.service';
+import { BandService } from '../apis/bands/band.service';
 
 describe('IngestionService', () => {
   let service: IngestionService;
@@ -74,6 +76,18 @@ describe('IngestionService', () => {
         {
           provide: getRepositoryToken(Concert),
           useValue: concertRepository,
+        },
+        {
+          provide: VenueService,
+          useValue: {
+            findOrCreateByName: jest.fn().mockResolvedValue({ id: 'venue-uuid', name: 'Mock Venue' }),
+          },
+        },
+        {
+          provide: BandService,
+          useValue: {
+            findOrCreateManyByName: jest.fn().mockResolvedValue([{ id: 'band-uuid', name: 'Mock Band' }]),
+          },
         },
       ],
     }).compile();
@@ -341,6 +355,18 @@ describe('IngestionService', () => {
         {
           provide: getRepositoryToken(Concert),
           useValue: concertRepository,
+        },
+        {
+          provide: VenueService,
+          useValue: {
+            findOrCreateByName: jest.fn().mockResolvedValue({ id: 'venue-uuid', name: 'Mock Venue' }),
+          },
+        },
+        {
+          provide: BandService,
+          useValue: {
+            findOrCreateManyByName: jest.fn().mockResolvedValue([{ id: 'band-uuid', name: 'Mock Band' }]),
+          },
         },
       ],
     }).compile();

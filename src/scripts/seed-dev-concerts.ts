@@ -4,6 +4,10 @@ import * as dotenv from 'dotenv';
 import { Concert } from '../apis/concerts/entities/concert.entity';
 import { ConcertUpvote } from '../apis/concerts/entities/concert-upvote.entity';
 import { User } from '../apis/users/entities/user.entity';
+import { Venue } from '../apis/venues/entities/venue.entity';
+import { Band } from '../apis/bands/entities/band.entity';
+import { ConcertBandLineup, PerformanceRole } from '../apis/concerts/entities/concert-band-lineup.entity';
+import { ConcertSet } from '../apis/concerts/entities/concert-set.entity';
 
 dotenv.config();
 
@@ -89,7 +93,7 @@ async function main() {
     username: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    entities: [User, Concert, ConcertUpvote],
+    entities: [User, Concert, ConcertUpvote, Venue, Band, ConcertBandLineup, ConcertSet],
     synchronize: false,
   });
 
@@ -99,6 +103,8 @@ async function main() {
     const userRepository = dataSource.getRepository(User);
     const concertRepository = dataSource.getRepository(Concert);
     const upvoteRepository = dataSource.getRepository(ConcertUpvote);
+    const venueRepository = dataSource.getRepository(Venue);
+    const bandRepository = dataSource.getRepository(Band);
 
     const owner = await findOrCreateUser(userRepository, devUser);
     const audience = await Promise.all(
@@ -112,7 +118,13 @@ async function main() {
     );
 
     for (const seed of seededConcerts) {
-      const concert = await upsertConcert(concertRepository, owner, seed);
+      const concert = await upsertConcert(
+        concertRepository,
+        venueRepository,
+        bandRepository,
+        owner,
+        seed,
+      );
       await seedUpvotes(upvoteRepository, concert, owner, audience, seed.upvotes);
     }
 
@@ -150,6 +162,8 @@ async function findOrCreateUser(
 
 async function upsertConcert(
   concertRepository: Repository<Concert>,
+  venueRepository: Repository<Venue>,
+  bandRepository: Repository<Band>,
   owner: User,
   seed: (typeof seededConcerts)[number],
 ) {
@@ -158,13 +172,90 @@ async function upsertConcert(
   });
   const concert = existing || concertRepository.create({ owner });
 
+  const firstVenue = seed.venues[0];
+  const slugify = (text: string) =>
+    text
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/[^\w\-]+/g, '');
+
+  const citySlug = slugify(firstVenue.city);
+  let venue = await venueRepository.findOne({
+    where: { name: firstVenue.name, citySlug },
+  });
+  if (!venue) {
+    venue = await venueRepository.save(
+      venueRepository.create({
+        name: firstVenue.name,
+        city: firstVenue.city,
+        citySlug,
+        region: firstVenue.state,
+        regionSlug: slugify(firstVenue.state),
+      }),
+    );
+  }
+
+  if (concert.id) {
+    await concertRepository.manager.delete(ConcertBandLineup, { concertId: concert.id });
+    await concertRepository.manager.delete(ConcertSet, { concertId: concert.id });
+  }
+
+  const lineupConnections: ConcertBandLineup[] = [];
+  const setTimes: ConcertSet[] = [];
+
+  let index = 0;
+  for (const seedBand of seed.artists) {
+    const slug = slugify(seedBand.name);
+    let band = await bandRepository.findOne({ where: { slug } });
+    if (!band) {
+      band = await bandRepository.save(
+        bandRepository.create({
+          name: seedBand.name,
+          slug,
+          genres: [seedBand.genre.toLowerCase()],
+          socials: {
+            spotify: `https://open.spotify.com/artist/${slug}`,
+            instagram: `https://instagram.com/${slug}`,
+          },
+        }),
+      );
+    }
+
+    const cbl = new ConcertBandLineup();
+    if (concert.id) cbl.concertId = concert.id;
+    cbl.bandId = band.id;
+    cbl.band = band;
+    cbl.performanceRole = index === 0 ? PerformanceRole.HEADLINER : PerformanceRole.SUPPORT;
+    cbl.performanceOrder = index;
+    lineupConnections.push(cbl);
+
+    // Create a set time for each performer
+    const cs = new ConcertSet();
+    if (concert.id) cs.concertId = concert.id;
+    cs.bandId = band.id;
+    cs.band = band;
+    cs.stageName = 'Main Stage';
+    // Offset each set by 1 hour
+    const setStart = new Date(seed.startsAt);
+    setStart.setHours(setStart.getHours() + index);
+    const setEnd = new Date(setStart);
+    setEnd.setHours(setEnd.getHours() + 1);
+    cs.startsAt = setStart;
+    cs.endsAt = setEnd;
+    setTimes.push(cs);
+
+    index++;
+  }
+
   concert.owner = owner;
   concert.title = seed.title;
   concert.genre = seed.genre;
   concert.startsAt = new Date(seed.startsAt);
   concert.endsAt = null;
-  concert.venues = seed.venues;
-  concert.artists = seed.artists;
+  concert.venue = venue;
+  concert.lineup = lineupConnections;
+  concert.sets = setTimes;
   concert.description = seed.description;
   concert.isTopPick = seed.isTopPick;
   concert.topPickScore = seed.topPickScore;

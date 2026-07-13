@@ -58,8 +58,8 @@ describe('ConcertController', () => {
       title: 'Show',
       genre: 'Rock',
       startsAt: '2026-06-01T00:00:00.000Z',
-      venues: [{ name: 'Venue' }],
-      artists: [{ name: 'Artist' }],
+      venueId: 'venue-uuid',
+      bandIds: ['band-uuid'],
     };
     userService.syncFromToken.mockResolvedValue(owner);
     concertService.createForOwner.mockResolvedValue({ id: 'concert-1' });

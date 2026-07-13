@@ -24,6 +24,9 @@ import type {
 } from './interfaces/admin-concert-upload.interface';
 import { UploadableFile } from './interfaces/uploadable-file.interface';
 import { Concert } from '../apis/concerts/entities/concert.entity';
+import { VenueService } from '../apis/venues/venue.service';
+import { BandService } from '../apis/bands/band.service';
+import { ConcertBandLineup, PerformanceRole } from '../apis/concerts/entities/concert-band-lineup.entity';
 
 @Injectable()
 export class IngestionService {
@@ -40,6 +43,8 @@ export class IngestionService {
     private readonly ingestionJobRepository: Repository<IngestionJob>,
     @InjectRepository(Concert)
     private readonly concertRepository: Repository<Concert>,
+    private readonly venueService: VenueService,
+    private readonly bandService: BandService,
   ) {
     this.bucketName =
       this.configService.get<string>('GCS_INGESTION_BUCKET')?.trim() ||
@@ -480,25 +485,30 @@ export class IngestionService {
       });
     const genre = dto.concertGenre?.trim() || 'Live Music';
 
+    const resolvedVenue = await this.venueService.findOrCreateByName(
+      dto.concertVenueName?.trim() || 'Venue TBD',
+      upload.city || undefined,
+      upload.state || undefined,
+    );
+
+    const resolvedBands = await this.bandService.findOrCreateManyByName([
+      dto.concertArtistName?.trim() || title,
+    ]);
+
     concert.owner = { id: ownerId } as Concert['owner'];
     concert.title = title;
     concert.genre = genre;
     concert.startsAt = parsedStartsAt;
     concert.endsAt = null;
-    concert.venues = [
-      {
-        name: dto.concertVenueName?.trim() || 'Venue TBD',
-        city: upload.city,
-        state: upload.state,
-      },
-    ];
-    concert.artists = [
-      {
-        name: dto.concertArtistName?.trim() || title,
-        role: 'headliner',
-        genre,
-      },
-    ];
+    concert.venue = resolvedVenue;
+    concert.lineup = resolvedBands.map((band, index) => {
+      const cbl = new ConcertBandLineup();
+      cbl.bandId = band.id;
+      cbl.band = band;
+      cbl.performanceRole = PerformanceRole.HEADLINER;
+      cbl.performanceOrder = index;
+      return cbl;
+    });
     concert.description =
       dto.concertDescription?.trim() ||
       dto.notes?.trim() ||

@@ -1,16 +1,15 @@
-import { Type } from 'class-transformer';
 import {
-  ArrayMinSize,
   IsArray,
   IsISO8601,
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   ValidateNested,
 } from 'class-validator';
-import { VenueDto } from './venue.dto';
-import { ArtistDto } from './artist.dto';
+import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { LineupItemDto, ConcertSetDto } from './create-concert.dto';
 
 export class UpdateConcertDto {
   @ApiPropertyOptional({
@@ -49,26 +48,43 @@ export class UpdateConcertDto {
   endsAt?: string | null;
 
   @ApiPropertyOptional({
-    description: 'Replacement venue list.',
-    type: [VenueDto],
+    description: 'Updated venue hosting the concert.',
+    example: '74c3bcf1-f13e-40d6-bf25-3c27954f5f1e',
   })
   @IsOptional()
-  @IsArray()
-  @ArrayMinSize(1)
-  @ValidateNested({ each: true })
-  @Type(() => VenueDto)
-  venues?: VenueDto[];
+  @IsUUID()
+  @IsNotEmpty()
+  venueId?: string;
 
   @ApiPropertyOptional({
-    description: 'Replacement artist list.',
-    type: [ArtistDto],
+    description: 'Replacement legacy band lineup list.',
+    example: ['d3b07384-d113-41e8-ae36-418ae1688d35'],
+    type: [String],
   })
   @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
+  @IsUUID('all', { each: true })
+  bandIds?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Updated performance lineup details.',
+    type: [LineupItemDto],
+  })
+  @IsOptional()
+  @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => ArtistDto)
-  artists?: ArtistDto[];
+  @Type(() => LineupItemDto)
+  lineup?: LineupItemDto[];
+
+  @ApiPropertyOptional({
+    description: 'Updated sets with stages and timings.',
+    type: [ConcertSetDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ConcertSetDto)
+  sets?: ConcertSetDto[];
 
   @ApiPropertyOptional({
     description: 'Updated public description, or null to clear it.',

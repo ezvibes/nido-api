@@ -52,4 +52,25 @@ export class VenueService {
     const venue = await this.findOne(id);
     await this.venueRepository.remove(venue);
   }
+
+  async findOrCreateByName(name: string, city?: string, state?: string): Promise<Venue> {
+    const slugify = (text: string) => text.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w\-]+/g, '');
+    const cleanCity = city?.trim() || 'Unknown City';
+    const cleanState = state?.trim() || 'Unknown State';
+    const citySlug = slugify(cleanCity);
+
+    const existing = await this.venueRepository.findOne({
+      where: { name, citySlug },
+    });
+    if (existing) return existing;
+
+    const newVenue = this.venueRepository.create({
+      name: name.trim(),
+      city: cleanCity,
+      citySlug,
+      region: cleanState,
+      regionSlug: slugify(cleanState),
+    });
+    return this.venueRepository.save(newVenue);
+  }
 }
