@@ -2,6 +2,14 @@ name: Deploy Dev
 
 on:
   workflow_dispatch:
+    inputs:
+      target_environment:
+        description: 'Deployment environment config to use.'
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
   push:
     branches:
       - main
@@ -20,15 +28,8 @@ jobs:
       id-token: write
 
     env:
-      PROJECT_ID: nido-api-9ed65
-      REGION: us-east1
-      SERVICE: nido-api
-      REPO: nido
-      SQL_INSTANCE: nido-postgres-dev
-      FIREBASE_PROJECT_ID: nido-api-9ed65
-      FIREBASE_HOSTING_SITE: nido-api-9ed65
-      RUNTIME_SERVICE_ACCOUNT: nido-api-runtime@nido-api-9ed65.iam.gserviceaccount.com
-      CORS_ORIGINS: ${{ vars.CORS_ORIGINS || 'https://nido-api-9ed65.web.app,https://nido-api-9ed65.firebaseapp.com,http://localhost:5173' }}
+      DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'dev' }}
+      CORS_ORIGINS_OVERRIDE: ${{ vars.CORS_ORIGINS }}
       VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
       VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
       VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
@@ -41,6 +42,54 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+
+      - name: Load environment deploy config
+        run: |
+          CONFIG_FILE=".github/deploy/environments/${DEPLOY_ENV}.env"
+          if [ ! -f "$CONFIG_FILE" ]; then
+            echo "Missing deployment config: $CONFIG_FILE" >&2
+            exit 1
+          fi
+
+          set -a
+          . "$CONFIG_FILE"
+          set +a
+
+          CORS_ORIGINS="${CORS_ORIGINS_OVERRIDE:-${CORS_ORIGINS}}"
+
+          {
+            echo "PROJECT_ID=${PROJECT_ID}"
+            echo "REGION=${REGION}"
+            echo "SERVICE=${SERVICE}"
+            echo "MIGRATION_JOB=${MIGRATION_JOB}"
+            echo "REPO=${REPO}"
+            echo "SQL_INSTANCE=${SQL_INSTANCE}"
+            echo "FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}"
+            echo "FIREBASE_HOSTING_SITE=${FIREBASE_HOSTING_SITE}"
+            echo "RUNTIME_SERVICE_ACCOUNT=${RUNTIME_SERVICE_ACCOUNT}"
+            echo "CLOUD_RUN_MEMORY=${CLOUD_RUN_MEMORY}"
+            echo "CLOUD_RUN_CPU=${CLOUD_RUN_CPU}"
+            echo "CLOUD_RUN_CONCURRENCY=${CLOUD_RUN_CONCURRENCY}"
+            echo "CLOUD_RUN_TIMEOUT=${CLOUD_RUN_TIMEOUT}"
+            echo "CLOUD_RUN_MIN_INSTANCES=${CLOUD_RUN_MIN_INSTANCES}"
+            echo "CLOUD_RUN_MAX_INSTANCES=${CLOUD_RUN_MAX_INSTANCES}"
+            echo "RUN_MIGRATIONS=${RUN_MIGRATIONS}"
+            echo "DB_MIGRATIONS_RUN=${DB_MIGRATIONS_RUN}"
+            echo "DB_MIGRATION_TRANSACTION_MODE=${DB_MIGRATION_TRANSACTION_MODE}"
+            echo "DB_USER=${DB_USER}"
+            echo "DB_NAME=${DB_NAME}"
+            echo "ADMIN_EMAILS=${ADMIN_EMAILS}"
+            echo "GCS_INGESTION_BUCKET=${GCS_INGESTION_BUCKET}"
+            echo "GEMINI_MODEL=${GEMINI_MODEL}"
+            echo "CONCERT_SYNC_GEMINI_ENABLED=${CONCERT_SYNC_GEMINI_ENABLED}"
+            echo "CONCERT_SYNC_MAX_EVENTS_PER_JOB=${CONCERT_SYNC_MAX_EVENTS_PER_JOB}"
+            echo "GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL=${GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL}"
+            echo "CORS_ORIGINS=${CORS_ORIGINS}"
+            echo "DB_PASSWORD_SECRET=${DB_PASSWORD_SECRET}"
+            echo "FIREBASE_PRIVATE_KEY_SECRET=${FIREBASE_PRIVATE_KEY_SECRET}"
+            echo "GEMINI_API_KEY_SECRET=${GEMINI_API_KEY_SECRET}"
+            echo "GOOGLE_CALENDAR_PRIVATE_KEY_SECRET=${GOOGLE_CALENDAR_PRIVATE_KEY_SECRET}"
+          } >> "$GITHUB_ENV"
 
       - name: Set derived deploy values
         run: |
@@ -56,6 +105,37 @@ jobs:
           : "${VITE_FIREBASE_MESSAGING_SENDER_ID:?Missing GitHub variable VITE_FIREBASE_MESSAGING_SENDER_ID}"
           : "${VITE_FIREBASE_APP_ID:?Missing GitHub variable VITE_FIREBASE_APP_ID}"
           : "${VITE_ADMIN_EMAILS:?Missing GitHub variable VITE_ADMIN_EMAILS}"
+          : "${PROJECT_ID:?Missing PROJECT_ID in deployment config}"
+          : "${REGION:?Missing REGION in deployment config}"
+          : "${SERVICE:?Missing SERVICE in deployment config}"
+          : "${MIGRATION_JOB:?Missing MIGRATION_JOB in deployment config}"
+          : "${REPO:?Missing REPO in deployment config}"
+          : "${SQL_INSTANCE:?Missing SQL_INSTANCE in deployment config}"
+          : "${FIREBASE_PROJECT_ID:?Missing FIREBASE_PROJECT_ID in deployment config}"
+          : "${FIREBASE_HOSTING_SITE:?Missing FIREBASE_HOSTING_SITE in deployment config}"
+          : "${RUNTIME_SERVICE_ACCOUNT:?Missing RUNTIME_SERVICE_ACCOUNT in deployment config}"
+          : "${CLOUD_RUN_MEMORY:?Missing CLOUD_RUN_MEMORY in deployment config}"
+          : "${CLOUD_RUN_CPU:?Missing CLOUD_RUN_CPU in deployment config}"
+          : "${CLOUD_RUN_CONCURRENCY:?Missing CLOUD_RUN_CONCURRENCY in deployment config}"
+          : "${CLOUD_RUN_TIMEOUT:?Missing CLOUD_RUN_TIMEOUT in deployment config}"
+          : "${CLOUD_RUN_MIN_INSTANCES:?Missing CLOUD_RUN_MIN_INSTANCES in deployment config}"
+          : "${CLOUD_RUN_MAX_INSTANCES:?Missing CLOUD_RUN_MAX_INSTANCES in deployment config}"
+          : "${RUN_MIGRATIONS:?Missing RUN_MIGRATIONS in deployment config}"
+          : "${DB_MIGRATIONS_RUN:?Missing DB_MIGRATIONS_RUN in deployment config}"
+          : "${DB_MIGRATION_TRANSACTION_MODE:?Missing DB_MIGRATION_TRANSACTION_MODE in deployment config}"
+          : "${DB_USER:?Missing DB_USER in deployment config}"
+          : "${DB_NAME:?Missing DB_NAME in deployment config}"
+          : "${ADMIN_EMAILS:?Missing ADMIN_EMAILS in deployment config}"
+          : "${GCS_INGESTION_BUCKET:?Missing GCS_INGESTION_BUCKET in deployment config}"
+          : "${GEMINI_MODEL:?Missing GEMINI_MODEL in deployment config}"
+          : "${CONCERT_SYNC_GEMINI_ENABLED:?Missing CONCERT_SYNC_GEMINI_ENABLED in deployment config}"
+          : "${CONCERT_SYNC_MAX_EVENTS_PER_JOB:?Missing CONCERT_SYNC_MAX_EVENTS_PER_JOB in deployment config}"
+          : "${GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL:?Missing GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL in deployment config}"
+          : "${CORS_ORIGINS:?Missing CORS_ORIGINS in deployment config}"
+          : "${DB_PASSWORD_SECRET:?Missing DB_PASSWORD_SECRET in deployment config}"
+          : "${FIREBASE_PRIVATE_KEY_SECRET:?Missing FIREBASE_PRIVATE_KEY_SECRET in deployment config}"
+          : "${GEMINI_API_KEY_SECRET:?Missing GEMINI_API_KEY_SECRET in deployment config}"
+          : "${GOOGLE_CALENDAR_PRIVATE_KEY_SECRET:?Missing GOOGLE_CALENDAR_PRIVATE_KEY_SECRET in deployment config}"
 
       - name: Set up Node
         uses: actions/setup-node@v6
@@ -121,10 +201,33 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Run database migrations
+        if: env.RUN_MIGRATIONS == 'true'
+        run: |
+          RUN_ENVS="^|^NODE_ENV=production|DB_HOST=/cloudsql/${SQL_CONNECTION}|DB_PORT=5432|DB_USER=${DB_USER}|DB_NAME=${DB_NAME}|DB_SYNCHRONIZE=false|DB_MIGRATIONS_RUN=false|DB_MIGRATION_TRANSACTION_MODE=${DB_MIGRATION_TRANSACTION_MODE}|FIREBASE_PROJECT_ID=${PROJECT_ID}|FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@${PROJECT_ID}.iam.gserviceaccount.com|ADMIN_EMAILS=${ADMIN_EMAILS}|GCS_INGESTION_BUCKET=${GCS_INGESTION_BUCKET}|GEMINI_MODEL=${GEMINI_MODEL}|CONCERT_SYNC_GEMINI_ENABLED=${CONCERT_SYNC_GEMINI_ENABLED}|CONCERT_SYNC_MAX_EVENTS_PER_JOB=${CONCERT_SYNC_MAX_EVENTS_PER_JOB}|GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL=${GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL}|CORS_ORIGINS=${CORS_ORIGINS}"
+          RUN_SECRETS="DB_PASSWORD=${DB_PASSWORD_SECRET},FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY_SECRET},GEMINI_API_KEY=${GEMINI_API_KEY_SECRET},GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY=${GOOGLE_CALENDAR_PRIVATE_KEY_SECRET}"
+
+          gcloud run jobs deploy "$MIGRATION_JOB" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --image "$IMAGE" \
+            --service-account "$RUNTIME_SERVICE_ACCOUNT" \
+            --set-cloudsql-instances "$SQL_CONNECTION" \
+            --set-env-vars "$RUN_ENVS" \
+            --set-secrets "$RUN_SECRETS" \
+            --command node \
+            --args dist/scripts/run-migrations.js \
+            --tasks 1 \
+            --parallelism 1 \
+            --max-retries 0 \
+            --task-timeout 10m \
+            --execute-now \
+            --wait
+
       - name: Deploy API to Cloud Run
         run: |
-          RUN_ENVS="^|^NODE_ENV=production|DB_HOST=/cloudsql/${SQL_CONNECTION}|DB_PORT=5432|DB_USER=nido_api|DB_NAME=nido|DB_SYNCHRONIZE=false|DB_MIGRATIONS_RUN=true|FIREBASE_PROJECT_ID=${PROJECT_ID}|FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@${PROJECT_ID}.iam.gserviceaccount.com|ADMIN_EMAILS=ezvibesinc@gmail.com|GCS_INGESTION_BUCKET=nido-concert-image-ingestion-dev|GEMINI_MODEL=gemini-2.5-flash|CONCERT_SYNC_GEMINI_ENABLED=false|CONCERT_SYNC_MAX_EVENTS_PER_JOB=25|GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL=sync-doctor-calendar@nido-api.iam.gserviceaccount.com|CORS_ORIGINS=${CORS_ORIGINS}"
-          RUN_SECRETS="DB_PASSWORD=nido-db-password:latest,FIREBASE_PRIVATE_KEY=nido-firebase-private-key:latest,GEMINI_API_KEY=nido-gemini-api-key:latest,GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY=nido-google-calendar-private-key:latest"
+          RUN_ENVS="^|^NODE_ENV=production|DB_HOST=/cloudsql/${SQL_CONNECTION}|DB_PORT=5432|DB_USER=${DB_USER}|DB_NAME=${DB_NAME}|DB_SYNCHRONIZE=false|DB_MIGRATIONS_RUN=${DB_MIGRATIONS_RUN}|DB_MIGRATION_TRANSACTION_MODE=${DB_MIGRATION_TRANSACTION_MODE}|FIREBASE_PROJECT_ID=${PROJECT_ID}|FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@${PROJECT_ID}.iam.gserviceaccount.com|ADMIN_EMAILS=${ADMIN_EMAILS}|GCS_INGESTION_BUCKET=${GCS_INGESTION_BUCKET}|GEMINI_MODEL=${GEMINI_MODEL}|CONCERT_SYNC_GEMINI_ENABLED=${CONCERT_SYNC_GEMINI_ENABLED}|CONCERT_SYNC_MAX_EVENTS_PER_JOB=${CONCERT_SYNC_MAX_EVENTS_PER_JOB}|GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL=${GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL}|CORS_ORIGINS=${CORS_ORIGINS}"
+          RUN_SECRETS="DB_PASSWORD=${DB_PASSWORD_SECRET},FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY_SECRET},GEMINI_API_KEY=${GEMINI_API_KEY_SECRET},GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY=${GOOGLE_CALENDAR_PRIVATE_KEY_SECRET}"
 
           gcloud run deploy "$SERVICE" \
             --project "$PROJECT_ID" \
@@ -134,6 +237,12 @@ jobs:
             --allow-unauthenticated \
             --add-cloudsql-instances "$SQL_CONNECTION" \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
+            --memory "$CLOUD_RUN_MEMORY" \
+            --cpu "$CLOUD_RUN_CPU" \
+            --concurrency "$CLOUD_RUN_CONCURRENCY" \
+            --timeout "$CLOUD_RUN_TIMEOUT" \
+            --min-instances "$CLOUD_RUN_MIN_INSTANCES" \
+            --max-instances "$CLOUD_RUN_MAX_INSTANCES" \
             --set-env-vars "$RUN_ENVS" \
             --set-secrets "$RUN_SECRETS"
 

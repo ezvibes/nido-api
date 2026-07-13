@@ -87,17 +87,17 @@ Useful tasks:
 
 Work through these in small PRs:
 
-1. Commit and validate the migration-job deployment path.
-2. Add production-only CORS enforcement through environment config.
-3. Protect or intentionally publish Swagger/OpenAPI in production.
-4. Add API rate limiting before public launch.
-5. Add Firebase Hosting security headers.
-6. Pin or alias production Secret Manager versions.
-7. Protect `/health/deep` or reduce production detail.
-8. Add deployment job summaries with revision, image, Firebase release, and smoke
+1. Validate the migration-job deployment path in GitHub Actions.
+2. Enable production config promotion from `prod.env.example` to `prod.env`.
+3. Add production-only CORS enforcement through environment config.
+4. Protect or intentionally publish Swagger/OpenAPI in production.
+5. Add API rate limiting before public launch.
+6. Add Firebase Hosting security headers.
+7. Pin or alias production Secret Manager versions.
+8. Protect `/health/deep` or reduce production detail.
+9. Add deployment job summaries with revision, image, Firebase release, and smoke
    result.
-9. Add Artifact Registry cleanup policy documentation or automation.
-10. Add a production environment matrix with final project IDs and domains.
+10. Add Artifact Registry cleanup policy documentation or automation.
 
 ## Prompt To Use In VS Code Agent Chat
 

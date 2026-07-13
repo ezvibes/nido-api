@@ -143,10 +143,43 @@ Recommended posture:
 
 ```text
 DB_SYNCHRONIZE=false
-DB_MIGRATIONS_RUN=true
+RUN_MIGRATIONS=true
+DB_MIGRATIONS_RUN=false
 ```
 
-This keeps schema changes reviewable, repeatable, and safer to roll forward.
+`RUN_MIGRATIONS=true` means the deployment pipeline should run migrations once in a
+dedicated job before the API service is deployed. `DB_MIGRATIONS_RUN=false` keeps the
+long-running API service from racing migrations across multiple instances or
+revisions. This keeps schema changes reviewable, repeatable, and safer to roll
+forward.
+
+Environment-specific deployment values should live in environment config files such
+as:
+
+```text
+.github/deploy/environments/dev.env
+.github/deploy/environments/prod.env
+```
+
+Those files should control project identity, region, service names, Cloud SQL,
+Firebase Hosting, CORS, service accounts, secret references, and Cloud Run resource
+limits. Promoting production should be a reviewed config change, not a workflow
+rewrite.
+
+### Decision Summary
+
+Nido separates environment configuration and database migration execution so the
+deployment path can scale from dev to production without changing workflow logic.
+
+The important decision is this:
+
+- environment files define where and how an environment runs
+- the deployment workflow runs database migrations once before service deployment
+- the API service starts without running migrations
+
+This reduces production risk because schema changes are explicit, logged, and owned
+by the deployment phase. It also keeps future production launch work focused on
+reviewing environment config values instead of rewriting the release pipeline.
 
 ## API Documentation Posture
 
@@ -209,4 +242,3 @@ Useful next steps:
 - add a sanitized architecture diagram for the deploy path
 - add cost guardrails for image retention and idle resources
 - add deployment annotations linking releases back to PRs
-
