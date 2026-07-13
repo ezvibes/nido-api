@@ -122,7 +122,7 @@ Deploy service account: github-deployer@nido-api-9ed65.iam.gserviceaccount.com
 Observed live Cloud Run posture as of the July 2026 deployment audit:
 
 ```text
-Latest ready revision: nido-api-00021-5xt
+Latest ready revision: nido-api-00023-d26
 Traffic: 100% to latest ready revision
 Ingress: all
 Unauthenticated access: allowed
@@ -133,6 +133,7 @@ Memory: 512Mi
 Max instances: 20
 Runtime service account: nido-api-runtime@nido-api-9ed65.iam.gserviceaccount.com
 Cloud SQL attachment: nido-api-9ed65:us-east1:nido-postgres-dev
+Image: us-east1-docker.pkg.dev/nido-api-9ed65/nido/nido-api:22d7098e2cfcca6a4a022326cfb1f4d1284740e1
 ```
 
 Current dev runtime posture:
@@ -467,10 +468,10 @@ GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL=sync-doctor-calendar@nido-api.iam.gservice
 CORS_ORIGINS=https://nido-api-9ed65.web.app,https://nido-api-9ed65.firebaseapp.com,http://localhost:5173
 ```
 
-Live dev before this PR still has `DB_MIGRATIONS_RUN=true` on the Cloud Run service.
-That is the known drift this PR is designed to remove. After the next deploy through
-this workflow, live dev should report `DB_MIGRATIONS_RUN=false` on the service and a
-successful execution for `nido-api-migrations`.
+Live dev previously had `DB_MIGRATIONS_RUN=true` on the Cloud Run service. The
+manual dev deploy run `29220822807` removed that drift. Live dev now reports
+`DB_MIGRATIONS_RUN=false` on the service after a successful `nido-api-migrations`
+job execution.
 
 Production hardening:
 
