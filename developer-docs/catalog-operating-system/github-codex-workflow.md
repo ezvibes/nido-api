@@ -49,6 +49,15 @@ Use agents for:
 
 Agents should not start major implementation work until the issue is clear enough to execute without private chat context.
 
+For infrastructure and production-readiness work, use:
+
+```text
+developer-docs/catalog-operating-system/nido-infrastructure-agent.md
+```
+
+In VS Code, run `Tasks: Run Task` -> `Nido: Agent Brief` to print the brief and
+`Nido: Local Infra Gate` or `Nido: Smoke Dev API` for quick validation.
+
 ### GitHub CLI
 
 Use `gh` for operational repository tasks:
