@@ -61,11 +61,12 @@ flowchart TD
     G --> H["Build client"]
     H --> I["Build linux/amd64 API container"]
     I --> J["Push image to artifact registry"]
-    J --> K["Deploy API to serverless runtime"]
-    K --> L["Verify /health and /health/deep"]
-    L --> M["Verify OpenAPI endpoint according to environment policy"]
-    M --> N["Deploy frontend hosting"]
-    N --> O["Verify hosted frontend responds"]
+    J --> K["Run one migration job when enabled"]
+    K --> L["Deploy API to serverless runtime"]
+    L --> M["Verify /health and /health/deep"]
+    M --> N["Verify OpenAPI endpoint according to environment policy"]
+    N --> O["Deploy frontend hosting"]
+    O --> P["Verify hosted frontend responds"]
 ```
 
 ## Quality Gates
@@ -166,6 +167,17 @@ Firebase Hosting, CORS, service accounts, secret references, and Cloud Run resou
 limits. Promoting production should be a reviewed config change, not a workflow
 rewrite.
 
+The dev config should mirror the live dev capacity so a config-only refactor does
+not accidentally resize the service. Production should make separate reviewed
+decisions for:
+
+- Cloud Run CPU, memory, timeout, concurrency, and min/max instances
+- Cloud SQL tier, backups, point-in-time recovery, availability, and connectivity
+- production-only CORS origins
+- pinned or aliased secret versions
+- API rate limiting or app attestation
+- Swagger/OpenAPI exposure policy
+
 ### Decision Summary
 
 Nido separates environment configuration and database migration execution so the
@@ -218,6 +230,7 @@ Before changing deployment behavior, answer:
 - Does this change migration behavior?
 - Does this change CORS or auth expectations?
 - Does this change Swagger/OpenAPI exposure?
+- Does this accidentally resize Cloud Run or change database durability assumptions?
 - Does the PR validation path still cover the changed behavior?
 - Does the post-deploy smoke test prove the right thing?
 

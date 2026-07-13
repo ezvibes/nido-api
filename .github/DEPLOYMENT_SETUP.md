@@ -119,6 +119,22 @@ Runtime service account: nido-api-runtime@nido-api-9ed65.iam.gserviceaccount.com
 Deploy service account: github-deployer@nido-api-9ed65.iam.gserviceaccount.com
 ```
 
+Observed live Cloud Run posture as of the July 2026 deployment audit:
+
+```text
+Latest ready revision: nido-api-00021-5xt
+Traffic: 100% to latest ready revision
+Ingress: all
+Unauthenticated access: allowed
+Container concurrency: 80
+Timeout: 300 seconds
+CPU: 1000m
+Memory: 512Mi
+Max instances: 20
+Runtime service account: nido-api-runtime@nido-api-9ed65.iam.gserviceaccount.com
+Cloud SQL attachment: nido-api-9ed65:us-east1:nido-postgres-dev
+```
+
 Current dev runtime posture:
 
 ```text
@@ -137,6 +153,78 @@ Sync Doctor and ingestion approval should use deterministic fallback behavior un
 `nido-gemini-api-key` secret available so Gemini can be tested without changing the
 Secret Manager shape, but do not enable paid Gemini calls as the default dev deploy
 behavior.
+
+### Current GCP Architecture Review
+
+The current dev architecture is directionally aligned with Google Cloud production
+patterns because it separates build orchestration, deploy identity, runtime identity,
+container storage, application runtime, database, and secret storage:
+
+```text
+GitHub Actions -> WIF -> github-deployer service account
+  -> Artifact Registry image
+  -> Cloud Run migration job
+  -> Cloud Run API service
+  -> Firebase Hosting release
+
+Cloud Run runtime service account
+  -> Cloud SQL
+  -> Secret Manager
+  -> GCS ingestion bucket
+```
+
+Cloud Run:
+
+- The service is stateless and runs on Cloud Run with commit-addressable images.
+- Concurrency, timeout, memory, CPU, and max instances are now explicit in
+  `.github/deploy/environments/dev.env`.
+- The checked-in dev config should match live capacity. Keep
+  `CLOUD_RUN_MAX_INSTANCES=20` unless a deliberate cost-control change is reviewed.
+- App startup migrations are being removed from the long-running service. This is the
+  most important reliability improvement in this PR because Cloud Run can start
+  multiple instances or revisions concurrently.
+
+Cloud SQL:
+
+- Dev currently uses `POSTGRES_15`, `db-f1-micro`, zonal availability, and public IPv4.
+- This is acceptable only as a cost-conscious dev posture.
+- Production must use an appropriately sized tier, automated backups, point-in-time
+  recovery, and a reviewed connectivity model before launch.
+- The deployment workflow should keep using the Cloud SQL connector attachment instead
+  of placing database credentials or IP allowlists into GitHub.
+
+IAM:
+
+- Deploy and runtime identities are separated.
+- `github-deployer@nido-api-9ed65.iam.gserviceaccount.com` handles deploy-time work.
+- `nido-api-runtime@nido-api-9ed65.iam.gserviceaccount.com` handles runtime access.
+- `iam.serviceAccountUser` is scoped on the runtime service account policy, which is
+  preferable to broad project-level impersonation.
+- Next hardening step: reduce project-level runtime Secret Manager access to specific
+  secret bindings.
+
+Secret Manager:
+
+- Runtime secret payloads are not stored in GitHub.
+- Dev currently references `:latest`, which is convenient for iteration.
+- Production should use pinned versions or stable aliases so rollbacks are
+  deterministic.
+
+Firebase Hosting:
+
+- Hosting deploys use short-lived Google credentials through the REST API rather than
+  deprecated CI tokens or service account JSON.
+- Add security headers in `firebase.json` before public launch, especially CSP,
+  `X-Content-Type-Options`, `Referrer-Policy`, and frame policy.
+
+Open production gaps:
+
+- Prod environment config is still a template, not live infrastructure.
+- Cloud SQL production backup/PITR and availability choices are not yet provisioned.
+- API rate limiting or Firebase App Check is not yet enforced.
+- Swagger UI remains public by design in dev; production must explicitly choose public
+  docs or protect them.
+- Production CORS must not include `http://localhost:5173`.
 
 Admin ingestion approval currently publishes approved, future-dated flyer uploads
 into the shared `/events` discovery feed. The frontend events page requests
@@ -379,6 +467,11 @@ GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL=sync-doctor-calendar@nido-api.iam.gservice
 CORS_ORIGINS=https://nido-api-9ed65.web.app,https://nido-api-9ed65.firebaseapp.com,http://localhost:5173
 ```
 
+Live dev before this PR still has `DB_MIGRATIONS_RUN=true` on the Cloud Run service.
+That is the known drift this PR is designed to remove. After the next deploy through
+this workflow, live dev should report `DB_MIGRATIONS_RUN=false` on the service and a
+successful execution for `nido-api-migrations`.
+
 Production hardening:
 
 - Keep `DB_SYNCHRONIZE=false`.
@@ -425,6 +518,41 @@ Environment files control:
 - Whether the app may run migrations on startup with `DB_MIGRATIONS_RUN`.
 - Secret Manager secret references.
 - CORS, admin allowlist, ingestion bucket, Gemini, and calendar settings.
+
+Dev environment matrix:
+
+```text
+PROJECT_ID=nido-api-9ed65
+REGION=us-east1
+SERVICE=nido-api
+MIGRATION_JOB=nido-api-migrations
+SQL_INSTANCE=nido-postgres-dev
+FIREBASE_HOSTING_SITE=nido-api-9ed65
+CLOUD_RUN_MEMORY=512Mi
+CLOUD_RUN_CPU=1
+CLOUD_RUN_CONCURRENCY=80
+CLOUD_RUN_TIMEOUT=300
+CLOUD_RUN_MIN_INSTANCES=0
+CLOUD_RUN_MAX_INSTANCES=20
+RUN_MIGRATIONS=true
+DB_MIGRATIONS_RUN=false
+```
+
+Production environment target:
+
+```text
+PROJECT_ID=<prod project>
+REGION=<prod region>
+SERVICE=nido-api
+MIGRATION_JOB=nido-api-migrations
+SQL_INSTANCE=<prod sql instance>
+FIREBASE_HOSTING_SITE=<prod site>
+CLOUD_RUN_MIN_INSTANCES=1 or a reviewed launch value
+CLOUD_RUN_MAX_INSTANCES=<capacity-tested launch value>
+RUN_MIGRATIONS=true
+DB_MIGRATIONS_RUN=false
+CORS_ORIGINS=<prod domains only>
+```
 
 Migration policy:
 
@@ -826,6 +954,7 @@ What should be hardened next:
 
 - Scope Secret Manager access to specific secrets.
 - Replace broad Firebase Admin deploy permission with narrower custom permissions if practical.
+- Enable and document Cloud SQL backups/PITR for production before launch.
 - Add a full smoke-test script that checks authenticated flows when a test token is available.
 - Add Artifact Registry cleanup policy for old SHA images.
 - Add Cloud Run revision retention/cost review to the monthly runbook.
