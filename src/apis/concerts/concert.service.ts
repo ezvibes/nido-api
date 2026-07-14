@@ -169,13 +169,15 @@ export class ConcertService {
     if (query.sort === 'trending_week') {
       qb.orderBy('trending_week_upvotes', 'DESC')
         .addOrderBy('upvote_count', 'DESC')
-        .addOrderBy('concert.startsAt', 'ASC');
+        .addOrderBy('concert.startsAt', 'ASC')
+        .addOrderBy('concert.id', 'ASC');
     } else if (query.sort === 'featured' || query.sort === 'top_picks') {
       qb.orderBy('concert.isTopPick', 'DESC')
         .addOrderBy('concert.topPickScore', 'DESC', 'NULLS LAST')
-        .addOrderBy('concert.startsAt', 'ASC');
+        .addOrderBy('concert.startsAt', 'ASC')
+        .addOrderBy('concert.id', 'ASC');
     } else {
-      qb.orderBy('concert.startsAt', 'ASC');
+      qb.orderBy('concert.startsAt', 'ASC').addOrderBy('concert.id', 'ASC');
     }
 
     const { entities, raw } = await qb
@@ -500,8 +502,34 @@ export class ConcertService {
     syncSource: ConcertSyncSource | null = null,
     posterUrl: string | null = null,
   ) {
+    const venues = concert.venue
+      ? [
+          {
+            name: concert.venue.name,
+            city: concert.venue.city,
+            state: concert.venue.region,
+          },
+        ]
+      : [];
+    const artists = [...(concert.lineup ?? [])]
+      .sort((left, right) => left.performanceOrder - right.performanceOrder)
+      .map((lineupEntry) => ({
+        name: lineupEntry.band.name,
+        role: lineupEntry.performanceRole,
+        genre: lineupEntry.band.genres?.[0] ?? concert.genre,
+      }));
+
     return {
-      ...concert,
+      id: concert.id,
+      title: concert.title,
+      genre: concert.genre,
+      startsAt: concert.startsAt,
+      endsAt: concert.endsAt ?? null,
+      venues,
+      artists,
+      description: concert.description ?? null,
+      isTopPick: concert.isTopPick,
+      topPickScore: concert.topPickScore ?? null,
       ...engagement,
       syncSource,
       posterUrl,

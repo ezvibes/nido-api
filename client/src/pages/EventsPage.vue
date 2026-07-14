@@ -313,7 +313,6 @@ const loadPersistedEvents = async () => {
         posterUrl: concert.posterUrl ?? 'https://placehold.co/720x900/e6ece4/31453a?text=DB+Show',
         sourceLabel: 'Concerts DB',
         displayTags: [concert.genre, 'saved'],
-        demoRank: 100,
       }),
     );
     hasLoadedPersistedEvents.value = true;
@@ -414,7 +413,6 @@ const handleSubmit = async () => {
           'https://placehold.co/720x900/e6ece4/31453a?text=New+Show',
         sourceLabel: 'Your submission',
         displayTags: [form.genre.trim(), 'new', 'my concert'],
-        demoRank: 100,
       }),
       ...persistedEvents.value,
     ];

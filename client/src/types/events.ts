@@ -20,6 +20,8 @@ export interface ConcertApiItem {
   venues: EventVenue[];
   artists: EventArtist[];
   description?: string | null;
+  isTopPick?: boolean;
+  topPickScore?: number | null;
   upvoteCount?: number;
   upvotedByMe?: boolean;
   trendingWeekUpvotes?: number;
@@ -80,7 +82,9 @@ export function mapConcertToEventListItem(
     posterUrl: resolvedPosterUrl,
     sourceLabel: overrides?.sourceLabel ?? 'EZ Vibes Demo',
     displayTags: overrides?.displayTags ?? [concert.genre],
-    demoRank: overrides?.demoRank ?? 0,
+    demoRank:
+      overrides?.demoRank ??
+      (concert.isTopPick ? (concert.topPickScore ?? 1) : 0),
     upvoteCount: overrides?.upvoteCount ?? concert.upvoteCount ?? 0,
     upvotedByMe: overrides?.upvotedByMe ?? concert.upvotedByMe ?? false,
     trendingWeekUpvotes:

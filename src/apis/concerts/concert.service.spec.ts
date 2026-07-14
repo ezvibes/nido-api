@@ -67,7 +67,20 @@ describe('ConcertService', () => {
     const concert = {
       id: 'concert-1',
       title: 'Show',
+      genre: 'Rock',
       startsAt: new Date('2026-06-01T00:00:00.000Z'),
+      venue: {
+        name: 'The Pour House',
+        city: 'Raleigh',
+        region: 'NC',
+      },
+      lineup: [
+        {
+          performanceOrder: 0,
+          performanceRole: 'headliner',
+          band: { name: 'Example Band', genres: ['Indie Rock'] },
+        },
+      ],
     } as unknown as Concert;
     concertRepository.createQueryBuilder.mockReturnValue(qb);
     qb.getCount.mockResolvedValue(1);
@@ -93,6 +106,7 @@ describe('ConcertService', () => {
     expect(qb.addSelect).toHaveBeenCalledTimes(8);
     expect(qb.groupBy).not.toHaveBeenCalled();
     expect(qb.orderBy).toHaveBeenCalledWith('trending_week_upvotes', 'DESC');
+    expect(qb.addOrderBy).toHaveBeenCalledWith('concert.id', 'ASC');
     expect(result.total).toBe(1);
     expect(result.data[0]).toEqual(
       expect.objectContaining({
@@ -100,8 +114,16 @@ describe('ConcertService', () => {
         upvoteCount: 4,
         upvotedByMe: true,
         trendingWeekUpvotes: 2,
+        venues: [
+          { name: 'The Pour House', city: 'Raleigh', state: 'NC' },
+        ],
+        artists: [
+          { name: 'Example Band', role: 'headliner', genre: 'Indie Rock' },
+        ],
       }),
     );
+    expect(result.data[0]).not.toHaveProperty('venue');
+    expect(result.data[0]).not.toHaveProperty('lineup');
   });
 
   it('uses a null user parameter for anonymous shared-feed requests', async () => {
