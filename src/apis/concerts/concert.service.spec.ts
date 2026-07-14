@@ -89,11 +89,9 @@ describe('ConcertService', () => {
       pageSize: 20,
     });
 
-    expect(qb.leftJoin).toHaveBeenCalledWith(
-      'concert_upvotes',
-      'upvote',
-      'upvote.concert_id = concert.id',
-    );
+    expect(qb.leftJoin).not.toHaveBeenCalled();
+    expect(qb.addSelect).toHaveBeenCalledTimes(8);
+    expect(qb.groupBy).not.toHaveBeenCalled();
     expect(qb.orderBy).toHaveBeenCalledWith('trending_week_upvotes', 'DESC');
     expect(result.total).toBe(1);
     expect(result.data[0]).toEqual(
@@ -104,6 +102,19 @@ describe('ConcertService', () => {
         trendingWeekUpvotes: 2,
       }),
     );
+  });
+
+  it('uses a null user parameter for anonymous shared-feed requests', async () => {
+    const qb = createQueryBuilderMock();
+    concertRepository.createQueryBuilder.mockReturnValue(qb);
+    qb.getCount.mockResolvedValue(0);
+    qb.getRawAndEntities.mockResolvedValue({ entities: [], raw: [] });
+
+    await service.findAll({ sort: 'soonest', page: 1, pageSize: 20 });
+
+    expect(qb.setParameter).toHaveBeenCalledWith('currentUserId', null);
+    expect(qb.addSelect).toHaveBeenCalledTimes(8);
+    expect(qb.groupBy).not.toHaveBeenCalled();
   });
 
   it('creates a concert with empty engagement state', async () => {

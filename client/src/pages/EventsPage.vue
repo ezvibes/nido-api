@@ -13,7 +13,7 @@
       <div class="add-show-panel__header">
         <h2>Add a show</h2>
         <p>
-          Create a concert for your account and preview it here in the demo
+          Create a concert for your account and preview it here in the concert
           feed.
         </p>
       </div>
@@ -143,8 +143,14 @@
     </section>
 
     <section v-else class="events-page__empty">
-      <h2>No shows match those filters.</h2>
-      <p>Try a different city, band, venue, or date range.</p>
+      <template v-if="eventsLoadError">
+        <h2>Unable to load concerts.</h2>
+        <p>{{ eventsLoadError }}</p>
+      </template>
+      <template v-else>
+        <h2>No shows match those filters.</h2>
+        <p>Try a different city, band, venue, or date range.</p>
+      </template>
     </section>
   </section>
 </template>
@@ -155,7 +161,6 @@ import EventCard from '../components/events/EventCard.vue';
 import EventFiltersBar from '../components/events/EventFiltersBar.vue';
 import IngestionUploadPanel from '../components/ingestion/IngestionUploadPanel.vue';
 import { useEventFilters } from '../composables/useEventFilters';
-import { sampleEvents } from '../data/sampleEvents';
 import {
   createConcert,
   fetchConcerts,
@@ -168,18 +173,12 @@ import { mapConcertToEventListItem, type EventListItem } from '../types/events';
 const { user } = useAuth();
 
 const persistedEvents = ref<EventListItem[]>([]);
-const sampleFeedEvents = ref<EventListItem[]>(sampleEvents);
 const upvotingEventIds = ref(new Set<string>());
 const hasLoadedPersistedEvents = ref(false);
 const isLoadingEvents = ref(false);
-const feedEvents = computed(() =>
-  hasLoadedPersistedEvents.value
-    ? persistedEvents.value
-    : sampleFeedEvents.value,
-);
-const demoEvents = computed(() => [...feedEvents.value]);
+const eventsLoadError = ref('');
 const { searchText, dateRange, sort, source, filteredEvents, clearFilters } =
-  useEventFilters(demoEvents);
+  useEventFilters(persistedEvents);
 
 const showAddForm = ref(false);
 const isSubmitting = ref(false);
@@ -206,7 +205,7 @@ const sortSummary = computed(() =>
     ? 'Sorted by earliest upcoming start time.'
     : sort.value === 'trending_week'
       ? 'Sorted by upvotes from the last seven days.'
-      : 'Sorted by featured demo priority.',
+      : 'Sorted by featured priority.',
 );
 
 const isSubmitDisabled = computed(
@@ -286,8 +285,6 @@ const updateEventEngagement = (
       : event;
 
   persistedEvents.value = persistedEvents.value.map(applyEngagement);
-
-  sampleFeedEvents.value = sampleFeedEvents.value.map(applyEngagement);
 };
 
 const loadPersistedEvents = async () => {
@@ -295,11 +292,13 @@ const loadPersistedEvents = async () => {
     persistedEvents.value = [];
     hasLoadedPersistedEvents.value = false;
     isLoadingEvents.value = false;
+    eventsLoadError.value = '';
     return;
   }
 
   isLoadingEvents.value = true;
   pageMessage.value = '';
+  eventsLoadError.value = '';
 
   try {
     const token = await user.value.getIdToken();
@@ -319,8 +318,9 @@ const loadPersistedEvents = async () => {
     );
     hasLoadedPersistedEvents.value = true;
   } catch {
-    pageMessageType.value = 'error';
-    pageMessage.value =
+    persistedEvents.value = [];
+    hasLoadedPersistedEvents.value = true;
+    eventsLoadError.value =
       'Unable to load saved concerts from the database right now.';
   } finally {
     isLoadingEvents.value = false;
@@ -423,7 +423,7 @@ const handleSubmit = async () => {
     submitMessage.value =
       'Show saved. It should also appear on your My Concerts home feed.';
     pageMessageType.value = 'success';
-    pageMessage.value = 'New show saved and added to the demo feed.';
+    pageMessage.value = 'New show saved and added to the concert feed.';
     window.dispatchEvent(new CustomEvent('concerts:changed'));
     resetForm();
     showAddForm.value = false;

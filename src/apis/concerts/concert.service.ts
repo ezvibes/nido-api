@@ -95,37 +95,76 @@ export class ConcertService {
     const trendingSince = this.getTrendingSince();
     const currentUserId = currentUser?.id ?? null;
 
-    // Engagement and sync metadata are read-only decorations on the shared list.
-    qb.leftJoin('concert_upvotes', 'upvote', 'upvote.concert_id = concert.id')
-      .leftJoin(
-        'concert_sync_events',
-        'syncEvent',
-        'syncEvent.concert_id = concert.id',
-      )
-      .leftJoin(
-        'concert_uploads',
-        'upload',
-        'upload.concert_id = concert.id',
-      )
-      .leftJoin(
-        'concert_upvotes',
-        'myUpvote',
-        'myUpvote.concert_id = concert.id AND myUpvote.user_id = :currentUserId',
-        { currentUserId },
-      )
-      .addSelect('COUNT(DISTINCT upvote.id)', 'upvote_count')
+    // Correlated subqueries decorate each concert without forcing the relation
+    // columns selected above into a brittle GROUP BY clause.
+    qb.addSelect(
+      (subquery) =>
+        subquery
+          .select('COUNT(*)')
+          .from('concert_upvotes', 'upvote')
+          .where('upvote.concert_id = concert.id'),
+      'upvote_count',
+    )
       .addSelect(
-        'COUNT(DISTINCT upvote.id) FILTER (WHERE upvote.created_at >= :trendingSince)',
+        (subquery) =>
+          subquery
+            .select('COUNT(*)')
+            .from('concert_upvotes', 'trendingUpvote')
+            .where('trendingUpvote.concert_id = concert.id')
+            .andWhere('trendingUpvote.created_at >= :trendingSince'),
         'trending_week_upvotes',
       )
-      .addSelect('COUNT(DISTINCT myUpvote.id)', 'upvoted_by_me_count')
-      .addSelect('MAX(syncEvent.calendar_id)', 'sync_calendar_id')
-      .addSelect('MAX(syncEvent.calendar_event_id)', 'sync_calendar_event_id')
-      .addSelect('MAX(syncEvent.last_synced_at)', 'sync_last_synced_at')
-      .addSelect('BOOL_OR(syncEvent.needs_guidance)', 'sync_needs_guidance')
-      .addSelect('MAX(upload.id::text)', 'upload_id')
+      .addSelect(
+        (subquery) =>
+          subquery
+            .select('COUNT(*)')
+            .from('concert_upvotes', 'myUpvote')
+            .where('myUpvote.concert_id = concert.id')
+            .andWhere('myUpvote.user_id = :currentUserId'),
+        'upvoted_by_me_count',
+      )
+      .addSelect(
+        (subquery) =>
+          subquery
+            .select('MAX(syncEvent.calendar_id)')
+            .from('concert_sync_events', 'syncEvent')
+            .where('syncEvent.concert_id = concert.id'),
+        'sync_calendar_id',
+      )
+      .addSelect(
+        (subquery) =>
+          subquery
+            .select('MAX(syncEvent.calendar_event_id)')
+            .from('concert_sync_events', 'syncEvent')
+            .where('syncEvent.concert_id = concert.id'),
+        'sync_calendar_event_id',
+      )
+      .addSelect(
+        (subquery) =>
+          subquery
+            .select('MAX(syncEvent.last_synced_at)')
+            .from('concert_sync_events', 'syncEvent')
+            .where('syncEvent.concert_id = concert.id'),
+        'sync_last_synced_at',
+      )
+      .addSelect(
+        (subquery) =>
+          subquery
+            .select('COALESCE(BOOL_OR(syncEvent.needs_guidance), false)')
+            .from('concert_sync_events', 'syncEvent')
+            .where('syncEvent.concert_id = concert.id'),
+        'sync_needs_guidance',
+      )
+      .addSelect(
+        (subquery) =>
+          subquery
+            .select('MAX(upload.id::text)')
+            .from('concert_uploads', 'upload')
+            .where('upload.concert_id = concert.id'),
+        'upload_id',
+      )
       .setParameter('trendingSince', trendingSince)
-      .groupBy('concert.id');
+      .setParameter('currentUserId', currentUserId);
 
     if (query.sort === 'trending_week') {
       qb.orderBy('trending_week_upvotes', 'DESC')
