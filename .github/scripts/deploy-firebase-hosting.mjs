@@ -12,6 +12,7 @@ const {
   FIREBASE_HOSTING_DRY_RUN,
   FIREBASE_HOSTING_UPLOAD_CONCURRENCY,
   GITHUB_SHA = 'local',
+  GOOGLE_CLOUD_QUOTA_PROJECT,
 } = process.env;
 
 const dryRun = FIREBASE_HOSTING_DRY_RUN === 'true';
@@ -73,6 +74,9 @@ async function firebaseRequest(url, options = {}) {
       headers: {
         Authorization: `Bearer ${FIREBASE_ACCESS_TOKEN}`,
         'Content-Type': 'application/json',
+        ...(GOOGLE_CLOUD_QUOTA_PROJECT
+          ? { 'X-Goog-User-Project': GOOGLE_CLOUD_QUOTA_PROJECT }
+          : {}),
         ...(options.headers ?? {}),
       },
     })
@@ -283,6 +287,9 @@ async function uploadHashes(uploadUrl, requiredHashes, uploads) {
         headers: {
           Authorization: `Bearer ${FIREBASE_ACCESS_TOKEN}`,
           'Content-Type': 'application/octet-stream',
+          ...(GOOGLE_CLOUD_QUOTA_PROJECT
+            ? { 'X-Goog-User-Project': GOOGLE_CLOUD_QUOTA_PROJECT }
+            : {}),
         },
         body: upload.gzipped,
       })

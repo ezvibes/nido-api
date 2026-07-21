@@ -13,7 +13,6 @@ on:
   push:
     branches:
       - main
-      - codex/fix-concert-feed-query
 
 concurrency:
   group: deploy-dev-${{ github.ref }}
