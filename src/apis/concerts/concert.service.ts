@@ -502,34 +502,8 @@ export class ConcertService {
     syncSource: ConcertSyncSource | null = null,
     posterUrl: string | null = null,
   ) {
-    const venues = concert.venue
-      ? [
-          {
-            name: concert.venue.name,
-            city: concert.venue.city,
-            state: concert.venue.region,
-          },
-        ]
-      : [];
-    const artists = [...(concert.lineup ?? [])]
-      .sort((left, right) => left.performanceOrder - right.performanceOrder)
-      .map((lineupEntry) => ({
-        name: lineupEntry.band.name,
-        role: lineupEntry.performanceRole,
-        genre: lineupEntry.band.genres?.[0] ?? concert.genre,
-      }));
-
     return {
-      id: concert.id,
-      title: concert.title,
-      genre: concert.genre,
-      startsAt: concert.startsAt,
-      endsAt: concert.endsAt ?? null,
-      venues,
-      artists,
-      description: concert.description ?? null,
-      isTopPick: concert.isTopPick,
-      topPickScore: concert.topPickScore ?? null,
+      ...concert,
       ...engagement,
       syncSource,
       posterUrl,

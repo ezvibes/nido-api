@@ -1,14 +1,31 @@
 export interface EventVenue {
+  id: string;
   name: string;
+  address?: string | null;
   city?: string;
-  state?: string;
-  country?: string;
+  region?: string;
 }
 
-export interface EventArtist {
+export interface EventBand {
+  id: string;
   name: string;
-  role?: string;
-  genre?: string;
+  slug: string;
+  genres?: string[] | null;
+  promoImageUrl?: string | null;
+}
+
+export interface EventLineupEntry {
+  performanceRole: string;
+  performanceOrder: number;
+  band: EventBand;
+}
+
+export interface EventSet {
+  id: string;
+  stageName: string;
+  startsAt: string;
+  endsAt: string;
+  band: EventBand;
 }
 
 export interface ConcertApiItem {
@@ -17,8 +34,9 @@ export interface ConcertApiItem {
   genre: string;
   startsAt: string;
   endsAt?: string | null;
-  venues: EventVenue[];
-  artists: EventArtist[];
+  venue?: EventVenue | null;
+  lineup: EventLineupEntry[];
+  sets: EventSet[];
   description?: string | null;
   isTopPick?: boolean;
   topPickScore?: number | null;
@@ -80,7 +98,7 @@ export function mapConcertToEventListItem(
   return {
     ...concert,
     posterUrl: resolvedPosterUrl,
-    sourceLabel: overrides?.sourceLabel ?? 'EZ Vibes Demo',
+    sourceLabel: overrides?.sourceLabel ?? 'EZ Vibes',
     displayTags: overrides?.displayTags ?? [concert.genre],
     demoRank:
       overrides?.demoRank ??

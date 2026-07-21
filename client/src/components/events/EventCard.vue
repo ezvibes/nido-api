@@ -15,6 +15,7 @@
       <h3 class="event-card__title">{{ event.title }}</h3>
       <p class="event-card__venue">{{ primaryVenueName }}</p>
       <p class="event-card__location">{{ locationLabel }}</p>
+      <p v-if="lineupLabel" class="event-card__lineup">{{ lineupLabel }}</p>
       <p class="event-card__time">{{ formattedStartTime }}</p>
 
       <p v-if="event.description" class="event-card__description">
@@ -55,9 +56,15 @@ defineEmits<{
   (event: 'toggle-upvote', value: EventListItem): void;
 }>();
 
-const primaryVenue = computed(() => props.event.venues[0]);
+const primaryVenue = computed(() => props.event.venue);
 const isSynced = computed(
   () => props.event.syncSource?.source === 'google_calendar',
+);
+const lineupLabel = computed(() =>
+  [...props.event.lineup]
+    .sort((left, right) => left.performanceOrder - right.performanceOrder)
+    .map((entry) => entry.band.name)
+    .join(' · '),
 );
 
 const primaryVenueName = computed(
@@ -69,7 +76,7 @@ const locationLabel = computed(() => {
     return 'Location TBD';
   }
 
-  const pieces = [primaryVenue.value.city, primaryVenue.value.state].filter(
+  const pieces = [primaryVenue.value.city, primaryVenue.value.region].filter(
     Boolean,
   );
   return pieces.length ? pieces.join(', ') : 'Location TBD';
@@ -157,6 +164,7 @@ const formattedStartTime = computed(() =>
 }
 
 .event-card__location,
+.event-card__lineup,
 .event-card__description {
   color: var(--text-light);
 }

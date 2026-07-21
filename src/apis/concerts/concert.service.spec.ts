@@ -114,16 +114,21 @@ describe('ConcertService', () => {
         upvoteCount: 4,
         upvotedByMe: true,
         trendingWeekUpvotes: 2,
-        venues: [
-          { name: 'The Pour House', city: 'Raleigh', state: 'NC' },
-        ],
-        artists: [
-          { name: 'Example Band', role: 'headliner', genre: 'Indie Rock' },
+        venue: expect.objectContaining({
+          name: 'The Pour House',
+          city: 'Raleigh',
+          region: 'NC',
+        }),
+        lineup: [
+          expect.objectContaining({
+            performanceRole: 'headliner',
+            band: expect.objectContaining({ name: 'Example Band' }),
+          }),
         ],
       }),
     );
-    expect(result.data[0]).not.toHaveProperty('venue');
-    expect(result.data[0]).not.toHaveProperty('lineup');
+    expect(result.data[0]).not.toHaveProperty('venues');
+    expect(result.data[0]).not.toHaveProperty('artists');
   });
 
   it('uses a null user parameter for anonymous shared-feed requests', async () => {
