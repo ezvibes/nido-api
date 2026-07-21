@@ -67,7 +67,20 @@ describe('ConcertService', () => {
     const concert = {
       id: 'concert-1',
       title: 'Show',
+      genre: 'Rock',
       startsAt: new Date('2026-06-01T00:00:00.000Z'),
+      venue: {
+        name: 'The Pour House',
+        city: 'Raleigh',
+        region: 'NC',
+      },
+      lineup: [
+        {
+          performanceOrder: 0,
+          performanceRole: 'headliner',
+          band: { name: 'Example Band', genres: ['Indie Rock'] },
+        },
+      ],
     } as unknown as Concert;
     concertRepository.createQueryBuilder.mockReturnValue(qb);
     qb.getCount.mockResolvedValue(1);
@@ -89,12 +102,11 @@ describe('ConcertService', () => {
       pageSize: 20,
     });
 
-    expect(qb.leftJoin).toHaveBeenCalledWith(
-      'concert_upvotes',
-      'upvote',
-      'upvote.concert_id = concert.id',
-    );
+    expect(qb.leftJoin).not.toHaveBeenCalled();
+    expect(qb.addSelect).toHaveBeenCalledTimes(8);
+    expect(qb.groupBy).not.toHaveBeenCalled();
     expect(qb.orderBy).toHaveBeenCalledWith('trending_week_upvotes', 'DESC');
+    expect(qb.addOrderBy).toHaveBeenCalledWith('concert.id', 'ASC');
     expect(result.total).toBe(1);
     expect(result.data[0]).toEqual(
       expect.objectContaining({
@@ -102,8 +114,34 @@ describe('ConcertService', () => {
         upvoteCount: 4,
         upvotedByMe: true,
         trendingWeekUpvotes: 2,
+        venue: expect.objectContaining({
+          name: 'The Pour House',
+          city: 'Raleigh',
+          region: 'NC',
+        }),
+        lineup: [
+          expect.objectContaining({
+            performanceRole: 'headliner',
+            band: expect.objectContaining({ name: 'Example Band' }),
+          }),
+        ],
       }),
     );
+    expect(result.data[0]).not.toHaveProperty('venues');
+    expect(result.data[0]).not.toHaveProperty('artists');
+  });
+
+  it('uses a null user parameter for anonymous shared-feed requests', async () => {
+    const qb = createQueryBuilderMock();
+    concertRepository.createQueryBuilder.mockReturnValue(qb);
+    qb.getCount.mockResolvedValue(0);
+    qb.getRawAndEntities.mockResolvedValue({ entities: [], raw: [] });
+
+    await service.findAll({ sort: 'soonest', page: 1, pageSize: 20 });
+
+    expect(qb.setParameter).toHaveBeenCalledWith('currentUserId', null);
+    expect(qb.addSelect).toHaveBeenCalledTimes(8);
+    expect(qb.groupBy).not.toHaveBeenCalled();
   });
 
   it('creates a concert with empty engagement state', async () => {

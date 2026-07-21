@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -18,6 +19,7 @@ import { ConcertSyncJob } from './concert-sync-job.entity';
   'calendarId',
   'calendarEventId',
 ])
+@Index('IDX_concert_sync_events_concert_id', ['concert'])
 export class ConcertSyncEvent {
   @PrimaryGeneratedColumn('uuid')
   id: string;

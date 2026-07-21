@@ -45,12 +45,10 @@ export function useEventFilters(
           event.description ?? '',
           event.sourceLabel,
           ...event.displayTags,
-          ...event.artists.map((artist) => artist.name),
-          ...event.venues.flatMap((venue) => [
-            venue.name,
-            venue.city ?? '',
-            venue.state ?? '',
-          ]),
+          ...event.lineup.map((entry) => entry.band.name),
+          event.venue?.name ?? '',
+          event.venue?.city ?? '',
+          event.venue?.region ?? '',
         ]
           .join(' ')
           .toLowerCase();

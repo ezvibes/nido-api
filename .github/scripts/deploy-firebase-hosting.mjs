@@ -12,6 +12,7 @@ const {
   FIREBASE_HOSTING_DRY_RUN,
   FIREBASE_HOSTING_UPLOAD_CONCURRENCY,
   GITHUB_SHA = 'local',
+  GOOGLE_CLOUD_QUOTA_PROJECT,
 } = process.env;
 
 const dryRun = FIREBASE_HOSTING_DRY_RUN === 'true';
@@ -73,6 +74,9 @@ async function firebaseRequest(url, options = {}) {
       headers: {
         Authorization: `Bearer ${FIREBASE_ACCESS_TOKEN}`,
         'Content-Type': 'application/json',
+        ...(GOOGLE_CLOUD_QUOTA_PROJECT
+          ? { 'X-Goog-User-Project': GOOGLE_CLOUD_QUOTA_PROJECT }
+          : {}),
         ...(options.headers ?? {}),
       },
     })
@@ -239,6 +243,24 @@ async function buildManifest(files, publicDir) {
   return { manifest, uploads };
 }
 
+async function assertNoLocalApiUrls(files, publicDir) {
+  const forbiddenUrls = ['http://localhost:3001', 'http://127.0.0.1:3001'];
+  const offenders = [];
+
+  for (const filePath of files) {
+    const source = await readFile(path.join(publicDir, filePath));
+    if (forbiddenUrls.some((url) => source.includes(url))) {
+      offenders.push(filePath);
+    }
+  }
+
+  if (offenders.length > 0) {
+    throw new Error(
+      `Refusing to deploy a Firebase Hosting bundle containing local API URLs: ${offenders.join(', ')}`,
+    );
+  }
+}
+
 function chunk(items, size) {
   const chunks = [];
   for (let index = 0; index < items.length; index += size) {
@@ -283,6 +305,9 @@ async function uploadHashes(uploadUrl, requiredHashes, uploads) {
         headers: {
           Authorization: `Bearer ${FIREBASE_ACCESS_TOKEN}`,
           'Content-Type': 'application/octet-stream',
+          ...(GOOGLE_CLOUD_QUOTA_PROJECT
+            ? { 'X-Goog-User-Project': GOOGLE_CLOUD_QUOTA_PROJECT }
+            : {}),
         },
         body: upload.gzipped,
       })
@@ -320,6 +345,7 @@ async function main() {
     console.log(`Applied ${ignore.length} firebase.json ignore pattern(s).`);
   }
 
+  await assertNoLocalApiUrls(files, publicDir);
   const { manifest, uploads } = await buildManifest(files, publicDir);
   console.log(`Prepared ${Object.keys(manifest).length} Hosting manifest entrie(s).`);
 
