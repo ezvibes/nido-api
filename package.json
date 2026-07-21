@@ -32,25 +32,24 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@google-cloud/storage": "^7.19.0",
-    "@nestjs/common": "^11.0.1",
+    "@google-cloud/storage": "^7.21.0",
+    "@nestjs/common": "^11.1.28",
     "@nestjs/config": "^4.0.2",
-    "@nestjs/core": "^11.0.1",
-    "@nestjs/platform-express": "^11.0.1",
-    "@nestjs/swagger": "^11.4.2",
+    "@nestjs/core": "^11.1.28",
+    "@nestjs/platform-express": "^11.1.28",
+    "@nestjs/swagger": "^11.4.6",
     "@nestjs/typeorm": "^11.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
-    "firebase": "^12.8.0",
-    "firebase-admin": "^13.6.0",
-    "multer": "^2.1.1",
+    "firebase-admin": "^13.10.0",
+    "multer": "^2.2.0",
     "pg": "^8.17.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.1",
-    "typeorm": "^0.3.28"
+    "typeorm": "^0.3.31"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -78,6 +77,12 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
+  },
+  "overrides": {
+    "gaxios": "7.1.3",
+    "retry-request": "8.0.3",
+    "teeny-request": "10.1.3",
+    "uuid": "11.1.1"
   },
   "jest": {
     "moduleFileExtensions": [
