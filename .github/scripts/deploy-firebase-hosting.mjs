@@ -243,6 +243,24 @@ async function buildManifest(files, publicDir) {
   return { manifest, uploads };
 }
 
+async function assertNoLocalApiUrls(files, publicDir) {
+  const forbiddenUrls = ['http://localhost:3001', 'http://127.0.0.1:3001'];
+  const offenders = [];
+
+  for (const filePath of files) {
+    const source = await readFile(path.join(publicDir, filePath));
+    if (forbiddenUrls.some((url) => source.includes(url))) {
+      offenders.push(filePath);
+    }
+  }
+
+  if (offenders.length > 0) {
+    throw new Error(
+      `Refusing to deploy a Firebase Hosting bundle containing local API URLs: ${offenders.join(', ')}`,
+    );
+  }
+}
+
 function chunk(items, size) {
   const chunks = [];
   for (let index = 0; index < items.length; index += size) {
@@ -327,6 +345,7 @@ async function main() {
     console.log(`Applied ${ignore.length} firebase.json ignore pattern(s).`);
   }
 
+  await assertNoLocalApiUrls(files, publicDir);
   const { manifest, uploads } = await buildManifest(files, publicDir);
   console.log(`Prepared ${Object.keys(manifest).length} Hosting manifest entrie(s).`);
 
