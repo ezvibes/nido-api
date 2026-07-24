@@ -12,9 +12,9 @@
           <span class="genre-chip">{{ concert.genre }}</span>
         </div>
         <p class="concert-meta">{{ formatDate(concert.startsAt) }}</p>
-        <p class="concert-meta">{{ formatVenue(concert.venues) }}</p>
-        <p v-if="concert.artists.length" class="concert-meta">
-          {{ formatArtists(concert.artists) }}
+        <p class="concert-meta">{{ formatVenue(concert.venue) }}</p>
+        <p v-if="concert.lineup.length" class="concert-meta">
+          {{ formatLineup(concert.lineup) }}
         </p>
         <p v-if="concert.description" class="concert-description">{{ concert.description }}</p>
       </article>
@@ -30,34 +30,15 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useAuth } from '../composables/useAuth';
 import { fetchUserConcerts } from '../composables/useApi';
-
-interface ConcertVenue {
-  name: string;
-  city?: string;
-  state?: string;
-  country?: string;
-}
-
-interface ConcertArtist {
-  name: string;
-  role?: string;
-  genre?: string;
-}
-
-interface ConcertItem {
-  id: string;
-  title: string;
-  genre: string;
-  startsAt: string;
-  endsAt?: string | null;
-  venues: ConcertVenue[];
-  artists: ConcertArtist[];
-  description?: string | null;
-}
+import type {
+  ConcertApiItem,
+  EventLineupEntry,
+  EventVenue,
+} from '../types/events';
 
 const { user } = useAuth();
 
-const concerts = ref<ConcertItem[]>([]);
+const concerts = ref<ConcertApiItem[]>([]);
 const loading = ref(false);
 const error = ref('');
 
@@ -92,18 +73,17 @@ const formatDate = (value: string) =>
     minute: '2-digit',
   }).format(new Date(value));
 
-const formatVenue = (venues: ConcertVenue[]) => {
-  const primaryVenue = venues[0];
-  if (!primaryVenue) {
+const formatVenue = (venue?: EventVenue | null) => {
+  if (!venue) {
     return 'Venue TBD';
   }
 
-  const location = [primaryVenue.city, primaryVenue.state].filter(Boolean).join(', ');
-  return location ? `${primaryVenue.name} • ${location}` : primaryVenue.name;
+  const location = [venue.city, venue.region].filter(Boolean).join(', ');
+  return location ? `${venue.name} • ${location}` : venue.name;
 };
 
-const formatArtists = (artists: ConcertArtist[]) =>
-  artists.slice(0, 3).map((artist) => artist.name).join(', ');
+const formatLineup = (lineup: EventLineupEntry[]) =>
+  lineup.slice(0, 3).map((entry) => entry.band.name).join(', ');
 
 const handleConcertsChanged = () => {
   void loadConcerts();

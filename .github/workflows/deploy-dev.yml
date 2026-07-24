@@ -38,7 +38,7 @@ jobs:
       VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
       VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
       VITE_ADMIN_EMAILS: ${{ vars.VITE_ADMIN_EMAILS }}
-      ADMIN_EMAILS_OVERRIDE: ${{ vars.ADMIN_EMAILS }}
+      DEV_SMOKE_FIREBASE_REFRESH_TOKEN: ${{ secrets.DEV_SMOKE_FIREBASE_REFRESH_TOKEN }}
 
     steps:
       - name: Check out repository
@@ -263,6 +263,20 @@ jobs:
           curl -fsS --retry 5 --retry-delay 5 "$API_URL/health"
           curl -fsS --retry 5 --retry-delay 5 "$API_URL/health/deep"
           curl -fsS --retry 5 --retry-delay 5 "$API_URL/api-docs-json" >/dev/null
+
+      - name: Verify authenticated concerts feed
+        if: env.DEV_SMOKE_FIREBASE_REFRESH_TOKEN != ''
+        env:
+          FIREBASE_API_KEY: ${{ env.VITE_FIREBASE_API_KEY }}
+          FIREBASE_REFRESH_TOKEN: ${{ env.DEV_SMOKE_FIREBASE_REFRESH_TOKEN }}
+          SMOKE_CONCERTS: 'true'
+          SMOKE_DEEP: 'true'
+          SMOKE_MODE: dev
+        run: API_BASE_URL="$API_URL" node scripts/smoke-test-api.mjs
+
+      - name: Report skipped authenticated concerts smoke test
+        if: env.DEV_SMOKE_FIREBASE_REFRESH_TOKEN == ''
+        run: echo "Authenticated concerts smoke test skipped because DEV_SMOKE_FIREBASE_REFRESH_TOKEN is not configured."
 
       - name: Deploy Firebase Hosting
         run: |
