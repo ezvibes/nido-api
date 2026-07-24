@@ -1,206 +1,240 @@
-# Nido API & Client
+# EZ Vibes Nido API & Client
 
-This repository contains the full-stack application for Nido, which includes a NestJS backend API and a Vue.js frontend client.
+EZ Vibes Nido is a full-stack concert intelligence platform for live music discovery, curation, and admin operations. The app helps EZ Vibes members collect show information, review uploaded flyers, sync concert data, and publish structured concert records for fans and future partner workflows.
 
-## Project Structure
+This is a public repository. Contributions are welcome through focused GitHub issues and pull requests. Evan Bonertz, creator and founder of EZ Vibes, is the project owner and final reviewer for product direction, roadmap fit, and merge decisions.
 
-The project is organized into two main parts:
+## What This App Does
 
-- `src/`: The NestJS backend API. This handles business logic, database interactions, and authentication.
-- `client/`: The Vue.js frontend application. This is the user-facing interface that consumes the Nido API.
+- Provides a shared concert discovery feed backed by the `Concert` domain.
+- Supports relational `Venue` and `Band` data for location and lineup context.
+- Lets authenticated users create and engage with concerts.
+- Lets users upload concert flyers/images for ingestion review.
+- Gives EZ Vibes admins a review tool for approving, rejecting, previewing, and publishing uploaded flyers.
+- Supports calendar sync workflows that normalize external source data into concert records.
+- Uses Firebase Auth for user identity and admin access checks.
 
----
+The product language may say "events" in the UI, but the active API/domain model is `Concert`, supported by `Venue`, `Band`, ingestion uploads, and sync jobs.
+
+## Tech Stack
+
+- Backend: NestJS, TypeScript, TypeORM, PostgreSQL
+- Frontend: Vue 3, TypeScript, Vite
+- Auth: Firebase Auth and Firebase Admin SDK
+- Storage: Google Cloud Storage for ingestion uploads
+- Deployment target: Cloud Run API and Firebase Hosting
+- API docs: Swagger/OpenAPI
+
+## Repository Structure
+
+```text
+src/                  NestJS API source
+client/               Vue/Vite frontend
+scripts/              Local smoke and utility scripts
+test/                 E2E test setup
+.github/              GitHub Actions and deployment docs
+docker-compose.yml    Local PostgreSQL development database
+DEPLOYMENT.md         Public deployment overview
+CONTRIBUTING.md       Contributor workflow and standards
+```
+
+Local planning notes under `src/docs/` are intentionally ignored and should not be required for public contributors.
 
 ## Getting Started
 
-Follow these steps to get the complete development environment up and running.
+### Prerequisites
 
-### 1. Start the Backend API
+- Node.js compatible with the project lockfiles.
+- npm.
+- Docker, if using the local PostgreSQL path.
+- Firebase project credentials if testing authenticated flows.
+- Google Cloud credentials only if testing GCS ingestion, Cloud SQL, calendar sync, or deployed infrastructure.
 
-First, set up and run the NestJS server.
-
-#### **Prerequisites**
-
-- A PostgreSQL database. You can use either a local Docker container or connect to the Dev Cloud SQL database via the Auth Proxy:
-
-  **Option A: Local Docker PostgreSQL**
-  ```bash
-  docker-compose up -d
-  ```
-  Ensure your `.env` has:
-  ```env
-  DB_HOST=localhost
-  DB_PORT=5432
-  DB_USER=user
-  DB_PASSWORD=password
-  DB_NAME=nido
-  DB_SYNCHRONIZE=true
-  ```
-
-  **Option B: Dev Cloud SQL (PostgreSQL) via Auth Proxy**
-  1. Authenticate with Google Cloud Application Default Credentials (ADC):
-     ```bash
-     gcloud auth application-default login
-     ```
-     *(Make sure to check the box for the `cloud-platform` scope during the browser authorization).*
-  2. Start the proxy locally:
-     ```bash
-     cloud-sql-proxy nido-api-9ed65:us-east1:nido-postgres-dev --port 5433
-     ```
-  3. Ensure your `.env` has:
-     ```env
-     DB_HOST=localhost
-     DB_PORT=5433
-     DB_USER=nido_api
-     DB_PASSWORD=nico2015
-     DB_NAME=nido
-     DB_SYNCHRONIZE=true
-     ```
-
-#### **Installation & Execution**
+### 1. Install Dependencies
 
 ```bash
-# Install backend dependencies
-$ npm install
-
-# Run the API in development mode
-$ npm run start:dev
+npm install
+npm install --prefix client
 ```
 
-The API will be running at `http://localhost:3001`.
+### 2. Configure Environment
 
-### 2. Start the Frontend Client
-
-In a separate terminal, set up and run the Vue.js client.
+Create local env files from the examples:
 
 ```bash
-# Navigate to the client directory
-$ cd client
-
-# Install frontend dependencies
-$ npm install
-
-# Run the client in development mode
-$ npm run dev
+cp .env.example .env
+cp client/.env.example client/.env
 ```
 
-The frontend will be available at `http://localhost:5173`.
+Do not commit `.env`, service account JSON files, private keys, database passwords, Firebase tokens, or Google access tokens.
 
----
+For the simplest local backend path, use Docker PostgreSQL:
 
-## Configuration
+```bash
+docker-compose up -d
+```
 
-### Swagger API Docs
+Then keep the database section of `.env` aligned with `docker-compose.yml`.
 
-Interactive API documentation is available after the API starts:
+### 3. Run Database Migrations Or Local Synchronize
 
+For quick local iteration, `.env.example` defaults to `DB_SYNCHRONIZE=true`.
+
+For migration-backed work, set `DB_SYNCHRONIZE=false` and run:
+
+```bash
+npm run migration:run
+```
+
+Use migration-backed changes for PRs that alter schema.
+
+### 4. Start The App
+
+Run API and client separately:
+
+```bash
+npm run start:dev
+npm run dev --prefix client
+```
+
+Or run both from the root:
+
+```bash
+npm run dev
+```
+
+Local URLs:
+
+- API: `http://localhost:3001`
+- Client: `http://localhost:5173`
 - Swagger UI: `http://localhost:3001/api-docs`
 - OpenAPI JSON: `http://localhost:3001/api-docs-json`
 
-Use the Swagger Authorize button with a Firebase bearer token to test protected endpoints.
+## Core API Areas
 
-### CORS
+### Concerts
 
-The backend is configured to accept cross-origin requests only from the frontend client. This is defined in `src/main.ts`. Any changes to the client's address (`http://localhost:5173`) must be reflected there.
+`/concerts` is the current shared discovery feed and primary API surface for displayed shows.
 
-### Image Ingestion (GCS)
+Common endpoints:
 
-`POST /ingestion/uploads` accepts a multipart upload and stores it in Google Cloud Storage (GCS).
+- `GET /concerts`
+- `GET /concerts/:id`
+- `POST /concerts`
+- `PATCH /concerts/:id`
+- `DELETE /concerts/:id`
+- `POST /concerts/:id/upvote`
+- `DELETE /concerts/:id/upvote`
 
-Required env:
+### Venues And Bands
 
-- `GCS_INGESTION_BUCKET` (bucket name)
-- Credentials (choose one):
-  - Application Default Credentials (recommended): set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json`
-  - Or set `GCP_SERVICE_ACCOUNT_PATH=/path/to/service-account.json`
-  - Or set `GCP_SERVICE_ACCOUNT_JSON='{"project_id":"...","client_email":"...","private_key":"..."}'`
-  - Or set `GCP_PROJECT_ID`, `GCP_CLIENT_EMAIL`, `GCP_PRIVATE_KEY` (single-line key with `\n`)
+Venues and bands provide relational context for concerts.
+
+Common endpoints:
+
+- `GET /venues`
+- `GET /venues/:id`
+- `GET /bands`
+- `GET /bands/:id`
+- `GET /bands/:slug/slug`
+
+Admin-only create/update/delete routes exist for venue and band management.
+
+### Ingestion Uploads
+
+`POST /ingestion/uploads` accepts a multipart image upload and stores it in Google Cloud Storage when GCS is configured.
+
+User-scoped ingestion endpoints require Firebase auth. Admin review endpoints require Firebase auth plus an admin email allowlist.
 
 ### Admin Review
 
-Admin-only endpoints are under `/admin/ingestion/*` (list uploads, preview images, and set review status/notes). When an upload is approved with concert title and start time, the API publishes or updates a linked concert in the shared `/events` feed. The public Events page only lists future concerts.
+EZ Vibes admins can review uploaded flyers through `/admin/ingestion/*`.
 
-- Backend allowlist: set `ADMIN_EMAILS` (comma-separated emails) in `.env`
-- Client menu allowlist: set `VITE_ADMIN_EMAILS` (comma-separated emails) in `client/.env`
-- Admin onboarding and validation guide: `src/docs/ADMIN_INGESTION_REVIEW_ONBOARDING.md`
+Current admin capabilities:
 
-### Concert Calendar Sync Agent
+- List uploaded concert images.
+- Filter by review status.
+- Preview uploaded images.
+- Approve, reject, resubmit, or mark uploads as past.
+- Publish approved uploads into linked `Concert` records when required fields are provided.
 
-The API now includes a sync agent under `/concert-sync/*` that can:
+Admin allowlist values are controlled by `ADMIN_EMAILS` for the API and `VITE_ADMIN_EMAILS` for the client.
 
-- Pull Google Calendar events for a user and date range
-- Use Gemini to normalize event metadata into clean concert records
-- Upsert concert data with event-level fingerprinting for idempotent sync runs
-- Refresh Top Picks rankings after sync jobs
-- Preserve low-confidence extraction warnings for review
-- Keep Top Picks limited to admin-approved concerts only
+### Concert Sync
 
-Required env for AI enrichment:
-
-- `GEMINI_API_KEY`
-- Optional `GEMINI_MODEL` (defaults to `gemini-2.5-flash`)
-- Optional `CONCERT_SYNC_GEMINI_ENABLED=true` enables paid Gemini calls. Keep it `false` to use deterministic fallback extraction.
-- Optional extraction policy controls:
-  - `CONCERT_SYNC_ALLOWED_GENRES`
-  - `CONCERT_SYNC_MIN_CONFIDENCE`
-  - `CONCERT_SYNC_REQUIRE_VENUE`
-  - `CONCERT_SYNC_REQUIRE_ARTIST`
-  - `CONCERT_SYNC_MAX_DESCRIPTION_LENGTH`
-  - `CONCERT_SYNC_MAX_EVENTS_PER_JOB` (defaults to 25, max 100)
-
-Required env for live Google Calendar sync:
-
-- Recommended deployed setup: create a Google service account, share the source calendar with the service account email, and grant `See all event details`.
-- Then configure one of:
-  - `GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON='{"client_email":"...","private_key":"..."}'`
-  - Or `GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL` and `GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY` (single-line key with `\n`)
-- Local/manual fallback: `GOOGLE_CALENDAR_ACCESS_TOKEN` or request-level `googleAccessToken`, but these are short-lived and not recommended for deployed demos.
-
-Important security behavior:
-
-- Service-account credentials stay server-side; the Sync Doctor UI does not collect or transmit Google credentials.
-- `googleAccessToken` is still accepted for Swagger/manual testing and is not persisted to the database.
-- Sync job records store operational metadata only (counts/status/extraction warnings).
-- Gemini prompt payload is sanitized before transmission (attendees/organizer omitted, emails/phones/URLs redacted).
-- Sync jobs record whether extraction used Gemini or fallback heuristics, including quota/billing fallback reasons.
-- `POST /concert-sync/jobs` supports `dryRun=true` to load and sanitize source events without calling Gemini or writing concerts.
+`/concert-sync/*` supports calendar sync and concert normalization workflows. Gemini enrichment is optional and disabled by default for local/dev safety unless `CONCERT_SYNC_GEMINI_ENABLED=true` is set.
 
 Core endpoints:
 
-- `POST /concert-sync/jobs` starts a sync job
-- `GET /concert-sync/jobs` lists sync jobs
-- `GET /concert-sync/jobs/:id` gets a sync job with recent mapped events
+- `POST /concert-sync/jobs`
+- `GET /concert-sync/jobs`
+- `GET /concert-sync/jobs/:id`
 
-Concert approval gate:
+## Development Commands
 
-- Only concerts with `isAdminApproved=true` are eligible for Top Picks scoring.
-- Admin approval endpoint: `PUT /admin/concerts/:id/approval` with body `{ "approved": true | false }`.
-- Doctor S workflow and QA scenarios: `src/docs/DOCTOR_S_INGESTION_SYNC_PIPELINE.md`
+```bash
+npm run start:dev              # API only
+npm run dev --prefix client    # Client only
+npm run dev                    # API and client together
+npm test                       # Backend tests
+npm test -- --runInBand concerts
+npm test -- --runInBand ingestion
+npm run build                  # API build
+npm run build --prefix client  # Client build
+npm run smoke:local            # Local smoke test against running API
+```
 
-Sample-job mode:
+## Contributing
 
-- `POST /concert-sync/jobs` can accept `sampleEvents` for local/test runs without live Google API calls.
-- Production source of truth remains Google Calendar for now, but the sync service already isolates event-source loading (`loadSourceEvents`) so a future ingestion-pipeline source can be added without rewriting extraction/upsert logic.
+This repo is public so other developers can pick up scoped issues and contribute. Start with issues labeled `good first issue` or `Starter`. A clean GitHub issue template is available for focused tasks, improvements, and bug reports.
 
-## User Signup Flow
+Basic workflow:
 
-The user authentication and data synchronization are handled via Firebase and a dedicated endpoint in this API.
+```bash
+git fetch origin
+git checkout main
+git pull --ff-only origin main
+git checkout -b <type>/<short-issue-slug>
+```
 
-### Flow:
+Use a clear branch prefix such as `feature/`, `fix/`, `docs/`, or `chore/`. `codex/` is optional for branches created by Codex, but it is not required for human contributors.
 
-1.  **Client-Side Authentication**: A user signs up or logs in on the client application using Firebase Authentication.
-2.  **ID Token**: Upon successful authentication, the client receives a Firebase ID token.
-3.  **API Sync**: The client sends a `POST` request to the `/users/sync` endpoint of this API.
+Keep PRs focused on one issue. Avoid unrelated refactors, generated noise, or environment-file changes.
 
-### `POST /users/sync`
+Before opening a PR:
 
-This endpoint is responsible for creating a new user in the database or retrieving an existing one.
+- Run focused tests for the area you changed.
+- Run `npm run build`.
+- Run `npm run build --prefix client` if client code changed.
+- Update Swagger DTOs/docs when API contracts change.
+- Include a clear PR description with summary, testing, risk, and follow-ups.
 
-It requires a valid Firebase ID Token in the `Authorization` header:
-`Authorization: Bearer <FIREBASE_ID_TOKEN>`
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the first-draft contributor process.
 
-The user details (uid, email, picture) are extracted directly from the token.
+## Deployment
+
+The project uses GitHub Actions, Google Workload Identity Federation, Cloud Run, Cloud SQL, Secret Manager, Google Cloud Storage, and Firebase Hosting.
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the public deployment overview and `.github/DEPLOYMENT_SETUP.md` for the detailed operations runbook.
+
+## Security And Secrets
+
+Never commit:
+
+- `.env` or `.env.*`
+- Firebase private keys
+- Google service account JSON files
+- Database passwords
+- Access tokens
+- API keys
+- Local exported credentials
+
+Use `.env.example` and `client/.env.example` as templates. Real values should live only in local env files, GitHub repository secrets, Google Secret Manager, or another approved secret store.
+
+## Project Ownership
+
+EZ Vibes Nido is owned and led by Evan Bonertz, creator and founder of EZ Vibes. Technical contributions are welcome, but roadmap direction, product positioning, admin access, deployments, and merge decisions remain owner-reviewed.
 
 ## License
 
-This project is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+License terms are not finalized yet. The package currently remains marked as `UNLICENSED`; contributors should assume code is accepted only through reviewed pull requests until a formal license is added.

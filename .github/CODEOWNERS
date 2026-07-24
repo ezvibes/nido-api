@@ -1,0 +1,4 @@
+# Evan Bonertz, creator and founder of EZ Vibes, is the default code owner.
+# GitHub branch protection must enable "Require review from Code Owners" for
+# this file to enforce approval before merges to main.
+* @ezvibes

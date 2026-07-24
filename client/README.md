@@ -1,5 +1,38 @@
-# Vue 3 + TypeScript + Vite
+# EZ Vibes Nido Client
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+This is the Vue 3 + TypeScript + Vite frontend for EZ Vibes Nido.
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+The client supports the concert discovery experience, Firebase authentication, ingestion upload UI, and admin review tooling for EZ Vibes members.
+
+## Local Development
+
+From the repository root:
+
+```bash
+npm install --prefix client
+cp client/.env.example client/.env
+npm run dev --prefix client
+```
+
+The local client runs at:
+
+```text
+http://localhost:5173
+```
+
+## Environment
+
+Client env values are public browser configuration. Do not place private keys or service account credentials in `client/.env`.
+
+Common values:
+
+```env
+VITE_API_BASE_URL=http://localhost:3001
+VITE_ADMIN_EMAILS=admin@example.com
+```
+
+## Validation
+
+```bash
+npm run build --prefix client
+```

@@ -228,9 +228,9 @@ Open production gaps:
 - Production CORS must not include `http://localhost:5173`.
 
 Admin ingestion approval currently publishes approved, future-dated flyer uploads
-into the shared `/events` discovery feed. The frontend events page requests
-`/concerts` with `startsAfter=<current time>`, so approved uploads whose event date
-is in the past will not appear in the public events list.
+into the shared concert discovery feed. The frontend requests `/concerts` with
+`startsAfter=<current time>`, so approved uploads whose concert date is in the
+past will not appear in the public concert list.
 
 ## Pipeline Sequence
 
@@ -459,7 +459,7 @@ DB_MIGRATIONS_RUN=false
 DB_MIGRATION_TRANSACTION_MODE=all
 FIREBASE_PROJECT_ID=nido-api-9ed65
 FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@nido-api-9ed65.iam.gserviceaccount.com
-ADMIN_EMAILS=ezvibesinc@gmail.com
+ADMIN_EMAILS=<set-by-github-variable>
 GCS_INGESTION_BUCKET=nido-concert-image-ingestion-dev
 GEMINI_MODEL=gemini-2.5-flash
 CONCERT_SYNC_GEMINI_ENABLED=false
@@ -717,29 +717,26 @@ Dry run complete. No Firebase Hosting version was created.
 
 ## GitHub Repository Variables
 
-Use GitHub repository variables for browser-visible build configuration.
+Use GitHub `dev` Environment variables for values that should be configurable
+without changing tracked deploy files. Non-secret Firebase web identifiers live
+in `.github/deploy/environments/dev.env`.
 
 Required:
 
 ```text
 VITE_FIREBASE_API_KEY
-VITE_FIREBASE_AUTH_DOMAIN
-VITE_FIREBASE_PROJECT_ID
-VITE_FIREBASE_STORAGE_BUCKET
-VITE_FIREBASE_MESSAGING_SENDER_ID
-VITE_FIREBASE_APP_ID
 VITE_ADMIN_EMAILS
+ADMIN_EMAILS
 ```
 
 Recommended optional:
 
 ```text
-VITE_API_BASE_URL
 CORS_ORIGINS
 ```
 
-If `VITE_API_BASE_URL` is omitted, the workflow resolves the deployed Cloud Run URL and
-sets it before the client build.
+If `VITE_API_BASE_URL` is blank in `.github/deploy/environments/dev.env`, the
+workflow resolves the deployed Cloud Run URL and sets it before the client build.
 
 Default CORS origins:
 
@@ -750,26 +747,21 @@ https://nido-api-9ed65.web.app,https://nido-api-9ed65.firebaseapp.com,http://loc
 Set variables with GitHub CLI:
 
 ```bash
-gh variable set VITE_API_BASE_URL --body "https://nido-api-81555493719.us-east1.run.app"
-gh variable set CORS_ORIGINS --body "https://nido-api-9ed65.web.app,https://nido-api-9ed65.firebaseapp.com,http://localhost:5173"
-gh variable set VITE_ADMIN_EMAILS --body "ezvibesinc@gmail.com"
-gh variable set VITE_FIREBASE_AUTH_DOMAIN --body "nido-api-9ed65.firebaseapp.com"
-gh variable set VITE_FIREBASE_PROJECT_ID --body "nido-api-9ed65"
-gh variable set VITE_FIREBASE_STORAGE_BUCKET --body "nido-api-9ed65.appspot.com"
+gh variable set CORS_ORIGINS --env dev --body "https://nido-api-9ed65.web.app,https://nido-api-9ed65.firebaseapp.com,http://localhost:5173"
+gh variable set ADMIN_EMAILS --env dev --body "admin@example.com"
+gh variable set VITE_ADMIN_EMAILS --env dev --body "admin@example.com"
 ```
 
-Set these from the Firebase Web App config:
+Set this from the Firebase Web App config:
 
 ```bash
-gh variable set VITE_FIREBASE_API_KEY --body "<firebase-web-api-key>"
-gh variable set VITE_FIREBASE_MESSAGING_SENDER_ID --body "<firebase-messaging-sender-id>"
-gh variable set VITE_FIREBASE_APP_ID --body "<firebase-web-app-id>"
+gh variable set VITE_FIREBASE_API_KEY --env dev --body "<firebase-web-api-key>"
 ```
 
 GitHub UI path:
 
 ```text
-Settings -> Secrets and variables -> Actions -> Variables
+Settings -> Environments -> dev -> Environment variables
 ```
 
 Do not put private keys, database passwords, Firebase Admin credentials, or Gemini keys
@@ -854,14 +846,14 @@ Admin approval smoke test:
 
 1. Sign in to `https://nido-api-9ed65.web.app` as an email listed in both
    `ADMIN_EMAILS` and `VITE_ADMIN_EMAILS`.
-2. Upload a flyer through the public Events intake.
+2. Upload a flyer through the public concert intake.
 3. Open `/admin/ingestion/uploads`.
 4. Select the uploaded flyer, choose `Approve`, and fill a future date/time.
 5. Click `Approve and publish`.
 6. Confirm the modal closes and the row reloads with approved status.
-7. Open `/events` and confirm the approved future show appears in the public list.
-8. If the show does not appear, verify the event date is future-dated because the
-   Events page filters with `startsAfter=<current time>`.
+7. Open the concert list and confirm the approved future show appears.
+8. If the show does not appear, verify the concert date is future-dated because the
+   client filters with `startsAfter=<current time>`.
 
 ## Troubleshooting
 

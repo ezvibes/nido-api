@@ -1,0 +1,31 @@
+name: PR Hygiene
+
+on:
+  pull_request:
+
+concurrency:
+  group: pr-hygiene-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    name: Public repo hygiene
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Block committed local secrets
+        run: |
+          forbidden_files="$(git ls-files | grep -E '(^|/)\.env($|\.(local|development|production|test|staging|dev|prod)(\.local)?$)|firebase-creds\.json$|nido-api-.*\.json$' || true)"
+          if [ -n "$forbidden_files" ]; then
+            echo "Forbidden local secret/config files are tracked:" >&2
+            echo "$forbidden_files" >&2
+            exit 1
+          fi
+
+      - name: Check whitespace
+        run: git diff --check origin/${{ github.base_ref }}...HEAD
