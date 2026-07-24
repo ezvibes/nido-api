@@ -20,7 +20,7 @@ jobs:
 
       - name: Block committed local secrets
         run: |
-          forbidden_files="$(git ls-files | grep -E '(^|/)\.env($|\.)|firebase-creds\.json$|nido-api-.*\.json$' || true)"
+          forbidden_files="$(git ls-files | grep -E '(^|/)\.env($|\.(local|development|production|test|staging|dev|prod)(\.local)?$)|firebase-creds\.json$|nido-api-.*\.json$' || true)"
           if [ -n "$forbidden_files" ]; then
             echo "Forbidden local secret/config files are tracked:" >&2
             echo "$forbidden_files" >&2
