@@ -22,6 +22,8 @@ jobs:
   deploy:
     name: Build, deploy, and verify dev
     runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'dev' }}
 
     permissions:
       contents: read

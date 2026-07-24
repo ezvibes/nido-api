@@ -28,6 +28,8 @@ jobs:
   validate:
     name: Validate deploy build path
     runs-on: ubuntu-latest
+    environment:
+      name: dev
 
     env:
       FIREBASE_HOSTING_DRY_RUN: true
