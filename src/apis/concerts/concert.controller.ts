@@ -23,6 +23,7 @@ import {
 } from '@nestjs/common';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { FirebaseAuthGuard } from '../../auth/firebase-auth/firebase-auth.guard';
+import { OptionalFirebaseAuthGuard } from '../../auth/firebase-auth/optional-firebase-auth.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { ConcertService } from './concert.service';
 import { CreateConcertDto } from './dto/create-concert.dto';
@@ -36,9 +37,7 @@ import {
 } from './dto/concert-response.dto';
 
 @Controller('concerts')
-@UseGuards(FirebaseAuthGuard)
 @ApiTags('Concerts')
-@ApiBearerAuth()
 export class ConcertController {
   constructor(
     private readonly concertService: ConcertService,
@@ -50,10 +49,11 @@ export class ConcertController {
   }
 
   @Get()
+  @UseGuards(OptionalFirebaseAuthGuard)
   @ApiOperation({
     summary: 'List concerts for the shared discovery feed',
     description:
-      'Returns paginated upcoming concert records for the shared /events discovery feed. Results include concerts created manually, published from approved uploads, or produced by calendar sync across all users. Engagement state such as upvotedByMe is scoped to the signed-in user. Example: GET /concerts?sort=soonest&startsAfter=2026-07-03T19:04:08.267Z&pageSize=100.',
+      'Returns paginated upcoming concert records for the shared /concerts discovery feed. Authentication is optional; signed-in listeners also receive their upvotedByMe state. Results include concerts created manually, published from approved uploads, or produced by calendar sync across all users. Example: GET /concerts?sort=soonest&startsAfter=2026-07-03T19:04:08.267Z&pageSize=100.',
   })
   @ApiQuery({ name: 'q', required: false, example: 'doctor s' })
   @ApiQuery({ name: 'genre', required: false, example: 'Electronic' })
@@ -77,14 +77,18 @@ export class ConcertController {
   @ApiQuery({ name: 'pageSize', required: false, example: 20 })
   @ApiOkResponse({ type: ConcertListResponseDto })
   async listConcerts(
-    @CurrentUser() user: DecodedIdToken,
+    @CurrentUser() user: DecodedIdToken | undefined,
     @Query() query: ListConcertsDto,
   ) {
-    const currentUser = await this.ensureOwner(user);
-    return this.concertService.findAll(query, currentUser);
+    const currentUser = user
+      ? await this.userService.findExistingFromToken(user)
+      : null;
+    return this.concertService.findAll(query, currentUser ?? undefined);
   }
 
   @Get('mine')
+  @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'List concerts owned by the current user',
     description:
@@ -120,6 +124,8 @@ export class ConcertController {
   }
 
   @Post()
+  @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Create a concert manually',
     description:
@@ -136,6 +142,8 @@ export class ConcertController {
   }
 
   @Post(':id/upvote')
+  @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Upvote a concert for the current user' })
   @ApiParam({ name: 'id', description: 'Concert id', example: 'concert-uuid' })
   @ApiCreatedResponse({ type: ConcertEngagementResponseDto })
@@ -148,6 +156,8 @@ export class ConcertController {
   }
 
   @Delete(':id/upvote')
+  @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Remove the current user upvote from a concert' })
   @ApiParam({ name: 'id', description: 'Concert id', example: 'concert-uuid' })
   @ApiOkResponse({ type: ConcertEngagementResponseDto })
@@ -160,6 +170,8 @@ export class ConcertController {
   }
 
   @Get(':id')
+  @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get one concert by id' })
   @ApiParam({ name: 'id', description: 'Concert id', example: 'concert-uuid' })
   @ApiOkResponse({ type: ConcertResponseDto })
@@ -172,6 +184,8 @@ export class ConcertController {
   }
 
   @Patch(':id')
+  @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Update one concert by id' })
   @ApiParam({ name: 'id', description: 'Concert id', example: 'concert-uuid' })
   @ApiBody({ type: UpdateConcertDto })
@@ -186,6 +200,8 @@ export class ConcertController {
   }
 
   @Delete(':id')
+  @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth()
   @HttpCode(204)
   @ApiOperation({ summary: 'Delete one concert by id' })
   @ApiParam({ name: 'id', description: 'Concert id', example: 'concert-uuid' })

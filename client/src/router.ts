@@ -1,7 +1,7 @@
 // src/router.ts
 import { createRouter, createWebHistory } from 'vue-router';
 import { getAuth } from 'firebase/auth';
-import EventsPage from './pages/EventsPage.vue';
+import ConcertsPage from './pages/ConcertsPage.vue';
 import ConcertSyncPage from './pages/ConcertSyncPage.vue';
 import { routeLoading } from './stores/routeLoading';
 import HomePage from './views/HomePage.vue';
@@ -36,9 +36,18 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/concerts',
+    name: 'Concerts',
+    component: ConcertsPage,
+  },
+  {
     path: '/events',
-    name: 'Events',
-    component: EventsPage,
+    redirect: '/concerts',
+  },
+  {
+    path: '/my-concerts',
+    name: 'MyConcerts',
+    component: () => import('./components/MyConcerts.vue'),
     meta: { requiresAuth: true },
   },
   {
@@ -75,12 +84,12 @@ router.beforeEach((to, _from, next) => {
   const isAuthenticated = getAuth().currentUser;
 
   if (to.path === '/login' && isAuthenticated) {
-    next('/events');
+    next('/concerts');
     return;
   }
 
   if (to.path === '/' && isAuthenticated) {
-    next('/events');
+    next('/concerts');
     return;
   }
 
@@ -92,7 +101,7 @@ router.beforeEach((to, _from, next) => {
   if (requiresAdmin) {
     const email = getAuth().currentUser?.email;
     if (!isAdminEmail(email)) {
-      next('/events');
+      next('/concerts');
       return;
     }
   }

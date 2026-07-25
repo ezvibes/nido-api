@@ -1,5 +1,6 @@
 import { UserService } from './user.service';
 import { User } from './entities/user.entity';
+import { QueryFailedError } from 'typeorm';
 
 describe('UserService', () => {
   const authService = {
@@ -102,5 +103,81 @@ describe('UserService', () => {
       email: 'new@example.com',
       picture: undefined,
     });
+  });
+
+  it('returns the winning user when concurrent requests race to create it', async () => {
+    const winningUser = {
+      id: 9,
+      uid: 'new-user',
+      email: 'new@example.com',
+    } as User;
+    const uniqueConflict = new QueryFailedError('INSERT INTO "user"', [], {
+      code: '23505',
+    } as any);
+    const findOne = jest
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(winningUser);
+    const save = jest
+      .fn()
+      .mockRejectedValueOnce(uniqueConflict)
+      .mockResolvedValueOnce(winningUser);
+    const { service } = createService({ findOne, save });
+
+    await expect(
+      service.findOrCreate({
+        uid: 'new-user',
+        email: 'new@example.com',
+        picture: 'https://example.com/photo.jpg',
+      }),
+    ).resolves.toMatchObject({
+      id: 9,
+      uid: 'new-user',
+      email: 'new@example.com',
+      picture: 'https://example.com/photo.jpg',
+    });
+
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not hide non-unique database failures', async () => {
+    const databaseFailure = new QueryFailedError('INSERT INTO "user"', [], {
+      code: '08006',
+    } as any);
+    const { service } = createService({
+      findOne: jest.fn().mockResolvedValue(null),
+      save: jest.fn().mockRejectedValue(databaseFailure),
+    });
+
+    await expect(
+      service.findOrCreate({
+        uid: 'new-user',
+        email: 'new@example.com',
+        picture: undefined,
+      }),
+    ).rejects.toBe(databaseFailure);
+  });
+
+  it('looks up optional feed engagement without writing the user', async () => {
+    const existingUser = {
+      id: 3,
+      uid: 'firebase-user',
+      email: 'listener@example.com',
+    } as User;
+    authService.getUserProfileFromToken.mockReturnValue({
+      uid: 'firebase-user',
+      email: 'listener@example.com',
+    });
+    const { service, repository } = createService({
+      findOne: jest.fn().mockResolvedValueOnce(existingUser),
+    });
+
+    await expect(
+      service.findExistingFromToken({ uid: 'firebase-user' } as any),
+    ).resolves.toBe(existingUser);
+
+    expect(repository.create).not.toHaveBeenCalled();
+    expect(repository.save).not.toHaveBeenCalled();
   });
 });

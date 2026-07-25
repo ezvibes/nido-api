@@ -14,7 +14,7 @@ This is a public repository. Contributions are welcome through focused GitHub is
 - Supports calendar sync workflows that normalize external source data into concert records.
 - Uses Firebase Auth for user identity and admin access checks.
 
-The product language may say "events" in the UI, but the active API/domain model is `Concert`, supported by `Venue`, `Band`, ingestion uploads, and sync jobs.
+The product and API use `Concert` as the primary live-music record, supported by `Venue`, `Band`, ingestion uploads, and calendar sync jobs.
 
 ## Tech Stack
 

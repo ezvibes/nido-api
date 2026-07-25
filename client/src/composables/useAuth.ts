@@ -8,34 +8,26 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
-  type User
+  type User,
 } from 'firebase/auth';
-import { ref as storageRef, uploadBytes, getDownloadURL, } from 'firebase/storage';
+import {
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL,
+} from 'firebase/storage';
 import { googleProvider, storage } from '../firebase';
-import { syncUserToBackend, updateUserProfile as updateUserProfileApi } from './useApi';
+import {
+  syncUserToBackend,
+  updateUserProfile as updateUserProfileApi,
+} from './useApi';
 import router from '../router';
 
 // A reactive object to hold the user's state
-const user = ref<User | null>(null);
 const auth = getAuth();
+const user = ref<User | null>(auth.currentUser);
 
-// A flag to prevent duplicate sync calls
-let isSyncing = false;
-
-onAuthStateChanged(auth, async (firebaseUser) => {
+onAuthStateChanged(auth, (firebaseUser) => {
   user.value = firebaseUser;
-
-  if (firebaseUser && !isSyncing) {
-    isSyncing = true;
-    try {
-      const token = await firebaseUser.getIdToken();
-      await syncUserToBackend(token);
-    } catch (error) {
-      console.error('Failed to sync user on auth change:', error);
-    } finally {
-      isSyncing = false;
-    }
-  }
 });
 
 /**
@@ -45,18 +37,18 @@ export function useAuth() {
   const signInWithGoogle = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
-      await router.push('/events');
+      await router.push('/concerts');
     } catch (error) {
-      console.error("Error signing in with Google:", error);
+      console.error('Error signing in with Google:', error);
     }
   };
 
   const signUpWithEmail = async (email: string, password: string) => {
     try {
       await createUserWithEmailAndPassword(auth, email, password);
-      await router.push('/events');
+      await router.push('/concerts');
     } catch (error: any) {
-      console.error("Error signing up with email:", error);
+      console.error('Error signing up with email:', error);
       alert(`Error: ${error.message}`);
     }
   };
@@ -64,20 +56,20 @@ export function useAuth() {
   const signInWithEmail = async (email: string, password: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      await router.push('/events');
+      await router.push('/concerts');
     } catch (error: any) {
-      console.error("Error signing in with email:", error);
+      console.error('Error signing in with email:', error);
       alert(`Error: ${error.message}`);
     }
   };
-  
+
   const signOut = async () => {
     try {
       await firebaseSignOut(auth);
       // Redirect to home page after sign out
       router.push('/');
     } catch (error) {
-      console.error("Error signing out:", error);
+      console.error('Error signing out:', error);
     }
   };
 
@@ -122,7 +114,7 @@ export function useAuth() {
 
     const fileRef = storageRef(
       storage,
-      `profilePictures/${currentUser.uid}/${file.name}`
+      `profilePictures/${currentUser.uid}/${file.name}`,
     );
 
     try {

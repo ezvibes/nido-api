@@ -80,13 +80,17 @@ describe('IngestionService', () => {
         {
           provide: VenueService,
           useValue: {
-            findOrCreateByName: jest.fn().mockResolvedValue({ id: 'venue-uuid', name: 'Mock Venue' }),
+            findOrCreateByName: jest
+              .fn()
+              .mockResolvedValue({ id: 'venue-uuid', name: 'Mock Venue' }),
           },
         },
         {
           provide: BandService,
           useValue: {
-            findOrCreateManyByName: jest.fn().mockResolvedValue([{ id: 'band-uuid', name: 'Mock Band' }]),
+            findOrCreateManyByName: jest
+              .fn()
+              .mockResolvedValue([{ id: 'band-uuid', name: 'Mock Band' }]),
           },
         },
       ],
@@ -264,16 +268,15 @@ describe('IngestionService', () => {
         {
           status: reviewStatus,
           notes: 'reviewed',
-          concertTitle:
-            reviewStatus === 'approved' ? 'Poster Show' : undefined,
+          concertTitle: reviewStatus === 'approved' ? 'Poster Show' : undefined,
           concertStartsAt:
             reviewStatus === 'approved'
               ? '2026-07-10T23:00:00.000Z'
               : undefined,
           concertVenueName:
             reviewStatus === 'approved' ? 'The Venue' : undefined,
-          concertArtistName:
-            reviewStatus === 'approved' ? 'Poster Artist' : undefined,
+          concertBandName:
+            reviewStatus === 'approved' ? 'Poster Band' : undefined,
         },
         7,
       );
@@ -359,13 +362,17 @@ describe('IngestionService', () => {
         {
           provide: VenueService,
           useValue: {
-            findOrCreateByName: jest.fn().mockResolvedValue({ id: 'venue-uuid', name: 'Mock Venue' }),
+            findOrCreateByName: jest
+              .fn()
+              .mockResolvedValue({ id: 'venue-uuid', name: 'Mock Venue' }),
           },
         },
         {
           provide: BandService,
           useValue: {
-            findOrCreateManyByName: jest.fn().mockResolvedValue([{ id: 'band-uuid', name: 'Mock Band' }]),
+            findOrCreateManyByName: jest
+              .fn()
+              .mockResolvedValue([{ id: 'band-uuid', name: 'Mock Band' }]),
           },
         },
       ],

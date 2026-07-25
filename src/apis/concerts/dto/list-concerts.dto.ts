@@ -21,7 +21,7 @@ export type ConcertSortOption = (typeof concertSortOptions)[number];
 export class ListConcertsDto {
   @ApiPropertyOptional({
     description:
-      'Case-insensitive search over title, artist, venue, and description.',
+      'Case-insensitive search over concert title, band, venue, and description.',
     example: 'doctor s',
   })
   @IsOptional()

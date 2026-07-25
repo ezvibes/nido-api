@@ -1,5 +1,5 @@
 <template>
-  <section class="filters-bar" aria-label="Event filters">
+  <section class="filters-bar" aria-label="Concert filters">
     <label class="filters-bar__field filters-bar__field--search">
       <span class="filters-bar__label">Search</span>
       <input
@@ -43,7 +43,7 @@ import type {
   DateRangeOption,
   SortOption,
   SourceOption,
-} from '../../composables/useEventFilters';
+} from '../../composables/useConcertFilters';
 
 defineProps<{
   searchText: string;

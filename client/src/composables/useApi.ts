@@ -1,6 +1,6 @@
 // src/composables/useApi.ts
 import axios from 'axios';
-import type { ConcertApiResponse } from '../types/events';
+import type { ConcertApiResponse } from '../types/concerts';
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
@@ -43,7 +43,7 @@ export async function updateUserProfile(
 }
 
 export async function fetchConcerts(
-  token: string,
+  token?: string,
   params?: {
     sort?: 'soonest' | 'featured' | 'trending_week';
     startsAfter?: string;
@@ -52,9 +52,7 @@ export async function fetchConcerts(
 ): Promise<ConcertApiResponse> {
   try {
     const response = await apiClient.get<ConcertApiResponse>('/concerts', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       params,
     });
     return response.data;
@@ -82,42 +80,6 @@ export async function fetchUserConcerts(
     return response.data;
   } catch (error) {
     console.error('Error fetching user concerts:', error);
-    throw error;
-  }
-}
-
-export interface CreateConcertPayload {
-  title: string;
-  genre: string;
-  startsAt: string;
-  endsAt?: string;
-  venues: Array<{
-    name: string;
-    city?: string;
-    state?: string;
-    country?: string;
-  }>;
-  artists: Array<{
-    name: string;
-    role?: string;
-    genre?: string;
-  }>;
-  description?: string;
-}
-
-export async function createConcert(
-  token: string,
-  payload: CreateConcertPayload,
-) {
-  try {
-    const response = await apiClient.post('/concerts', payload, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error creating concert:', error);
     throw error;
   }
 }
@@ -449,7 +411,7 @@ export async function reviewAdminIngestionUpload(
     concertGenre?: string;
     concertStartsAt?: string;
     concertVenueName?: string;
-    concertArtistName?: string;
+    concertBandName?: string;
     concertDescription?: string;
   },
 ) {
@@ -507,7 +469,10 @@ export async function fetchVenue(token: string, id: string) {
   return response.data;
 }
 
-export async function createVenue(token: string, payload: Partial<VenueListItem>) {
+export async function createVenue(
+  token: string,
+  payload: Partial<VenueListItem>,
+) {
   const response = await apiClient.post<VenueListItem>('/venues', payload, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -519,9 +484,13 @@ export async function updateVenue(
   id: string,
   payload: Partial<VenueListItem>,
 ) {
-  const response = await apiClient.put<VenueListItem>(`/venues/${id}`, payload, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const response = await apiClient.put<VenueListItem>(
+    `/venues/${id}`,
+    payload,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
   return response.data;
 }
 

@@ -26,7 +26,10 @@ import { UploadableFile } from './interfaces/uploadable-file.interface';
 import { Concert } from '../apis/concerts/entities/concert.entity';
 import { VenueService } from '../apis/venues/venue.service';
 import { BandService } from '../apis/bands/band.service';
-import { ConcertBandLineup, PerformanceRole } from '../apis/concerts/entities/concert-band-lineup.entity';
+import {
+  ConcertBandLineup,
+  PerformanceRole,
+} from '../apis/concerts/entities/concert-band-lineup.entity';
 
 @Injectable()
 export class IngestionService {
@@ -492,7 +495,7 @@ export class IngestionService {
     );
 
     const resolvedBands = await this.bandService.findOrCreateManyByName([
-      dto.concertArtistName?.trim() || title,
+      dto.concertBandName?.trim() || dto.concertArtistName?.trim() || title,
     ]);
 
     concert.owner = { id: ownerId } as Concert['owner'];

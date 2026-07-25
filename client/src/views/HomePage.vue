@@ -1,19 +1,21 @@
 <template>
   <div class="home-container">
-    <!-- Show MyConcerts if user is logged in -->
-    <div v-if="user">
-      <MyConcerts />
-    </div>
-
-    <!-- Show Hero Section if user is not logged in -->
-    <div v-else class="hero-section">
+    <div class="hero-section">
       <h1 class="headline">EZ VIBES</h1>
       <p class="sub-headline">
-        Discover and share live music events. Join now and start vibing.
+        Discover live concerts and the bands bringing them to your city.
       </p>
       <div class="button-group">
-        <button class="btn btn-primary" @click="signInWithGoogle">Sign up with Google</button>
-        <router-link to="/login" class="btn btn-secondary">Sign up with Email</router-link>
+        <router-link to="/concerts" class="btn btn-primary">
+          Browse Concerts
+        </router-link>
+        <button
+          v-if="!user"
+          class="btn btn-secondary"
+          @click="signInWithGoogle"
+        >
+          Sign up with Google
+        </button>
       </div>
     </div>
   </div>
@@ -21,7 +23,6 @@
 
 <script setup lang="ts">
 import { useAuth } from '../composables/useAuth';
-import MyConcerts from '../components/MyConcerts.vue';
 
 const { user, signInWithGoogle } = useAuth();
 </script>
@@ -34,7 +35,7 @@ const { user, signInWithGoogle } = useAuth();
 }
 
 .headline {
-  font-family: "Georgia", "Palatino", serif;
+  font-family: 'Georgia', 'Palatino', serif;
   font-size: 3.5rem;
   font-weight: 500;
   letter-spacing: -0.025em;
@@ -84,6 +85,6 @@ const { user, signInWithGoogle } = useAuth();
 
 .btn-secondary:hover {
   background-color: var(--background);
-  border-color: #D1D5DB;
+  border-color: #d1d5db;
 }
 </style>
