@@ -88,6 +88,7 @@ const upvotingConcertIds = ref(new Set<string>());
 const hasLoadedPersistedConcerts = ref(false);
 const isLoadingConcerts = ref(false);
 const concertsLoadError = ref('');
+let latestConcertsRequest = 0;
 const { searchText, dateRange, sort, source, filteredConcerts, clearFilters } =
   useConcertFilters(persistedConcerts);
 
@@ -142,17 +143,28 @@ const updateConcertEngagement = (
 };
 
 const loadPersistedConcerts = async () => {
+  const requestId = ++latestConcertsRequest;
   isLoadingConcerts.value = true;
   pageMessage.value = '';
   concertsLoadError.value = '';
 
   try {
     const token = user.value ? await user.value.getIdToken() : undefined;
+
+    if (requestId !== latestConcertsRequest) {
+      return;
+    }
+
     const response = await fetchConcerts(token, {
       sort: sort.value,
       startsAfter: new Date().toISOString(),
       pageSize: 100,
     });
+
+    if (requestId !== latestConcertsRequest) {
+      return;
+    }
+
     const concerts = Array.isArray(response?.data) ? response.data : [];
     persistedConcerts.value = concerts.map((concert) =>
       mapConcertToListItem(concert, {
@@ -165,12 +177,18 @@ const loadPersistedConcerts = async () => {
     );
     hasLoadedPersistedConcerts.value = true;
   } catch {
+    if (requestId !== latestConcertsRequest) {
+      return;
+    }
+
     persistedConcerts.value = [];
     hasLoadedPersistedConcerts.value = true;
     concertsLoadError.value =
       'Unable to load upcoming concerts right now. Please try again.';
   } finally {
-    isLoadingConcerts.value = false;
+    if (requestId === latestConcertsRequest) {
+      isLoadingConcerts.value = false;
+    }
   }
 };
 
