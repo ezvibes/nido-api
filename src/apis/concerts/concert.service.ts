@@ -47,6 +47,25 @@ export class ConcertService {
     return this.findWithQuery(qb, query, owner);
   }
 
+  async findAvailableGenres(): Promise<string[]> {
+    const rows = await this.concertRepository
+      .createQueryBuilder('concert')
+      .select('DISTINCT TRIM(concert.genre)', 'genre')
+      .where('concert.genre IS NOT NULL')
+      .andWhere("TRIM(concert.genre) <> ''")
+      .getRawMany<{ genre: string | null }>();
+
+    const genres = new Set<string>();
+    for (const row of rows) {
+      const genre = row.genre?.trim();
+      if (genre) {
+        genres.add(genre);
+      }
+    }
+
+    return Array.from(genres).sort((a, b) => a.localeCompare(b));
+  }
+
   private async findWithQuery(
     qb: ReturnType<Repository<Concert>['createQueryBuilder']>,
     query: ListConcertsDto,

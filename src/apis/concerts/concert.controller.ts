@@ -35,6 +35,7 @@ import {
   ConcertListResponseDto,
   ConcertResponseDto,
 } from './dto/concert-response.dto';
+import { ConcertGenresResponseDto } from './dto/concert-genres-response.dto';
 
 @Controller('concerts')
 @ApiTags('Concerts')
@@ -167,6 +168,18 @@ export class ConcertController {
   ) {
     const owner = await this.ensureOwner(user);
     return this.concertService.removeUpvote(id, owner);
+  }
+
+  @Get('meta/genres')
+  @ApiOperation({
+    summary: 'List distinct concert genre values',
+    description:
+      'Returns the distinct, trimmed, non-empty genre values currently present on Concert records, sorted alphabetically. Public endpoint; does not require authentication and does not synchronize or look up a user. Capitalization is preserved so values remain compatible with the exact-match genre filter on GET /concerts. Example: GET /concerts/meta/genres.',
+  })
+  @ApiOkResponse({ type: ConcertGenresResponseDto })
+  async getAvailableGenres() {
+    const genres = await this.concertService.findAvailableGenres();
+    return { genres };
   }
 
   @Get(':id')

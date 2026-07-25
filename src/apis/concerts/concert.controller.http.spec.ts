@@ -13,6 +13,7 @@ describe('ConcertController HTTP contract', () => {
   let app: INestApplication;
   const concertService = {
     findAll: jest.fn(),
+    findAvailableGenres: jest.fn(),
   };
   const userService = {
     findExistingFromToken: jest.fn(),
@@ -80,5 +81,22 @@ describe('ConcertController HTTP contract', () => {
       expect.objectContaining({ sort: 'soonest', pageSize: 1 }),
       undefined,
     );
+  });
+
+  it('serves GET /concerts/meta/genres without a bearer token or user lookup', async () => {
+    concertService.findAvailableGenres.mockResolvedValue([
+      'Electronic',
+      'Indie Rock',
+      'Rock',
+    ]);
+
+    await request(app.getHttpServer())
+      .get('/concerts/meta/genres')
+      .expect(200)
+      .expect({ genres: ['Electronic', 'Indie Rock', 'Rock'] });
+
+    expect(userService.findExistingFromToken).not.toHaveBeenCalled();
+    expect(userService.syncFromToken).not.toHaveBeenCalled();
+    expect(concertService.findAvailableGenres).toHaveBeenCalledTimes(1);
   });
 });
