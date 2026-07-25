@@ -1,4 +1,4 @@
-export interface EventVenue {
+export interface ConcertVenue {
   id: string;
   name: string;
   address?: string | null;
@@ -6,7 +6,7 @@ export interface EventVenue {
   region?: string;
 }
 
-export interface EventBand {
+export interface ConcertBand {
   id: string;
   name: string;
   slug: string;
@@ -14,18 +14,18 @@ export interface EventBand {
   promoImageUrl?: string | null;
 }
 
-export interface EventLineupEntry {
+export interface ConcertLineupEntry {
   performanceRole: string;
   performanceOrder: number;
-  band: EventBand;
+  band: ConcertBand;
 }
 
-export interface EventSet {
+export interface ConcertSet {
   id: string;
   stageName: string;
   startsAt: string;
   endsAt: string;
-  band: EventBand;
+  band: ConcertBand;
 }
 
 export interface ConcertApiItem {
@@ -34,9 +34,9 @@ export interface ConcertApiItem {
   genre: string;
   startsAt: string;
   endsAt?: string | null;
-  venue?: EventVenue | null;
-  lineup: EventLineupEntry[];
-  sets: EventSet[];
+  venue?: ConcertVenue | null;
+  lineup: ConcertLineupEntry[];
+  sets: ConcertSet[];
   description?: string | null;
   isTopPick?: boolean;
   topPickScore?: number | null;
@@ -60,18 +60,18 @@ export interface ConcertApiResponse {
   pageSize: number;
 }
 
-export interface EventListItem extends ConcertApiItem {
+export interface ConcertListItem extends ConcertApiItem {
   posterUrl: string;
   sourceLabel: string;
   displayTags: string[];
   demoRank: number;
 }
 
-export function mapConcertToEventListItem(
+export function mapConcertToListItem(
   concert: ConcertApiItem,
   overrides?: Partial<
     Pick<
-      EventListItem,
+      ConcertListItem,
       | 'posterUrl'
       | 'sourceLabel'
       | 'displayTags'
@@ -82,7 +82,7 @@ export function mapConcertToEventListItem(
       | 'syncSource'
     >
   >,
-): EventListItem {
+): ConcertListItem {
   let resolvedPosterUrl =
     overrides?.posterUrl ??
     concert.posterUrl ??

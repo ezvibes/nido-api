@@ -182,13 +182,13 @@
                   <input v-model="concertVenueNameDraft" type="text" placeholder="Venue TBD" />
                 </label>
                 <label class="admin-uploads__control admin-uploads__control--stack">
-                  <span>Artist / lineup</span>
-                  <input v-model="concertArtistNameDraft" type="text" placeholder="Artist or lineup" />
+                  <span>Band / lineup</span>
+                  <input v-model="concertBandNameDraft" type="text" placeholder="Band or lineup" />
                 </label>
               </div>
               <label class="admin-uploads__control admin-uploads__control--stack">
                 <span>Public description</span>
-                <textarea v-model="concertDescriptionDraft" rows="3" placeholder="Short public note for the event card"></textarea>
+                <textarea v-model="concertDescriptionDraft" rows="3" placeholder="Short public note for the concert card"></textarea>
               </label>
             </div>
             <label class="admin-uploads__control admin-uploads__control--stack">
@@ -261,7 +261,7 @@ const concertGenreDraft = ref('Live Music');
 const concertDateDraft = ref('');
 const concertTimeDraft = ref('19:00');
 const concertVenueNameDraft = ref('');
-const concertArtistNameDraft = ref('');
+const concertBandNameDraft = ref('');
 const concertDescriptionDraft = ref('');
 
 const limit = 25;
@@ -358,7 +358,7 @@ const openPreview = async (upload: AdminConcertUploadListItem) => {
   concertDateDraft.value = '';
   concertTimeDraft.value = '19:00';
   concertVenueNameDraft.value = '';
-  concertArtistNameDraft.value = concertTitleDraft.value;
+  concertBandNameDraft.value = concertTitleDraft.value;
   concertDescriptionDraft.value = '';
 
   try {
@@ -459,9 +459,9 @@ const saveReview = async () => {
         reviewStatusDraft.value === 'approved'
           ? concertVenueNameDraft.value.trim() || undefined
           : undefined,
-      concertArtistName:
+      concertBandName:
         reviewStatusDraft.value === 'approved'
-          ? concertArtistNameDraft.value.trim() || concertTitleDraft.value.trim()
+          ? concertBandNameDraft.value.trim() || concertTitleDraft.value.trim()
           : undefined,
       concertDescription:
         reviewStatusDraft.value === 'approved'
@@ -473,7 +473,7 @@ const saveReview = async () => {
     reviewMessageType.value = 'success';
     reviewMessage.value =
       updated.reviewStatus === 'approved'
-        ? 'Approved and published to the events feed.'
+        ? 'Approved and published to the concerts feed.'
         : 'Review saved.';
     if (updated.reviewStatus === 'approved') {
       window.dispatchEvent(new CustomEvent('concerts:changed'));

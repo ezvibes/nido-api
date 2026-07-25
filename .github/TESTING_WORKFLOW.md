@@ -108,15 +108,36 @@ This checks:
 - `/health/deep`
 - `/api-docs-json`
 
-For an authenticated concerts-feed smoke check, provide a Firebase bearer token:
+The public concerts feed must also pass without credentials:
 
 ```bash
-API_BEARER_TOKEN=<firebase-id-token> npm run smoke:dev:concerts
+npm run smoke:dev:concerts
+```
+
+For authenticated engagement state, provide a short-lived Firebase token:
+
+```bash
+API_BEARER_TOKEN=<firebase-id-token> \
+SMOKE_AUTHENTICATED_CONCERTS=true \
+SMOKE_MODE=dev \
+API_BASE_URL=https://nido-api-81555493719.us-east1.run.app \
+node scripts/smoke-test-api.mjs
 ```
 
 Then verify the deployed Firebase app manually for the feature-specific user
 flow. For authenticated admin or Sync Doctor flows, use a real Firebase session
 or token and record which account was used without exposing credentials.
+
+Concert discovery changes should cover this regression matrix:
+
+- anonymous `GET /concerts` returns the stable `{ data, total, page, pageSize }` contract
+- an optional valid token adds engagement state without creating a user
+- an invalid supplied token is rejected
+- concurrent first-user writes recover from PostgreSQL unique conflicts
+- the Vue Concerts page loads without calling `/users/sync` or `/concerts/mine`
+- a failed public feed shows a retry action and recovers on a later success
+- `/concerts` is public and the legacy `/events` URL redirects to it
+- product-facing performer language uses Bands; Events remains only for calendar records and DOM events
 
 ## Agent Handoff Template
 

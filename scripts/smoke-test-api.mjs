@@ -3,14 +3,21 @@ const DEFAULT_DEV_BASE_URL = 'https://nido-api-81555493719.us-east1.run.app';
 
 const mode = process.env.SMOKE_MODE ?? 'local';
 const baseUrl = normalizeBaseUrl(
-  process.env.API_BASE_URL ?? (mode === 'dev' ? DEFAULT_DEV_BASE_URL : DEFAULT_LOCAL_BASE_URL),
+  process.env.API_BASE_URL ??
+    (mode === 'dev' ? DEFAULT_DEV_BASE_URL : DEFAULT_LOCAL_BASE_URL),
 );
 const deepEnabled = parseBoolean(process.env.SMOKE_DEEP, mode === 'dev');
 const concertsEnabled = parseBoolean(process.env.SMOKE_CONCERTS, false);
+const authenticatedConcertsEnabled = parseBoolean(
+  process.env.SMOKE_AUTHENTICATED_CONCERTS,
+  false,
+);
 const retries = Number(process.env.SMOKE_RETRIES ?? (mode === 'dev' ? 5 : 1));
 const retryDelayMs = Number(process.env.SMOKE_RETRY_DELAY_MS ?? 3000);
 const requestTimeoutMs = Number(process.env.SMOKE_TIMEOUT_MS ?? 10000);
-const bearerToken = await resolveBearerToken();
+const bearerToken = authenticatedConcertsEnabled
+  ? await resolveBearerToken()
+  : '';
 
 const checks = [
   {
@@ -48,21 +55,23 @@ if (deepEnabled) {
 
 if (concertsEnabled) {
   checks.push({
-    name: 'authenticated concerts feed',
+    name: 'public concerts feed',
     path: `/concerts?pageSize=1&startsAfter=${encodeURIComponent(new Date().toISOString())}`,
-    validate: async (response) => {
-      const body = await response.json();
-      if (!Array.isArray(body.data)) {
-        throw new Error('concerts response does not include a data array');
-      }
-      const first = body.data[0];
-      if (first && !Array.isArray(first.lineup)) {
-        throw new Error('concert response does not include a lineup array');
-      }
-      if (first?.lineup?.some((entry) => !entry.band?.name)) {
-        throw new Error('concert lineup entry does not include a band');
-      }
-    },
+    anonymous: true,
+    validate: validateConcertsResponse,
+  });
+}
+
+if (authenticatedConcertsEnabled) {
+  if (!bearerToken) {
+    throw new Error(
+      'SMOKE_AUTHENTICATED_CONCERTS requires API_BEARER_TOKEN or FIREBASE_REFRESH_TOKEN and FIREBASE_API_KEY',
+    );
+  }
+  checks.push({
+    name: 'authenticated concerts engagement',
+    path: `/concerts?pageSize=1&startsAfter=${encodeURIComponent(new Date().toISOString())}`,
+    validate: validateConcertsResponse,
   });
 }
 
@@ -93,14 +102,16 @@ async function runWithRetries(check) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
       const response = await fetch(`${baseUrl}${check.path}`, {
-        headers: requestHeaders(),
+        headers: requestHeaders(check),
         signal: controller.signal,
       });
       clearTimeout(timeout);
 
       if (!response.ok) {
         const body = await response.text();
-        throw new Error(`HTTP ${response.status} ${response.statusText}: ${body.slice(0, 200)}`);
+        throw new Error(
+          `HTTP ${response.status} ${response.statusText}: ${body.slice(0, 200)}`,
+        );
       }
 
       await check.validate(response);
@@ -128,9 +139,9 @@ function normalizeError(error) {
   return error;
 }
 
-function requestHeaders() {
+function requestHeaders(check) {
   const headers = { accept: 'application/json' };
-  if (bearerToken) {
+  if (bearerToken && !check.anonymous) {
     headers.authorization = `Bearer ${bearerToken}`;
   }
   return headers;
@@ -147,11 +158,6 @@ async function resolveBearerToken() {
     if (mode === 'local') {
       return '';
     }
-    if (concertsEnabled) {
-      throw new Error(
-        'SMOKE_CONCERTS requires API_BEARER_TOKEN or FIREBASE_REFRESH_TOKEN and FIREBASE_API_KEY',
-      );
-    }
     return '';
   }
 
@@ -167,13 +173,29 @@ async function resolveBearerToken() {
     },
   );
   if (!response.ok) {
-    throw new Error(`Unable to refresh Firebase smoke-test token: HTTP ${response.status}`);
+    throw new Error(
+      `Unable to refresh Firebase smoke-test token: HTTP ${response.status}`,
+    );
   }
   const body = await response.json();
   if (!body.id_token) {
     throw new Error('Firebase token refresh did not return an ID token');
   }
   return body.id_token;
+}
+
+async function validateConcertsResponse(response) {
+  const body = await response.json();
+  if (!Array.isArray(body.data)) {
+    throw new Error('concerts response does not include a data array');
+  }
+  const first = body.data[0];
+  if (first && !Array.isArray(first.lineup)) {
+    throw new Error('concert response does not include a lineup array');
+  }
+  if (first?.lineup?.some((entry) => !entry.band?.name)) {
+    throw new Error('concert lineup entry does not include a band');
+  }
 }
 
 function normalizeBaseUrl(value) {

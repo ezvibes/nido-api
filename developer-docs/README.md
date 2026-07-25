@@ -53,4 +53,6 @@ If a doc helps operate a specific private environment, it belongs in `docs/`.
 
 - `catalog-operating-system/`: public guidance for catalog architecture, GitHub issue dossiers, agent handoff structure, and canonical event publishing planning.
 - `api-docs-security.md`: guidance for safely publishing API docs, schema references, and diagrams while protecting production systems.
+- `CONTRIBUTING.md`: contributor workflow, development standards, and pull request expectations.
+- `DEPLOYMENT.md`: public deployment architecture, validation, and production-readiness overview.
 - `deployment-pipeline.md`: public overview of the deployment pipeline pattern, quality gates, and release philosophy.

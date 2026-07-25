@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -20,40 +20,40 @@ export class UserService {
     return this.findOrCreate(createUserDto);
   }
 
+  async findExistingFromToken(
+    decodedToken: DecodedIdToken,
+  ): Promise<User | null> {
+    const userProfile = this.authService.getUserProfileFromToken(decodedToken);
+    return this.findExisting(userProfile);
+  }
+
   async findOrCreate(createUserDto: CreateUserDto): Promise<User> {
     if (!this.userRepository) {
       throw new Error('Database not configured. User data cannot be saved.');
     }
 
-    // 1. Look up by email first, as email is a unique constraint
-    const userByEmail = await this.userRepository.findOne({
-      where: { email: createUserDto.email },
-    });
-
-    if (userByEmail) {
-      this.userRepository.merge(userByEmail, {
-        uid: createUserDto.uid,
-        picture: createUserDto.picture,
-      });
-      return this.userRepository.save(userByEmail);
+    const existingUser = await this.findExisting(createUserDto);
+    if (existingUser) {
+      return this.refreshUser(existingUser, createUserDto);
     }
 
-    // 2. Fall back to UID lookup
-    const userByUid = await this.userRepository.findOne({
-      where: { uid: createUserDto.uid },
-    });
-
-    if (userByUid) {
-      this.userRepository.merge(userByUid, {
-        email: createUserDto.email,
-        picture: createUserDto.picture,
-      });
-      return this.userRepository.save(userByUid);
-    }
-
-    // 3. Create new user if neither matches
     const newUser = this.userRepository.create(createUserDto);
-    return this.userRepository.save(newUser);
+    try {
+      return await this.userRepository.save(newUser);
+    } catch (error) {
+      if (!this.isUniqueConstraintViolation(error)) {
+        throw error;
+      }
+
+      // Another authenticated request may have created the same user between
+      // our lookup and insert. Read the winner instead of returning a 500.
+      const concurrentlyCreatedUser = await this.findExisting(createUserDto);
+      if (!concurrentlyCreatedUser) {
+        throw error;
+      }
+
+      return this.refreshUser(concurrentlyCreatedUser, createUserDto);
+    }
   }
 
   async update(uid: string, updateUserDto: UpdateUserDto): Promise<User> {
@@ -65,5 +65,39 @@ export class UserService {
 
     this.userRepository.merge(user, updateUserDto);
     return this.userRepository.save(user);
+  }
+
+  private async findExisting(
+    userProfile: Pick<CreateUserDto, 'email' | 'uid'>,
+  ): Promise<User | null> {
+    const userByEmail = await this.userRepository.findOne({
+      where: { email: userProfile.email },
+    });
+    if (userByEmail) {
+      return userByEmail;
+    }
+
+    return this.userRepository.findOne({
+      where: { uid: userProfile.uid },
+    });
+  }
+
+  private refreshUser(user: User, profile: CreateUserDto): Promise<User> {
+    this.userRepository.merge(user, {
+      email: profile.email,
+      uid: profile.uid,
+      picture: profile.picture,
+    });
+    return this.userRepository.save(user);
+  }
+
+  private isUniqueConstraintViolation(error: unknown): boolean {
+    if (!(error instanceof QueryFailedError)) {
+      return false;
+    }
+
+    return (
+      (error.driverError as { code?: string } | undefined)?.code === '23505'
+    );
   }
 }

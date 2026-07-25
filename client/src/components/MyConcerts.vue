@@ -6,7 +6,11 @@
     <p v-else-if="error" class="state-text state-text--error">{{ error }}</p>
 
     <div v-else-if="concerts.length" class="concert-list">
-      <article v-for="concert in concerts" :key="concert.id" class="concert-card">
+      <article
+        v-for="concert in concerts"
+        :key="concert.id"
+        class="concert-card"
+      >
         <div class="concert-card__header">
           <h3>{{ concert.title }}</h3>
           <span class="genre-chip">{{ concert.genre }}</span>
@@ -16,7 +20,9 @@
         <p v-if="concert.lineup.length" class="concert-meta">
           {{ formatLineup(concert.lineup) }}
         </p>
-        <p v-if="concert.description" class="concert-description">{{ concert.description }}</p>
+        <p v-if="concert.description" class="concert-description">
+          {{ concert.description }}
+        </p>
       </article>
     </div>
 
@@ -32,9 +38,9 @@ import { useAuth } from '../composables/useAuth';
 import { fetchUserConcerts } from '../composables/useApi';
 import type {
   ConcertApiItem,
-  EventLineupEntry,
-  EventVenue,
-} from '../types/events';
+  ConcertLineupEntry,
+  ConcertVenue,
+} from '../types/concerts';
 
 const { user } = useAuth();
 
@@ -73,7 +79,7 @@ const formatDate = (value: string) =>
     minute: '2-digit',
   }).format(new Date(value));
 
-const formatVenue = (venue?: EventVenue | null) => {
+const formatVenue = (venue?: ConcertVenue | null) => {
   if (!venue) {
     return 'Venue TBD';
   }
@@ -82,16 +88,23 @@ const formatVenue = (venue?: EventVenue | null) => {
   return location ? `${venue.name} • ${location}` : venue.name;
 };
 
-const formatLineup = (lineup: EventLineupEntry[]) =>
-  lineup.slice(0, 3).map((entry) => entry.band.name).join(', ');
+const formatLineup = (lineup: ConcertLineupEntry[]) =>
+  lineup
+    .slice(0, 3)
+    .map((entry) => entry.band.name)
+    .join(', ');
 
 const handleConcertsChanged = () => {
   void loadConcerts();
 };
 
-watch(user, () => {
-  void loadConcerts();
-}, { immediate: true });
+watch(
+  user,
+  () => {
+    void loadConcerts();
+  },
+  { immediate: true },
+);
 
 onMounted(() => {
   window.addEventListener('concerts:changed', handleConcertsChanged);

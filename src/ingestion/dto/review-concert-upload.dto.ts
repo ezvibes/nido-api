@@ -68,8 +68,17 @@ export class ReviewConcertUploadDto {
 
   @ApiPropertyOptional({
     description:
-      'Primary artist/lineup name to publish when approving the upload. Defaults to the concert title.',
+      'Primary band/lineup name to publish when approving the upload. Defaults to the concert title.',
     example: 'Doctor S',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  concertBandName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Deprecated compatibility alias for concertBandName.',
+    deprecated: true,
   })
   @IsOptional()
   @IsString()

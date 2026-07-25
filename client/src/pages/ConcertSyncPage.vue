@@ -6,8 +6,8 @@
         <h2>Concert sync</h2>
         <p>Create concerts from calendar events and monitor the sync job.</p>
       </div>
-      <router-link class="concert-sync__events-link" to="/events">
-        View Events
+      <router-link class="concert-sync__concerts-link" to="/concerts">
+        View Concerts
       </router-link>
     </header>
 
@@ -141,10 +141,10 @@
               {{ activeJob.errorMessage }}
             </p>
 
-            <div v-if="showEventsHandoff" class="concert-sync__handoff">
-              <p>Concerts were written to your event feed.</p>
-              <router-link class="concert-sync__primary" to="/events">
-                View Events
+            <div v-if="showConcertsHandoff" class="concert-sync__handoff">
+              <p>Concerts were written to your concert feed.</p>
+              <router-link class="concert-sync__primary" to="/concerts">
+                View Concerts
               </router-link>
             </div>
 
@@ -296,7 +296,7 @@ const isLiveFormValid = computed(() => {
   return true;
 });
 
-const showEventsHandoff = computed(
+const showConcertsHandoff = computed(
   () =>
     activeJob.value?.status === 'completed' &&
     activeJob.value.eventsCreated + activeJob.value.eventsUpdated > 0,
@@ -670,7 +670,7 @@ onBeforeUnmount(() => {
 
 .concert-sync__primary,
 .concert-sync__secondary,
-.concert-sync__events-link {
+.concert-sync__concerts-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -688,7 +688,7 @@ onBeforeUnmount(() => {
 }
 
 .concert-sync__secondary,
-.concert-sync__events-link {
+.concert-sync__concerts-link {
   border: 1px solid var(--border);
   background: #fff;
   color: var(--text);

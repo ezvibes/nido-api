@@ -14,6 +14,7 @@ describe('ConcertController', () => {
   };
   const userService = {
     syncFromToken: jest.fn(),
+    findExistingFromToken: jest.fn(),
   };
 
   let controller: ConcertController;
@@ -26,16 +27,30 @@ describe('ConcertController', () => {
     );
   });
 
-  it('lists concerts for the shared feed with query options', async () => {
+  it('lists concerts publicly without creating or syncing a user', async () => {
+    const query = { sort: 'soonest' } as ListConcertsDto;
+    concertService.findAll.mockResolvedValue({ data: [] });
+
+    await controller.listConcerts(undefined, query);
+
+    expect(userService.findExistingFromToken).not.toHaveBeenCalled();
+    expect(userService.syncFromToken).not.toHaveBeenCalled();
+    expect(concertService.findAll).toHaveBeenCalledWith(query, undefined);
+  });
+
+  it('adds existing-user engagement to the shared feed without syncing', async () => {
     const decodedToken = { uid: 'uid-1' } as DecodedIdToken;
     const currentUser = { id: 3 };
     const query = { sort: 'trending_week' } as ListConcertsDto;
-    userService.syncFromToken.mockResolvedValue(currentUser);
+    userService.findExistingFromToken.mockResolvedValue(currentUser);
     concertService.findAll.mockResolvedValue({ data: [] });
 
     await controller.listConcerts(decodedToken, query);
 
-    expect(userService.syncFromToken).toHaveBeenCalledWith(decodedToken);
+    expect(userService.findExistingFromToken).toHaveBeenCalledWith(
+      decodedToken,
+    );
+    expect(userService.syncFromToken).not.toHaveBeenCalled();
     expect(concertService.findAll).toHaveBeenCalledWith(query, currentUser);
   });
 

@@ -158,8 +158,11 @@ jobs:
       - name: Install client dependencies
         run: npm ci --prefix client
 
-      - name: Run focused API tests
-        run: npm test -- user.service health.service concert-sync
+      - name: Run API tests
+        run: npm test -- --runInBand
+
+      - name: Run client tests
+        run: npm test --prefix client
 
       - name: Build API
         run: npm run build
@@ -267,13 +270,18 @@ jobs:
           curl -fsS --retry 5 --retry-delay 5 "$API_URL/health/deep"
           curl -fsS --retry 5 --retry-delay 5 "$API_URL/api-docs-json" >/dev/null
 
+      - name: Verify public concerts feed
+        env:
+          SMOKE_CONCERTS: 'true'
+          SMOKE_MODE: dev
+        run: API_BASE_URL="$API_URL" node scripts/smoke-test-api.mjs
+
       - name: Verify authenticated concerts feed
         if: env.DEV_SMOKE_FIREBASE_REFRESH_TOKEN != ''
         env:
           FIREBASE_API_KEY: ${{ env.VITE_FIREBASE_API_KEY }}
           FIREBASE_REFRESH_TOKEN: ${{ env.DEV_SMOKE_FIREBASE_REFRESH_TOKEN }}
-          SMOKE_CONCERTS: 'true'
-          SMOKE_DEEP: 'true'
+          SMOKE_AUTHENTICATED_CONCERTS: 'true'
           SMOKE_MODE: dev
         run: API_BASE_URL="$API_URL" node scripts/smoke-test-api.mjs
 

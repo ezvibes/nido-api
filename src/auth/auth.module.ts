@@ -4,11 +4,22 @@ import { FirebaseAuthGuard } from './firebase-auth/firebase-auth.guard';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { AdminEmailGuard } from './guards/admin-email.guard';
+import { OptionalFirebaseAuthGuard } from './firebase-auth/optional-firebase-auth.guard';
 
 @Module({
   imports: [FirebaseModule],
   controllers: [AuthController],
-  providers: [FirebaseAuthGuard, AdminEmailGuard, AuthService],
-  exports: [FirebaseAuthGuard, AdminEmailGuard, AuthService],
+  providers: [
+    FirebaseAuthGuard,
+    OptionalFirebaseAuthGuard,
+    AdminEmailGuard,
+    AuthService,
+  ],
+  exports: [
+    FirebaseAuthGuard,
+    OptionalFirebaseAuthGuard,
+    AdminEmailGuard,
+    AuthService,
+  ],
 })
 export class AuthModule {}

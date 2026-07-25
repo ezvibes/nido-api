@@ -8,7 +8,7 @@ const { user, signOut } = useAuth();
 const menuOpen = ref(false);
 const accountMenuOpen = ref(false);
 const accountMenuRef = ref<HTMLElement | null>(null);
-const homeRoute = computed(() => (user.value ? '/events' : '/'));
+const homeRoute = computed(() => (user.value ? '/concerts' : '/'));
 const displayName = computed(
   () => user.value?.displayName || user.value?.email || 'Account',
 );
@@ -85,13 +85,9 @@ onBeforeUnmount(() => {
           class="header-menu"
           :class="{ 'header-menu--open': menuOpen }"
         >
-          <router-link
-            v-if="user"
-            to="/events"
-            class="nav-link"
-            @click="closeMenu"
-            >Events</router-link
-          >
+          <router-link to="/concerts" class="nav-link" @click="closeMenu">
+            Concerts
+          </router-link>
           <router-link
             v-if="user"
             to="/concert-sync"
@@ -130,6 +126,13 @@ onBeforeUnmount(() => {
                 <span class="account-menu__label">Signed in as</span>
                 <strong :title="displayName">{{ displayName }}</strong>
               </div>
+              <router-link
+                to="/my-concerts"
+                class="account-menu__item"
+                @click="closeMenu"
+              >
+                My Concerts
+              </router-link>
               <router-link
                 v-if="isAdmin"
                 to="/admin/ingestion/uploads"
