@@ -32,10 +32,11 @@ src/                  NestJS API source
 client/               Vue/Vite frontend
 scripts/              Local smoke and utility scripts
 test/                 E2E test setup
-.github/              GitHub Actions and deployment docs
-docker-compose.yml    Local PostgreSQL development database
-DEPLOYMENT.md         Public deployment overview
-CONTRIBUTING.md       Contributor workflow and standards
+.github/                        GitHub Actions and deployment docs
+developer-docs/                 Public developer guidance
+  DEPLOYMENT.md                 Public deployment overview
+  CONTRIBUTING.md               Contributor workflow and standards
+docker-compose.yml              Local PostgreSQL development database
 ```
 
 Local planning notes under `src/docs/` are intentionally ignored and should not be required for public contributors.
@@ -209,13 +210,13 @@ Before opening a PR:
 - Update Swagger DTOs/docs when API contracts change.
 - Include a clear PR description with summary, testing, risk, and follow-ups.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the first-draft contributor process.
+See [developer-docs/CONTRIBUTING.md](developer-docs/CONTRIBUTING.md) for the first-draft contributor process.
 
 ## Deployment
 
 The project uses GitHub Actions, Google Workload Identity Federation, Cloud Run, Cloud SQL, Secret Manager, Google Cloud Storage, and Firebase Hosting.
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for the public deployment overview and `.github/DEPLOYMENT_SETUP.md` for the detailed operations runbook.
+See [developer-docs/DEPLOYMENT.md](developer-docs/DEPLOYMENT.md) for the public deployment overview and [`.github/DEPLOYMENT_SETUP.md`](.github/DEPLOYMENT_SETUP.md) for the detailed operations runbook.
 
 ## Security And Secrets
 

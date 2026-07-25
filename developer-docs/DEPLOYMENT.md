@@ -112,4 +112,4 @@ The current deployment design is appropriate for dev and staged feedback. Before
 - Secret Manager access scope.
 - Firebase Hosting security headers.
 
-See `.github/DEPLOYMENT_SETUP.md` for the detailed operational runbook.
+See [`../.github/DEPLOYMENT_SETUP.md`](../.github/DEPLOYMENT_SETUP.md) for the detailed operational runbook.
