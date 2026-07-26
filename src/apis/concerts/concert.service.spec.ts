@@ -32,6 +32,7 @@ const createQueryBuilderMock = () => {
   qb.getCount = jest.fn();
   qb.getRawAndEntities = jest.fn();
   qb.getRawOne = jest.fn();
+  qb.getRawMany = jest.fn();
   qb.execute = jest.fn();
   return qb;
 };
@@ -244,5 +245,47 @@ describe('ConcertService', () => {
       service.upvote('missing-concert', owner),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(concertUpvoteRepository.createQueryBuilder).not.toHaveBeenCalled();
+  });
+
+  describe('findAvailableGenres', () => {
+    it('deduplicates and alphabetically sorts genre values', async () => {
+      const qb = createQueryBuilderMock();
+      concertRepository.createQueryBuilder.mockReturnValue(qb);
+      qb.getRawMany.mockResolvedValue([
+        { genre: 'Rock' },
+        { genre: 'Electronic' },
+        { genre: 'Rock' },
+        { genre: 'Indie Rock' },
+      ]);
+
+      const result = await service.findAvailableGenres();
+
+      expect(result).toEqual(['Electronic', 'Indie Rock', 'Rock']);
+    });
+
+    it('excludes null, empty, and whitespace-only genre values', async () => {
+      const qb = createQueryBuilderMock();
+      concertRepository.createQueryBuilder.mockReturnValue(qb);
+      qb.getRawMany.mockResolvedValue([
+        { genre: 'Rock' },
+        { genre: null },
+        { genre: '' },
+        { genre: '   ' },
+      ]);
+
+      const result = await service.findAvailableGenres();
+
+      expect(result).toEqual(['Rock']);
+    });
+
+    it('returns an empty array when no genres are available', async () => {
+      const qb = createQueryBuilderMock();
+      concertRepository.createQueryBuilder.mockReturnValue(qb);
+      qb.getRawMany.mockResolvedValue([]);
+
+      const result = await service.findAvailableGenres();
+
+      expect(result).toEqual([]);
+    });
   });
 });
