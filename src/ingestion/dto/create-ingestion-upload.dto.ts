@@ -23,6 +23,16 @@ export class CreateIngestionUploadDto {
   state?: string;
 
   @ApiPropertyOptional({
+    description: 'User-selected genre hint for the uploaded concert asset.',
+    maxLength: 120,
+    example: 'Electronic',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  genre?: string;
+
+  @ApiPropertyOptional({
     description: 'Upload source classification.',
     enum: ['flyer_upload', 'manual_upload', 'partner_upload'],
     example: 'flyer_upload',

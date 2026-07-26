@@ -57,6 +57,7 @@ export class IngestionController {
         image: { type: 'string', format: 'binary' },
         city: { type: 'string', example: 'Charlotte' },
         state: { type: 'string', example: 'NC' },
+        genre: { type: 'string', maxLength: 120, example: 'Electronic' },
         source: {
           type: 'string',
           enum: ['flyer_upload', 'manual_upload', 'partner_upload'],

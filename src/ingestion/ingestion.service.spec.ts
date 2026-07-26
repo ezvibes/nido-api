@@ -99,7 +99,7 @@ describe('IngestionService', () => {
     service = module.get<IngestionService>(IngestionService);
   });
 
-  it('should persist the upload metadata with the simplified dto shape', async () => {
+  it('should trim, persist, copy, and return a selected upload genre', async () => {
     const file = {
       originalname: 'poster.jpg',
       mimetype: 'image/jpeg',
@@ -113,10 +113,9 @@ describe('IngestionService', () => {
       ...concertUploadRepository.create.mock.calls[0]?.[0],
     });
 
+    const objectSave = jest.fn().mockResolvedValue(undefined);
     const bucketMock = {
-      file: jest.fn().mockReturnValue({
-        save: jest.fn().mockResolvedValue(undefined),
-      }),
+      file: jest.fn().mockReturnValue({ save: objectSave }),
     };
 
     Object.defineProperty(service as object, 'storage', {
@@ -125,7 +124,12 @@ describe('IngestionService', () => {
 
     const result = await service.uploadImage(
       file,
-      { city: 'wilmington', state: 'NC', source: 'flyer_upload' },
+      {
+        city: 'wilmington',
+        state: 'NC',
+        genre: '  Electronic  ',
+        source: 'flyer_upload',
+      },
       'uid-1',
       3,
     );
@@ -134,17 +138,67 @@ describe('IngestionService', () => {
       expect.objectContaining({
         city: 'wilmington',
         state: 'NC',
+        genre: 'Electronic',
         source: 'flyer_upload',
         uploadedByUid: 'uid-1',
         uploadedByUserId: 3,
       }),
     );
+    expect(objectSave).toHaveBeenCalledWith(
+      file.buffer,
+      expect.objectContaining({
+        metadata: {
+          metadata: expect.objectContaining({
+            genre: 'Electronic',
+          }),
+        },
+      }),
+    );
     expect(result.concertUploadId).toBe('asset-1');
     expect(result.city).toBe('wilmington');
     expect(result.state).toBe('NC');
+    expect(result.genre).toBe('Electronic');
     expect(result.source).toBe('flyer_upload');
     expect(result.uploadedByUserId).toBe(3);
   });
+
+  it.each([undefined, '   '])(
+    'should keep uploads working without a non-empty genre (%p)',
+    async (genre) => {
+      const file = {
+        originalname: 'poster.jpg',
+        mimetype: 'image/jpeg',
+        buffer: Buffer.from('image'),
+        size: 5,
+      } as UploadableFile;
+      const objectSave = jest.fn().mockResolvedValue(undefined);
+
+      concertUploadRepository.create.mockImplementation((value) => value);
+      concertUploadRepository.save.mockResolvedValue({
+        id: 'asset-1',
+      });
+      Object.defineProperty(service as object, 'storage', {
+        value: {
+          bucket: jest.fn().mockReturnValue({
+            file: jest.fn().mockReturnValue({ save: objectSave }),
+          }),
+        },
+      });
+
+      const result = await service.uploadImage(
+        file,
+        { genre },
+        'uid-1',
+      );
+
+      expect(concertUploadRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ genre: undefined }),
+      );
+      const saveOptions = objectSave.mock.calls[0]?.[1];
+      expect(saveOptions.metadata.metadata).not.toHaveProperty('genre');
+      expect(result.genre).toBeUndefined();
+    },
+  );
 
   it('should create a queued job for an owned concert upload', async () => {
     const concertUpload = {
@@ -156,6 +210,7 @@ describe('IngestionService', () => {
       originalFilename: 'poster.jpg',
       city: 'wilmington',
       state: 'NC',
+      genre: 'Electronic',
       source: 'flyer_upload',
       size: 12,
       uploadedByUid: 'uid-1',
@@ -193,6 +248,7 @@ describe('IngestionService', () => {
     );
     expect(result.id).toBe('job-1');
     expect(result.concertUpload.id).toBe('asset-1');
+    expect(result.concertUpload.genre).toBe('Electronic');
     expect(result.concertUpload.uploadedByUserId).toBe(3);
   });
 
@@ -207,6 +263,7 @@ describe('IngestionService', () => {
       originalFilename: 'poster.jpg',
       city: 'wilmington',
       state: 'NC',
+      genre: 'Electronic',
       source: 'flyer_upload',
       size: 12,
       uploadedByUid: 'uid-1',
@@ -220,6 +277,7 @@ describe('IngestionService', () => {
       where: { id: 'asset-1', uploadedByUid: 'uid-1' },
     });
     expect(result.concertUploadId).toBe('asset-1');
+    expect(result.genre).toBe('Electronic');
     expect(result.uploadedAt).toBe(createdAt.toISOString());
   });
 
@@ -240,6 +298,7 @@ describe('IngestionService', () => {
         originalFilename: 'poster.jpg',
         city: 'raleigh',
         state: 'NC',
+        genre: 'Electronic',
         source: 'flyer_upload',
         size: 12,
         uploadedByUid: 'uid-1',
@@ -289,6 +348,7 @@ describe('IngestionService', () => {
         },
       );
       expect(result.reviewStatus).toBe(reviewStatus);
+      expect(result.genre).toBe('Electronic');
       expect(result.reviewedByUserEmail).toBe('admin@example.local');
       if (reviewStatus === 'approved') {
         expect(concertRepository.save).toHaveBeenCalledWith(

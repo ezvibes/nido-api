@@ -58,6 +58,26 @@
         <input v-model="state" type="text" maxlength="2" placeholder="NC" />
       </label>
 
+      <label>
+        <span>Genre</span>
+        <select
+          v-model="genre"
+          :aria-describedby="genreHelpMessage ? 'genre-help' : undefined"
+        >
+          <option value="">Optional genre</option>
+          <option v-for="option in genres" :key="option" :value="option">
+            {{ option }}
+          </option>
+        </select>
+        <small
+          v-if="genreHelpMessage"
+          id="genre-help"
+          class="ingestion-panel__field-help"
+        >
+          {{ genreHelpMessage }}
+        </small>
+      </label>
+
       <p v-if="message" :class="messageClass">{{ message }}</p>
 
       <div class="ingestion-panel__actions">
@@ -91,6 +111,10 @@
           <dd>{{ uploadLocation }}</dd>
         </div>
         <div>
+          <dt>Genre</dt>
+          <dd>{{ uploadResult.genre ?? 'Not provided' }}</dd>
+        </div>
+        <div>
           <dt>Status</dt>
           <dd>{{ currentStatus }}</dd>
         </div>
@@ -108,10 +132,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { AxiosError } from 'axios';
 import {
   createIngestionJob,
+  fetchConcertGenres,
   fetchIngestionJob,
   type IngestionJobResponse,
   type IngestionUploadResult,
@@ -139,6 +164,9 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const isDragActive = ref(false);
 const city = ref('');
 const state = ref('NC');
+const genre = ref('');
+const genres = ref<string[]>([]);
+const genreLoadState = ref<'loading' | 'loaded' | 'empty' | 'failed'>('loading');
 const message = ref('');
 const messageType = ref<'success' | 'error'>('success');
 const isSubmitting = ref(false);
@@ -176,6 +204,18 @@ const progressCopy = computed(() => {
 const uploadLocation = computed(() =>
   [uploadResult.value?.city, uploadResult.value?.state].filter(Boolean).join(', ') || 'Not provided',
 );
+const genreHelpMessage = computed(() => {
+  if (genreLoadState.value === 'loading') {
+    return 'Loading current genres…';
+  }
+  if (genreLoadState.value === 'failed') {
+    return 'Genres are unavailable right now. You can still upload without one.';
+  }
+  if (genreLoadState.value === 'empty') {
+    return 'No genres are available yet. You can still upload without one.';
+  }
+  return '';
+});
 const acceptedFileTypes = acceptedMimeTypes.join(',');
 const formattedFileSize = computed(() => {
   if (!selectedFile.value) {
@@ -191,6 +231,21 @@ const messageClass = computed(() =>
     ? 'ingestion-panel__message ingestion-panel__message--success'
     : 'ingestion-panel__message ingestion-panel__message--error',
 );
+
+const loadGenres = async () => {
+  try {
+    const response = await fetchConcertGenres();
+    genres.value = response.genres;
+    genreLoadState.value = genres.value.length ? 'loaded' : 'empty';
+  } catch {
+    genres.value = [];
+    genreLoadState.value = 'failed';
+  }
+};
+
+onMounted(() => {
+  void loadGenres();
+});
 
 const resetFileInput = () => {
   if (fileInput.value) {
@@ -302,6 +357,7 @@ const handleSubmit = async () => {
       file: selectedFile.value,
       city: city.value.trim() || undefined,
       state: state.value.trim().toUpperCase() || undefined,
+      ...(genre.value ? { genre: genre.value } : {}),
       source: 'flyer_upload',
     });
     job.value = await createIngestionJob(token, uploadResult.value.concertUploadId);
@@ -484,6 +540,12 @@ const handleSubmit = async () => {
 .ingestion-panel__form input::placeholder {
   color: #7a8378;
   opacity: 1;
+}
+
+.ingestion-panel__field-help {
+  color: var(--text-light);
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 .ingestion-panel__actions {

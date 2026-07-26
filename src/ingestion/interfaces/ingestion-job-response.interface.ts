@@ -18,6 +18,7 @@ export interface IngestionJobResponse {
     originalFilename: string;
     city?: string;
     state?: string;
+    genre?: string;
     source: string;
     size: number;
     uploadedByUid: string;
