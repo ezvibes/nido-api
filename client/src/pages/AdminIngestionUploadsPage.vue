@@ -354,7 +354,7 @@ const openPreview = async (upload: AdminConcertUploadListItem) => {
   reviewStatusDraft.value = upload.reviewStatus;
   reviewNotesDraft.value = upload.reviewNotes ?? '';
   concertTitleDraft.value = defaultTitleFromFilename(upload.originalFilename);
-  concertGenreDraft.value = 'Live Music';
+  concertGenreDraft.value = upload.genre?.trim() || 'Live Music';
   concertDateDraft.value = '';
   concertTimeDraft.value = '19:00';
   concertVenueNameDraft.value = '';
