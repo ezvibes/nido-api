@@ -165,10 +165,15 @@
                   <span>Concert title</span>
                   <input v-model="concertTitleDraft" type="text" placeholder="Doctor S at The Pour House" />
                 </label>
-                <label class="admin-uploads__control admin-uploads__control--stack">
-                  <span>Genre</span>
-                  <input v-model="concertGenreDraft" type="text" placeholder="Live Music" />
-                </label>
+                <GenreCombobox
+                  v-model="concertGenreDraft"
+                  class="admin-uploads__control admin-uploads__control--stack"
+                  :options="genres"
+                  placeholder="Select a genre"
+                  :loading="genresLoading"
+                  allow-custom
+                  :max-visible-options="25"
+                />
                 <label class="admin-uploads__control admin-uploads__control--stack">
                   <span>Date</span>
                   <input v-model="concertDateDraft" type="date" />
@@ -229,11 +234,13 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   fetchAdminIngestionUploadImageBlob,
   fetchAdminIngestionUploads,
+  fetchConcertGenres,
   reviewAdminIngestionUpload,
   type AdminConcertUploadListItem,
   type UploadReviewStatus,
 } from '../composables/useApi';
 import { useAuth } from '../composables/useAuth';
+import GenreCombobox from '../components/GenreCombobox.vue';
 
 type StatusFilter = 'all' | UploadReviewStatus;
 
@@ -257,12 +264,14 @@ const reviewNotesDraft = ref('');
 const reviewMessage = ref('');
 const reviewMessageType = ref<'success' | 'error'>('success');
 const concertTitleDraft = ref('');
-const concertGenreDraft = ref('Live Music');
+const concertGenreDraft = ref('');
 const concertDateDraft = ref('');
 const concertTimeDraft = ref('19:00');
 const concertVenueNameDraft = ref('');
 const concertBandNameDraft = ref('');
 const concertDescriptionDraft = ref('');
+const genres = ref<string[]>([]);
+const genresLoading = ref(true);
 
 const limit = 25;
 const offset = ref(0);
@@ -292,6 +301,18 @@ const load = async () => {
     error.value = err?.message ?? 'Failed to load uploads.';
   } finally {
     loading.value = false;
+  }
+};
+
+const loadGenres = async () => {
+  genresLoading.value = true;
+  try {
+    const result = await fetchConcertGenres();
+    genres.value = result.genres;
+  } catch {
+    genres.value = [];
+  } finally {
+    genresLoading.value = false;
   }
 };
 
@@ -354,7 +375,7 @@ const openPreview = async (upload: AdminConcertUploadListItem) => {
   reviewStatusDraft.value = upload.reviewStatus;
   reviewNotesDraft.value = upload.reviewNotes ?? '';
   concertTitleDraft.value = defaultTitleFromFilename(upload.originalFilename);
-  concertGenreDraft.value = upload.genre?.trim() || 'Live Music';
+  concertGenreDraft.value = upload.genre?.trim() || '';
   concertDateDraft.value = '';
   concertTimeDraft.value = '19:00';
   concertVenueNameDraft.value = '';
@@ -449,7 +470,7 @@ const saveReview = async () => {
           : undefined,
       concertGenre:
         reviewStatusDraft.value === 'approved'
-          ? concertGenreDraft.value.trim() || 'Live Music'
+          ? concertGenreDraft.value.trim()
           : undefined,
       concertStartsAt:
         reviewStatusDraft.value === 'approved'
@@ -504,6 +525,7 @@ watch(offset, () => {
 
 onMounted(() => {
   void load();
+  void loadGenres();
   document.addEventListener('keydown', handleKeydown);
 });
 

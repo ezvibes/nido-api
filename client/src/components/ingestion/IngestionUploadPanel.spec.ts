@@ -53,18 +53,28 @@ describe('IngestionUploadPanel', () => {
     api.fetchIngestionJob.mockResolvedValue(buildJobResponse());
   });
 
-  it('loads only API genres and includes a selected genre in the upload', async () => {
-    api.fetchConcertGenres.mockResolvedValue({ genres: ['Jazz', 'Funk'] });
+  it('loads API genres, de-duplicates Other, and includes a canonical selection', async () => {
+    api.fetchConcertGenres.mockResolvedValue({
+      genres: ['Jazz', 'other', 'Other', 'Funk'],
+    });
 
     const wrapper = mount(IngestionUploadPanel);
     await flushPromises();
 
     expect(api.fetchConcertGenres).toHaveBeenCalledWith();
-    expect(
-      wrapper.findAll('select option').map((option) => option.text()),
-    ).toEqual(['Optional genre', 'Jazz', 'Funk']);
+    const genreInput = wrapper.get<HTMLInputElement>('[role="combobox"]');
+    expect(genreInput.attributes('placeholder')).toBe('Select a genre');
+    expect(genreInput.element.value).toBe('');
 
-    await wrapper.get('select').setValue('Jazz');
+    await genreInput.trigger('focus');
+    expect(
+      wrapper
+        .findAll('[role="option"]')
+        .map((option) => option.text())
+        .filter((option) => option.toLocaleLowerCase() === 'other'),
+    ).toEqual(['Other']);
+
+    await selectGenre(wrapper, 'jazz', 'Jazz');
     await selectValidFile(wrapper);
     await wrapper.get('form').trigger('submit');
     await flushPromises();
@@ -75,6 +85,60 @@ describe('IngestionUploadPanel', () => {
         genre: 'Jazz',
       }),
     );
+  });
+
+  it('submits Other only after explicit selection and resets to empty on clear', async () => {
+    api.fetchConcertGenres.mockResolvedValue({ genres: [] });
+
+    const wrapper = mount(IngestionUploadPanel);
+    await flushPromises();
+    const genreInput = wrapper.get<HTMLInputElement>('[role="combobox"]');
+
+    expect(genreInput.element.value).toBe('');
+    await selectGenre(wrapper, 'other', 'Other');
+    await wrapper.get('button[aria-label="Clear genre"]').trigger('click');
+    expect(genreInput.element.value).toBe('');
+
+    await selectGenre(wrapper, 'other', 'Other');
+    await selectValidFile(wrapper);
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(api.uploadIngestionImage).toHaveBeenCalledWith(
+      'firebase-token',
+      expect.objectContaining({ genre: 'Other' }),
+    );
+  });
+
+  it('does not submit arbitrary user text', async () => {
+    const wrapper = mount(IngestionUploadPanel);
+    await flushPromises();
+
+    await wrapper
+      .get<HTMLInputElement>('[role="combobox"]')
+      .setValue('My invented genre');
+    await selectValidFile(wrapper);
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(api.uploadIngestionImage.mock.calls[0]?.[1]).not.toHaveProperty(
+      'genre',
+    );
+  });
+
+  it('keeps upload available while genres are loading', async () => {
+    api.fetchConcertGenres.mockReturnValue(new Promise(() => undefined));
+
+    const wrapper = mount(IngestionUploadPanel);
+    await selectValidFile(wrapper);
+
+    expect(wrapper.text()).toContain('Loading current genres…');
+    expect(
+      wrapper.get<HTMLButtonElement>('button[type="submit"]').element.disabled,
+    ).toBe(false);
+    expect(
+      wrapper.get<HTMLInputElement>('[role="combobox"]').element.value,
+    ).toBe('');
   });
 
   it('keeps upload available and omits genre when the API returns no genres', async () => {
@@ -138,6 +202,25 @@ async function selectValidFile(wrapper: VueWrapper) {
     value: [file],
   });
   await input.trigger('change');
+}
+
+async function selectGenre(
+  wrapper: VueWrapper,
+  query: string,
+  expectedOption: string,
+) {
+  const input = wrapper.get<HTMLInputElement>('[role="combobox"]');
+  await input.trigger('focus');
+  await input.setValue(query);
+  const option = wrapper
+    .findAll('[role="option"]')
+    .find((candidate) => candidate.text() === expectedOption);
+
+  if (!option) {
+    throw new Error(`Missing ${expectedOption} genre option`);
+  }
+
+  await option.trigger('click');
 }
 
 function buildUploadResult() {

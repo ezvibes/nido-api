@@ -10,6 +10,7 @@ import AdminIngestionUploadsPage from './AdminIngestionUploadsPage.vue';
 const api = vi.hoisted(() => ({
   fetchAdminIngestionUploadImageBlob: vi.fn(),
   fetchAdminIngestionUploads: vi.fn(),
+  fetchConcertGenres: vi.fn(),
   reviewAdminIngestionUpload: vi.fn(),
 }));
 
@@ -40,6 +41,7 @@ describe('AdminIngestionUploadsPage', () => {
   beforeEach(() => {
     api.fetchAdminIngestionUploadImageBlob.mockReset();
     api.fetchAdminIngestionUploads.mockReset();
+    api.fetchConcertGenres.mockReset();
     api.reviewAdminIngestionUpload.mockReset();
 
     auth.user!.value = {
@@ -48,6 +50,9 @@ describe('AdminIngestionUploadsPage', () => {
     api.fetchAdminIngestionUploadImageBlob.mockResolvedValue(
       new Blob(['poster'], { type: 'image/jpeg' }),
     );
+    api.fetchConcertGenres.mockResolvedValue({
+      genres: ['Electronic', 'Jazz'],
+    });
 
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
@@ -60,7 +65,7 @@ describe('AdminIngestionUploadsPage', () => {
   });
 
   it('prefills the approval genre from the uploaded poster', async () => {
-    const upload = buildUpload({ genre: 'Electronic' });
+    const upload = buildUpload({ genre: '  Electronic  ' });
     api.reviewAdminIngestionUpload.mockResolvedValue({
       ...upload,
       reviewStatus: 'approved',
@@ -69,8 +74,9 @@ describe('AdminIngestionUploadsPage', () => {
 
     await openApprovalForm(wrapper);
 
-    expect(getPublishInput(wrapper, 'Genre').element.value).toBe('Electronic');
+    expect(getGenreInput(wrapper).element.value).toBe('Electronic');
 
+    await selectGenre(wrapper, 'jazz', 'Jazz');
     await getPublishInput(wrapper, 'Date').setValue('2026-08-01');
     await wrapper.get('.admin-uploads__primary').trigger('click');
     await flushPromises();
@@ -80,17 +86,57 @@ describe('AdminIngestionUploadsPage', () => {
       'upload-1',
       expect.objectContaining({
         status: 'approved',
-        concertGenre: 'Electronic',
+        concertGenre: 'Jazz',
       }),
     );
   });
 
-  it('falls back to Live Music when the upload has no genre', async () => {
-    const wrapper = await mountWithUpload(buildUpload());
+  it('uses an empty draft and payload when the upload has no genre', async () => {
+    const upload = buildUpload({ genre: '   ' });
+    api.reviewAdminIngestionUpload.mockResolvedValue({
+      ...upload,
+      reviewStatus: 'approved',
+    });
+    const wrapper = await mountWithUpload(upload);
 
     await openApprovalForm(wrapper);
 
-    expect(getPublishInput(wrapper, 'Genre').element.value).toBe('Live Music');
+    expect(getGenreInput(wrapper).element.value).toBe('');
+
+    await getPublishInput(wrapper, 'Date').setValue('2026-08-01');
+    await wrapper.get('.admin-uploads__primary').trigger('click');
+    await flushPromises();
+
+    expect(api.reviewAdminIngestionUpload).toHaveBeenCalledWith(
+      'firebase-token',
+      'upload-1',
+      expect.objectContaining({
+        concertGenre: '',
+      }),
+    );
+  });
+
+  it('allows an admin to submit a new custom genre', async () => {
+    const upload = buildUpload({ genre: 'Electronic' });
+    api.reviewAdminIngestionUpload.mockResolvedValue({
+      ...upload,
+      reviewStatus: 'approved',
+    });
+    const wrapper = await mountWithUpload(upload);
+
+    await openApprovalForm(wrapper);
+    await getGenreInput(wrapper).setValue('Neo Soul');
+    await getPublishInput(wrapper, 'Date').setValue('2026-08-01');
+    await wrapper.get('.admin-uploads__primary').trigger('click');
+    await flushPromises();
+
+    expect(api.reviewAdminIngestionUpload).toHaveBeenCalledWith(
+      'firebase-token',
+      'upload-1',
+      expect.objectContaining({
+        concertGenre: 'Neo Soul',
+      }),
+    );
   });
 });
 
@@ -114,13 +160,39 @@ async function openApprovalForm(wrapper: VueWrapper) {
 function getPublishInput(wrapper: VueWrapper, label: string) {
   const field = wrapper
     .findAll('.admin-uploads__publish-grid label')
-    .find((candidate) => candidate.get('span').text() === label);
+    .find((candidate) => {
+      const fieldLabel = candidate.find('span');
+      return fieldLabel.exists() && fieldLabel.text() === label;
+    });
 
   if (!field) {
     throw new Error(`Missing ${label} approval field`);
   }
 
   return field.get<HTMLInputElement>('input');
+}
+
+function getGenreInput(wrapper: VueWrapper) {
+  return wrapper.get<HTMLInputElement>('[role="combobox"]');
+}
+
+async function selectGenre(
+  wrapper: VueWrapper,
+  query: string,
+  expectedOption: string,
+) {
+  const input = getGenreInput(wrapper);
+  await input.trigger('focus');
+  await input.setValue(query);
+  const option = wrapper
+    .findAll('[role="option"]')
+    .find((candidate) => candidate.text() === expectedOption);
+
+  if (!option) {
+    throw new Error(`Missing ${expectedOption} genre option`);
+  }
+
+  await option.trigger('click');
 }
 
 function buildUpload(overrides: { genre?: string } = {}) {

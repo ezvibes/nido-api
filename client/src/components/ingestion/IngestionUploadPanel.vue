@@ -58,17 +58,16 @@
         <input v-model="state" type="text" maxlength="2" placeholder="NC" />
       </label>
 
-      <label>
-        <span>Genre</span>
-        <select
+      <div class="ingestion-panel__genre-field">
+        <GenreCombobox
           v-model="genre"
-          :aria-describedby="genreHelpMessage ? 'genre-help' : undefined"
-        >
-          <option value="">Optional genre</option>
-          <option v-for="option in genres" :key="option" :value="option">
-            {{ option }}
-          </option>
-        </select>
+          :options="userGenreOptions"
+          placeholder="Select a genre"
+          :loading="genreLoadState === 'loading'"
+          :allow-custom="false"
+          :max-visible-options="25"
+          :described-by="genreHelpMessage ? 'genre-help' : undefined"
+        />
         <small
           v-if="genreHelpMessage"
           id="genre-help"
@@ -76,7 +75,7 @@
         >
           {{ genreHelpMessage }}
         </small>
-      </label>
+      </div>
 
       <p v-if="message" :class="messageClass">{{ message }}</p>
 
@@ -143,6 +142,7 @@ import {
   uploadIngestionImage,
 } from '../../composables/useApi';
 import { useAuth } from '../../composables/useAuth';
+import GenreCombobox from '../GenreCombobox.vue';
 
 const { user } = useAuth();
 
@@ -204,6 +204,12 @@ const progressCopy = computed(() => {
 const uploadLocation = computed(() =>
   [uploadResult.value?.city, uploadResult.value?.state].filter(Boolean).join(', ') || 'Not provided',
 );
+const userGenreOptions = computed(() => [
+  ...genres.value.filter(
+    (option) => option.trim().toLocaleLowerCase() !== 'other',
+  ),
+  'Other',
+]);
 const genreHelpMessage = computed(() => {
   if (genreLoadState.value === 'loading') {
     return 'Loading current genres…';
@@ -413,6 +419,10 @@ const handleSubmit = async () => {
   display: grid;
   gap: 0.35rem;
   text-align: center;
+  width: min(100%, 34rem);
+}
+
+.ingestion-panel__genre-field {
   width: min(100%, 34rem);
 }
 
