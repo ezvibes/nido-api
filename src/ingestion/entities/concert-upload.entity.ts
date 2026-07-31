@@ -39,6 +39,9 @@ export class ConcertUpload {
   @Column({ nullable: true })
   state?: string;
 
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  genre?: string | null;
+
   @Column({ default: 'flyer_upload' })
   source: string;
 

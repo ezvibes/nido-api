@@ -62,6 +62,17 @@ export async function fetchConcerts(
   }
 }
 
+export interface ConcertGenresResponse {
+  genres: string[];
+}
+
+export async function fetchConcertGenres(): Promise<ConcertGenresResponse> {
+  const response = await apiClient.get<ConcertGenresResponse>(
+    '/concerts/meta/genres',
+  );
+  return response.data;
+}
+
 export async function fetchUserConcerts(
   token: string,
   params?: {
@@ -136,6 +147,7 @@ export interface IngestionUploadResult {
   originalFilename: string;
   city?: string;
   state?: string;
+  genre?: string;
   source: string;
   uploadedByUserId?: number;
   uploadedAt: string;
@@ -161,6 +173,7 @@ export interface IngestionJobResponse {
     originalFilename: string;
     city?: string;
     state?: string;
+    genre?: string;
     source: string;
     size: number;
     uploadedByUid: string;
@@ -196,6 +209,7 @@ export async function uploadIngestionImage(
     file: File;
     city?: string;
     state?: string;
+    genre?: string;
     source?: string;
   },
 ) {
@@ -207,6 +221,10 @@ export async function uploadIngestionImage(
     }
     if (payload.state) {
       formData.append('state', payload.state);
+    }
+    const genre = payload.genre?.trim();
+    if (genre) {
+      formData.append('genre', genre);
     }
     if (payload.source) {
       formData.append('source', payload.source);
@@ -365,6 +383,7 @@ export interface AdminConcertUploadListItem {
   size: number;
   city?: string;
   state?: string;
+  genre?: string;
   source: string;
   uploadedByUid: string;
   uploadedByUserId?: number;

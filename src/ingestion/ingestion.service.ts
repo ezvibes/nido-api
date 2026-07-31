@@ -213,6 +213,7 @@ export class IngestionService {
 
     const uploadedAt = new Date().toISOString();
     const normalizedSource = dto.source ?? 'flyer_upload';
+    const normalizedGenre = dto.genre?.trim() || undefined;
     const objectName = this.buildObjectName(file.originalname, uid, uploadedAt);
     const bucket = this.storage.bucket(this.bucketName);
     const object = bucket.file(objectName);
@@ -228,6 +229,7 @@ export class IngestionService {
             uploadedByUid: uid,
             city: dto.city ?? '',
             state: dto.state ?? '',
+            ...(normalizedGenre ? { genre: normalizedGenre } : {}),
             source: normalizedSource,
             uploadedByUserId: uploadedByUserId?.toString() ?? '',
             originalFilename: file.originalname,
@@ -251,6 +253,7 @@ export class IngestionService {
         originalFilename: file.originalname,
         city: dto.city,
         state: dto.state,
+        genre: normalizedGenre,
         source: normalizedSource,
         reviewStatus: 'submitted',
         uploadedByUid: uid,
@@ -269,6 +272,7 @@ export class IngestionService {
       originalFilename: file.originalname,
       city: dto.city,
       state: dto.state,
+      genre: normalizedGenre,
       source: normalizedSource,
       uploadedByUserId,
       uploadedAt,
@@ -443,6 +447,7 @@ export class IngestionService {
       size: Number(upload.size),
       city: upload.city,
       state: upload.state,
+      genre: upload.genre ?? undefined,
       source: upload.source,
       uploadedByUid: upload.uploadedByUid,
       uploadedByUserId: upload.uploadedByUserId,
@@ -594,6 +599,7 @@ export class IngestionService {
         originalFilename: concertUpload.originalFilename,
         city: concertUpload.city,
         state: concertUpload.state,
+        genre: concertUpload.genre ?? undefined,
         source: concertUpload.source,
         size: Number(concertUpload.size),
         uploadedByUid: concertUpload.uploadedByUid,
@@ -616,6 +622,7 @@ export class IngestionService {
       originalFilename: concertUpload.originalFilename,
       city: concertUpload.city,
       state: concertUpload.state,
+      genre: concertUpload.genre ?? undefined,
       source: concertUpload.source,
       uploadedByUserId: concertUpload.uploadedByUserId,
       uploadedAt: concertUpload.createdAt.toISOString(),

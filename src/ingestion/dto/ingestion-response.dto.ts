@@ -34,6 +34,9 @@ export class IngestionUploadResponseDto {
   @ApiPropertyOptional({ example: 'NC' })
   state?: string;
 
+  @ApiPropertyOptional({ example: 'Electronic' })
+  genre?: string;
+
   @ApiProperty({ example: 'flyer_upload' })
   source: string;
 
@@ -76,6 +79,9 @@ export class AdminConcertUploadResponseDto {
 
   @ApiPropertyOptional({ example: 'NC' })
   state?: string;
+
+  @ApiPropertyOptional({ example: 'Electronic' })
+  genre?: string;
 
   @ApiProperty({ example: 'flyer_upload' })
   source: string;

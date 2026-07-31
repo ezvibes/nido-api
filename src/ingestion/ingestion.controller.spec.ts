@@ -28,14 +28,24 @@ describe('IngestionController', () => {
 
     await controller.uploadImage(
       { file: [file] },
-      { city: 'raleigh', state: 'NC', source: 'flyer_upload' },
+      {
+        city: 'raleigh',
+        state: 'NC',
+        genre: '  Electronic  ',
+        source: 'flyer_upload',
+      },
       { uid: 'uid-1' } as any,
     );
 
     expect(userService.syncFromToken).toHaveBeenCalledWith({ uid: 'uid-1' });
     expect(ingestionService.uploadImage).toHaveBeenCalledWith(
       file,
-      { city: 'raleigh', state: 'NC', source: 'flyer_upload' },
+      {
+        city: 'raleigh',
+        state: 'NC',
+        genre: '  Electronic  ',
+        source: 'flyer_upload',
+      },
       'uid-1',
       3,
     );

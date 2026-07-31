@@ -8,6 +8,7 @@ export interface IngestionUploadResult {
   originalFilename: string;
   city?: string;
   state?: string;
+  genre?: string;
   source: string;
   uploadedByUserId?: number;
   uploadedAt: string;

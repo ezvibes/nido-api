@@ -10,6 +10,7 @@ export interface AdminConcertUploadListItem {
   size: number;
   city?: string;
   state?: string;
+  genre?: string;
   source: string;
   uploadedByUid: string;
   uploadedByUserId?: number;
