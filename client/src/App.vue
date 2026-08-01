@@ -135,6 +135,14 @@ onBeforeUnmount(() => {
               </router-link>
               <router-link
                 v-if="isAdmin"
+                to="/admin/concerts"
+                class="account-menu__item"
+                @click="closeMenu"
+              >
+                Admin concerts
+              </router-link>
+              <router-link
+                v-if="isAdmin"
                 to="/admin/ingestion/uploads"
                 class="account-menu__item"
                 @click="closeMenu"

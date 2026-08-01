@@ -8,9 +8,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
 import { Between, In, Repository } from 'typeorm';
 import { Concert } from '../apis/concerts/entities/concert.entity';
+import { ConcertCatalogStatus } from '../apis/concerts/entities/concert.entity';
 import { Venue } from '../apis/venues/entities/venue.entity';
 import { Band } from '../apis/bands/entities/band.entity';
-import { ConcertBandLineup, PerformanceRole } from '../apis/concerts/entities/concert-band-lineup.entity';
+import {
+  ConcertBandLineup,
+  PerformanceRole,
+} from '../apis/concerts/entities/concert-band-lineup.entity';
 import { VenueService } from '../apis/venues/venue.service';
 import { BandService } from '../apis/bands/band.service';
 import { User } from '../apis/users/entities/user.entity';
@@ -258,6 +262,18 @@ export class ConcertSyncService {
           continue;
         }
 
+        if (
+          existingMapping &&
+          this.isProtectedFromSync(existingMapping.concert)
+        ) {
+          skipped += 1;
+          processed += 1;
+          existingMapping.lastJob = job;
+          existingMapping.lastSyncedAt = new Date();
+          await this.syncEventRepository.save(existingMapping);
+          continue;
+        }
+
         const extraction = await this.geminiExtractor.extractConcert(event, {
           customPrompt: options.customPrompt,
           customContext: options.customContext,
@@ -274,21 +290,24 @@ export class ConcertSyncService {
           }
         }
 
-        const { concert, wasCreated } = await this.upsertConcertFromEvent(
-          job.owner,
-          extraction,
-          existingMapping?.concert?.id,
-        );
+        const { concert, wasCreated, wasSkipped } =
+          await this.upsertConcertFromEvent(
+            job.owner,
+            extraction,
+            existingMapping?.concert?.id,
+          );
 
-        await this.upsertSyncMapping({
-          owner: job.owner,
-          job,
-          event,
-          eventFingerprint,
-          extraction,
-          concert,
-          mapping: existingMapping,
-        });
+        if (!wasSkipped) {
+          await this.upsertSyncMapping({
+            owner: job.owner,
+            job,
+            event,
+            eventFingerprint,
+            extraction,
+            concert,
+            mapping: existingMapping,
+          });
+        }
 
         if (extraction.needsGuidance) {
           extraction.guidanceQuestions.forEach((question) =>
@@ -296,7 +315,9 @@ export class ConcertSyncService {
           );
         }
 
-        if (wasCreated) {
+        if (wasSkipped) {
+          skipped += 1;
+        } else if (wasCreated) {
           created += 1;
         } else {
           updated += 1;
@@ -369,6 +390,9 @@ export class ConcertSyncService {
       .createQueryBuilder('concert')
       .where('concert.owner_id = :ownerId', { ownerId })
       .andWhere('concert.isAdminApproved = true')
+      .andWhere('concert.catalogStatus = :activeCatalogStatus', {
+        activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
+      })
       .leftJoin('concert_upvotes', 'upvote', 'upvote.concert_id = concert.id')
       .addSelect('COUNT(DISTINCT upvote.id)', 'upvote_count')
       .groupBy('concert.id')
@@ -516,7 +540,13 @@ export class ConcertSyncService {
       concert = await this.findLikelyDuplicateConcert(owner, extraction);
     }
 
-    const wasCreated = !concert;
+    if (concert && this.isProtectedFromSync(concert)) {
+      return {
+        concert,
+        wasCreated: false,
+        wasSkipped: true,
+      };
+    }
 
     const firstVenue = extraction.venues?.[0];
     const resolvedVenue = firstVenue
@@ -531,19 +561,21 @@ export class ConcertSyncService {
     if (artistNames.length === 0) {
       artistNames.push(extraction.title);
     }
-    const resolvedBands = await this.bandService.findOrCreateManyByName(artistNames);
+    const resolvedBands =
+      await this.bandService.findOrCreateManyByName(artistNames);
 
-    const mappedLineup = resolvedBands.map((band, index) => {
-      const cbl = new ConcertBandLineup();
-      if (concert && concert.id) {
-        cbl.concertId = concert.id;
-      }
-      cbl.bandId = band.id;
-      cbl.band = band;
-      cbl.performanceRole = PerformanceRole.HEADLINER;
-      cbl.performanceOrder = index;
-      return cbl;
-    });
+    const buildLineup = (concertId?: string) =>
+      resolvedBands.map((band, index) => {
+        const cbl = new ConcertBandLineup();
+        if (concertId) {
+          cbl.concertId = concertId;
+        }
+        cbl.bandId = band.id;
+        cbl.band = band;
+        cbl.performanceRole = PerformanceRole.HEADLINER;
+        cbl.performanceOrder = index;
+        return cbl;
+      });
 
     if (!concert) {
       concert = this.concertRepository.create({
@@ -553,25 +585,60 @@ export class ConcertSyncService {
         startsAt: new Date(extraction.startsAt),
         endsAt: extraction.endsAt ? new Date(extraction.endsAt) : null,
         venue: resolvedVenue,
-        lineup: mappedLineup,
+        lineup: buildLineup(),
         description: extraction.description ?? null,
       });
-    } else {
-      await this.concertRepository.manager.delete(ConcertBandLineup, { concertId: concert.id });
-      concert.title = extraction.title;
-      concert.genre = extraction.genre;
-      concert.startsAt = new Date(extraction.startsAt);
-      concert.endsAt = extraction.endsAt ? new Date(extraction.endsAt) : null;
-      concert.venue = resolvedVenue;
-      concert.lineup = mappedLineup;
-      concert.description = extraction.description ?? null;
+
+      const saved = await this.concertRepository.save(concert);
+      return {
+        concert: saved,
+        wasCreated: true,
+        wasSkipped: false,
+      };
     }
 
-    const saved = await this.concertRepository.save(concert);
+    const existingConcert = concert;
+    const saved = await this.concertRepository.manager.transaction(
+      async (manager) => {
+        const current = await manager.findOne(Concert, {
+          where: { id: existingConcert.id, owner: { id: owner.id } },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        if (!current) {
+          throw new NotFoundException('Concert no longer exists');
+        }
+
+        if (this.isProtectedFromSync(current)) {
+          return null;
+        }
+
+        await manager.delete(ConcertBandLineup, {
+          concertId: current.id,
+        });
+        current.title = extraction.title;
+        current.genre = extraction.genre;
+        current.startsAt = new Date(extraction.startsAt);
+        current.endsAt = extraction.endsAt ? new Date(extraction.endsAt) : null;
+        current.venue = resolvedVenue;
+        current.lineup = buildLineup(current.id);
+        current.description = extraction.description ?? null;
+        return manager.save(current);
+      },
+    );
+
+    if (!saved) {
+      return {
+        concert: existingConcert,
+        wasCreated: false,
+        wasSkipped: true,
+      };
+    }
 
     return {
       concert: saved,
-      wasCreated,
+      wasCreated: false,
+      wasSkipped: false,
     };
   }
 
@@ -608,6 +675,13 @@ export class ConcertSyncService {
         );
         return this.hasVenueOverlap(candidateVenue, venueName);
       }) ?? null
+    );
+  }
+
+  private isProtectedFromSync(concert?: Concert | null) {
+    return (
+      Boolean(concert?.editorialLockedAt) ||
+      concert?.catalogStatus === ConcertCatalogStatus.ARCHIVED
     );
   }
 

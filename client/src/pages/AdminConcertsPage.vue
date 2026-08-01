@@ -1,0 +1,826 @@
+<script setup lang="ts">
+import { computed, nextTick, onMounted, reactive, ref } from 'vue';
+import GenreCombobox from '../components/GenreCombobox.vue';
+import { useAuth } from '../composables/useAuth';
+import {
+  fetchAdminConcerts,
+  fetchConcertGenres,
+  fetchVenues,
+  updateAdminConcert,
+  type AdminConcertCatalogStatus,
+  type UpdateAdminConcertPayload,
+  type VenueListItem,
+} from '../composables/useApi';
+import type { ConcertApiItem } from '../types/concerts';
+
+const { user } = useAuth();
+const concerts = ref<ConcertApiItem[]>([]);
+const venues = ref<VenueListItem[]>([]);
+const genres = ref<string[]>([]);
+const loading = ref(false);
+const savingId = ref<string | null>(null);
+const error = ref('');
+const notice = ref('');
+const search = ref('');
+const catalogStatus = ref<AdminConcertCatalogStatus | 'all'>('active');
+const featuredOnly = ref(false);
+const editing = ref<ConcertApiItem | null>(null);
+const closeEditorButton = ref<HTMLButtonElement | null>(null);
+let editorTrigger: HTMLElement | null = null;
+
+const form = reactive({
+  title: '',
+  genre: '',
+  startsAt: '',
+  endsAt: '',
+  venueId: '',
+  description: '',
+});
+
+const statusOptions: Array<{
+  value: AdminConcertCatalogStatus | 'all';
+  label: string;
+}> = [
+  { value: 'active', label: 'Active' },
+  { value: 'hidden', label: 'Hidden' },
+  { value: 'archived', label: 'Archived' },
+  { value: 'all', label: 'All' },
+];
+
+const resultSummary = computed(() => {
+  const noun = concerts.value.length === 1 ? 'concert' : 'concerts';
+  return `${concerts.value.length} ${noun}`;
+});
+
+function toLocalInput(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
+}
+
+function getMessage(reason: unknown, fallback: string) {
+  const response = reason as {
+    response?: { status?: number; data?: { message?: string | string[] } };
+  };
+  const message = response.response?.data?.message;
+  if (Array.isArray(message)) return message.join(' ');
+  return message || fallback;
+}
+
+async function token() {
+  if (!user.value) throw new Error('Sign in is required.');
+  return user.value.getIdToken();
+}
+
+async function load() {
+  loading.value = true;
+  error.value = '';
+  try {
+    const authToken = await token();
+    const response = await fetchAdminConcerts(authToken, {
+      q: search.value.trim() || undefined,
+      catalogStatus: catalogStatus.value,
+      isFeatured: featuredOnly.value || undefined,
+      pageSize: 100,
+    });
+    concerts.value = response.data;
+  } catch (reason) {
+    error.value = getMessage(reason, 'Unable to load the concert catalog.');
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function loadReferences() {
+  try {
+    const authToken = await token();
+    const [genreResponse, venueResponse] = await Promise.all([
+      fetchConcertGenres(),
+      fetchVenues(authToken),
+    ]);
+    genres.value = genreResponse.genres;
+    venues.value = venueResponse;
+  } catch (reason) {
+    error.value = getMessage(reason, 'Unable to load editing options.');
+  }
+}
+
+function openEditor(concert: ConcertApiItem) {
+  editorTrigger = document.activeElement as HTMLElement | null;
+  editing.value = concert;
+  form.title = concert.title;
+  form.genre = concert.genre;
+  form.startsAt = toLocalInput(concert.startsAt);
+  form.endsAt = toLocalInput(concert.endsAt);
+  form.venueId = concert.venue?.id || '';
+  form.description = concert.description || '';
+  void nextTick(() => closeEditorButton.value?.focus());
+}
+
+function closeEditor() {
+  editing.value = null;
+  void nextTick(() => editorTrigger?.focus());
+}
+
+function handleDialogKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeEditor();
+    return;
+  }
+
+  if (event.key !== 'Tab') return;
+  const dialog = event.currentTarget as HTMLElement;
+  const focusable = Array.from(
+    dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  );
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (!first || !last) return;
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function replaceConcert(updated: ConcertApiItem) {
+  const index = concerts.value.findIndex(
+    (concert) => concert.id === updated.id,
+  );
+  if (index >= 0) concerts.value[index] = updated;
+}
+
+async function update(
+  concert: ConcertApiItem,
+  payload: Omit<UpdateAdminConcertPayload, 'expectedVersion'>,
+  successMessage: string,
+) {
+  savingId.value = concert.id;
+  error.value = '';
+  notice.value = '';
+  try {
+    const updated = await updateAdminConcert(await token(), concert.id, {
+      expectedVersion: concert.version ?? 1,
+      ...payload,
+    });
+    replaceConcert(updated);
+    if (featuredOnly.value && !updated.isFeatured) {
+      concerts.value = concerts.value.filter((item) => item.id !== updated.id);
+    }
+    notice.value = successMessage;
+    return updated;
+  } catch (reason) {
+    const status = (reason as { response?: { status?: number } }).response
+      ?.status;
+    if (status === 409) {
+      await load();
+      closeEditor();
+      error.value =
+        'This concert changed in another session. The editor was closed and the latest version was loaded.';
+    } else {
+      error.value = getMessage(reason, 'Unable to update this concert.');
+    }
+    return null;
+  } finally {
+    savingId.value = null;
+  }
+}
+
+async function saveEditor() {
+  if (!editing.value) return;
+  const updated = await update(
+    editing.value,
+    {
+      title: form.title.trim(),
+      genre: form.genre.trim(),
+      startsAt: new Date(form.startsAt).toISOString(),
+      endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
+      venueId: form.venueId || null,
+      description: form.description.trim() || null,
+    },
+    `Saved changes to ${form.title.trim()}.`,
+  );
+  if (updated) closeEditor();
+}
+
+async function setStatus(
+  concert: ConcertApiItem,
+  nextStatus: AdminConcertCatalogStatus,
+) {
+  if (
+    nextStatus === 'archived' &&
+    !window.confirm(
+      `Archive "${concert.title}"? It will leave the public catalog but remain recoverable.`,
+    )
+  ) {
+    return;
+  }
+  const updated = await update(
+    concert,
+    { catalogStatus: nextStatus },
+    `${concert.title} is now ${nextStatus}.`,
+  );
+  if (
+    updated &&
+    catalogStatus.value !== 'all' &&
+    catalogStatus.value !== nextStatus
+  ) {
+    concerts.value = concerts.value.filter((item) => item.id !== concert.id);
+  }
+}
+
+async function toggleFeatured(concert: ConcertApiItem) {
+  await update(
+    concert,
+    { isFeatured: !concert.isFeatured },
+    `${concert.title} ${concert.isFeatured ? 'removed from' : 'added to'} Featured.`,
+  );
+}
+
+async function resumeSync(concert: ConcertApiItem) {
+  await update(
+    concert,
+    { resumeSyncUpdates: true },
+    `Calendar updates resumed for ${concert.title}.`,
+  );
+}
+
+async function selectStatus(value: AdminConcertCatalogStatus | 'all') {
+  catalogStatus.value = value;
+  await load();
+}
+
+onMounted(async () => {
+  await Promise.all([load(), loadReferences()]);
+});
+</script>
+
+<template>
+  <section class="catalog-admin">
+    <header class="catalog-admin__header">
+      <div>
+        <p class="catalog-admin__eyebrow">Catalog operations</p>
+        <h2>Concert catalog</h2>
+        <p>
+          Review listings, control public visibility, and protect editorial
+          changes.
+        </p>
+      </div>
+      <button
+        type="button"
+        class="button button--secondary"
+        :disabled="loading"
+        @click="load"
+      >
+        Refresh
+      </button>
+    </header>
+
+    <form class="catalog-admin__toolbar" role="search" @submit.prevent="load">
+      <label class="search-field">
+        <span>Search catalog</span>
+        <input
+          v-model="search"
+          type="search"
+          placeholder="Title, artist, venue, or description"
+        />
+      </label>
+      <button type="submit" class="button">Search</button>
+      <label class="featured-filter">
+        <input v-model="featuredOnly" type="checkbox" @change="load" />
+        Featured only
+      </label>
+    </form>
+
+    <div class="status-tabs" aria-label="Catalog status filter">
+      <button
+        v-for="option in statusOptions"
+        :key="option.value"
+        type="button"
+        :class="{ active: catalogStatus === option.value }"
+        :aria-pressed="catalogStatus === option.value"
+        @click="selectStatus(option.value)"
+      >
+        {{ option.label }}
+      </button>
+    </div>
+
+    <p v-if="error" class="message message--error" role="alert">{{ error }}</p>
+    <p v-if="notice" class="message message--success" role="status">
+      {{ notice }}
+    </p>
+
+    <div class="catalog-admin__result-heading">
+      <strong>{{ resultSummary }}</strong>
+      <span v-if="loading">Loading latest catalog...</span>
+    </div>
+
+    <div v-if="!loading && !concerts.length" class="empty-state">
+      No concerts match these filters.
+    </div>
+
+    <div v-else class="concert-table">
+      <article
+        v-for="concert in concerts"
+        :key="concert.id"
+        class="concert-row"
+      >
+        <div class="concert-row__date">
+          <strong>{{
+            new Date(concert.startsAt).toLocaleDateString(undefined, {
+              month: 'short',
+              day: 'numeric',
+            })
+          }}</strong>
+          <span>{{
+            new Date(concert.startsAt).toLocaleDateString(undefined, {
+              year: 'numeric',
+            })
+          }}</span>
+        </div>
+        <div class="concert-row__main">
+          <div class="concert-row__title-line">
+            <h3>{{ concert.title }}</h3>
+            <span
+              class="status"
+              :class="`status--${concert.catalogStatus || 'active'}`"
+            >
+              {{ concert.catalogStatus || 'active' }}
+            </span>
+            <span v-if="concert.isFeatured" class="status status--featured"
+              >Featured</span
+            >
+          </div>
+          <p>
+            {{ formatDate(concert.startsAt) }} |
+            {{ concert.venue?.name || 'Venue not set' }} | {{ concert.genre }}
+          </p>
+          <p v-if="concert.editorialLockedAt" class="sync-note">
+            Calendar updates paused after an editorial change.
+            <button
+              type="button"
+              :disabled="savingId === concert.id"
+              @click="resumeSync(concert)"
+            >
+              Resume updates
+            </button>
+          </p>
+        </div>
+        <div class="concert-row__actions">
+          <button
+            type="button"
+            class="button button--secondary"
+            @click="openEditor(concert)"
+          >
+            Edit
+          </button>
+          <button
+            v-if="concert.catalogStatus === 'active' || !concert.catalogStatus"
+            type="button"
+            class="button button--secondary"
+            :disabled="savingId === concert.id"
+            @click="setStatus(concert, 'hidden')"
+          >
+            Hide
+          </button>
+          <button
+            v-else
+            type="button"
+            class="button button--secondary"
+            :disabled="savingId === concert.id"
+            @click="setStatus(concert, 'active')"
+          >
+            Restore
+          </button>
+          <button
+            type="button"
+            class="button button--secondary"
+            :disabled="
+              savingId === concert.id || concert.catalogStatus !== 'active'
+            "
+            @click="toggleFeatured(concert)"
+          >
+            {{ concert.isFeatured ? 'Unfeature' : 'Feature' }}
+          </button>
+          <button
+            v-if="concert.catalogStatus !== 'archived'"
+            type="button"
+            class="button button--danger"
+            :disabled="savingId === concert.id"
+            @click="setStatus(concert, 'archived')"
+          >
+            Archive
+          </button>
+        </div>
+      </article>
+    </div>
+
+    <div v-if="editing" class="dialog-backdrop" @click.self="closeEditor">
+      <form
+        class="editor"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="concert-editor-title"
+        @submit.prevent="saveEditor"
+        @keydown="handleDialogKeydown"
+      >
+        <header>
+          <div>
+            <p class="catalog-admin__eyebrow">Editorial override</p>
+            <h3 id="concert-editor-title">Edit concert</h3>
+          </div>
+          <button
+            ref="closeEditorButton"
+            type="button"
+            class="close-button"
+            aria-label="Close editor"
+            @click="closeEditor"
+          >
+            &times;
+          </button>
+        </header>
+        <p v-if="editing.syncSource" class="editor__sync-warning">
+          Saving content pauses calendar overwrites for this concert until you
+          resume them.
+        </p>
+        <div class="editor__grid">
+          <label class="field field--wide"
+            ><span>Title</span><input v-model="form.title" required
+          /></label>
+          <GenreCombobox
+            v-model="form.genre"
+            :options="genres"
+            allow-custom
+            label="Genre"
+          />
+          <label class="field"
+            ><span>Venue</span
+            ><select v-model="form.venueId">
+              <option value="">No venue</option>
+              <option v-for="venue in venues" :key="venue.id" :value="venue.id">
+                {{ venue.name }} - {{ venue.city }}
+              </option>
+            </select></label
+          >
+          <label class="field"
+            ><span>Starts</span
+            ><input v-model="form.startsAt" type="datetime-local" required
+          /></label>
+          <label class="field"
+            ><span>Ends</span
+            ><input v-model="form.endsAt" type="datetime-local"
+          /></label>
+          <label class="field field--wide"
+            ><span>Description</span
+            ><textarea v-model="form.description" rows="5"></textarea>
+          </label>
+        </div>
+        <footer>
+          <button
+            type="button"
+            class="button button--secondary"
+            @click="closeEditor"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="button"
+            :disabled="savingId === editing.id"
+          >
+            {{ savingId === editing.id ? 'Saving...' : 'Save changes' }}
+          </button>
+        </footer>
+      </form>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+.catalog-admin {
+  padding: 2rem 0 4rem;
+}
+.catalog-admin__header,
+.catalog-admin__toolbar,
+.catalog-admin__result-heading,
+.concert-row,
+.editor header,
+.editor footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.catalog-admin__header {
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+.catalog-admin h2 {
+  margin: 0.15rem 0 0.35rem;
+  font-size: 1.75rem;
+}
+.catalog-admin__header p,
+.concert-row p {
+  margin: 0;
+  color: var(--text-muted);
+}
+.catalog-admin__eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.catalog-admin__toolbar {
+  justify-content: flex-start;
+  padding: 1rem 0;
+  border-top: 1px solid var(--border);
+}
+.search-field {
+  flex: 1;
+  max-width: 34rem;
+}
+.search-field span,
+.field span,
+.genre-combobox :deep(.genre-combobox__label) {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+input,
+select,
+textarea {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid #cbd1d7;
+  border-radius: 4px;
+  background: white;
+  color: var(--text);
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+}
+.featured-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+.featured-filter input {
+  width: 1rem;
+  height: 1rem;
+}
+.status-tabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+}
+.status-tabs button {
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 700;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+}
+.status-tabs button.active {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+.message {
+  padding: 0.75rem 1rem;
+  border-left: 4px solid;
+}
+.message--error {
+  background: #fff1f0;
+  border-color: #c9362b;
+  color: #7a211b;
+}
+.message--success {
+  background: #effaf5;
+  border-color: #1f9367;
+  color: #146247;
+}
+.catalog-admin__result-heading {
+  min-height: 3rem;
+  font-size: 0.9rem;
+}
+.catalog-admin__result-heading span {
+  color: var(--text-muted);
+}
+.concert-table {
+  border-top: 1px solid var(--border);
+}
+.concert-row {
+  align-items: flex-start;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.concert-row__date {
+  width: 3.5rem;
+  flex: 0 0 3.5rem;
+  text-align: center;
+}
+.concert-row__date strong,
+.concert-row__date span {
+  display: block;
+}
+.concert-row__date span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+.concert-row__main {
+  flex: 1;
+  min-width: 12rem;
+}
+.concert-row__title-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.concert-row h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.concert-row__main > p {
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
+.status {
+  border: 1px solid #bfc6cc;
+  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+  color: #47515b;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.status--hidden {
+  border-color: #d39b25;
+  color: #76520a;
+}
+.status--archived {
+  border-color: #8b949e;
+  color: #59616a;
+}
+.status--featured {
+  border-color: #1f9367;
+  color: #146247;
+}
+.concert-row__actions {
+  display: flex;
+  flex: 0 0 18rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+.button {
+  min-height: 2.35rem;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent);
+  color: white;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 750;
+  padding: 0.45rem 0.8rem;
+  cursor: pointer;
+}
+.button--secondary {
+  border-color: #cbd1d7;
+  background: white;
+  color: var(--text);
+}
+.button--danger {
+  border-color: #c9362b;
+  background: white;
+  color: #a32c23;
+}
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.sync-note {
+  color: #76520a !important;
+}
+.sync-note button {
+  border: 0;
+  background: transparent;
+  color: #9a341f;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.empty-state {
+  border-block: 1px solid var(--border);
+  padding: 3rem 1rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+.dialog-backdrop {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(20, 25, 30, 0.55);
+}
+.editor {
+  width: min(42rem, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  border-radius: 6px;
+  background: white;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.25);
+}
+.editor header,
+.editor footer {
+  padding: 1rem 1.25rem;
+}
+.editor header {
+  border-bottom: 1px solid var(--border);
+}
+.editor h3 {
+  margin: 0.15rem 0 0;
+}
+.close-button {
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.6rem;
+  cursor: pointer;
+}
+.editor__sync-warning {
+  margin: 1rem 1.25rem 0;
+  border-left: 3px solid #d39b25;
+  background: #fff8e8;
+  padding: 0.7rem;
+  color: #76520a;
+  font-size: 0.85rem;
+}
+.editor__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+.field--wide {
+  grid-column: 1 / -1;
+}
+.editor footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 760px) {
+  .catalog-admin__header,
+  .catalog-admin__toolbar,
+  .concert-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .catalog-admin__toolbar .button {
+    align-self: flex-start;
+  }
+  .concert-row__date {
+    width: auto;
+    text-align: left;
+  }
+  .concert-row__date strong,
+  .concert-row__date span {
+    display: inline;
+    margin-right: 0.25rem;
+  }
+  .concert-row__actions {
+    flex-basis: auto;
+    justify-content: flex-start;
+  }
+  .editor__grid {
+    grid-template-columns: 1fr;
+  }
+  .field--wide {
+    grid-column: auto;
+  }
+}
+</style>

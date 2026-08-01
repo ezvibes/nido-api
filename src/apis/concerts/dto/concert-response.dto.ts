@@ -2,12 +2,21 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { VenueResponseDto } from '../../venues/dto/venue-response.dto';
 import { BandResponseDto } from '../../bands/dto/band-response.dto';
 import { PerformanceRole } from '../entities/concert-band-lineup.entity';
+import { ConcertCatalogStatus } from '../entities/concert.entity';
 
 export class ConcertBandLineupResponseDto {
-  @ApiProperty({ description: 'Performance role / billing tier.', enum: PerformanceRole, example: PerformanceRole.HEADLINER })
+  @ApiProperty({
+    description: 'Performance role / billing tier.',
+    enum: PerformanceRole,
+    example: PerformanceRole.HEADLINER,
+  })
   performanceRole: PerformanceRole;
 
-  @ApiProperty({ description: 'Performance billing order index (0-indexed opener to headliner).', example: 0 })
+  @ApiProperty({
+    description:
+      'Performance billing order index (0-indexed opener to headliner).',
+    example: 0,
+  })
   performanceOrder: number;
 
   @ApiProperty({ type: BandResponseDto })
@@ -67,6 +76,12 @@ export class ConcertResponseDto {
     example: 'Live electronic and indie-pop concert. Doors 8 PM. Show 9 PM.',
   })
   description?: string | null;
+
+  @ApiProperty({
+    description: 'Manual editorial feature state, separate from Top Picks.',
+    example: false,
+  })
+  isFeatured: boolean;
 
   @ApiProperty({ example: false })
   isTopPick: boolean;
@@ -128,14 +143,48 @@ export class ConcertResponseDto {
   @ApiPropertyOptional({
     nullable: true,
     description: 'The GCS public URL of the uploaded show poster',
-    example: 'https://storage.googleapis.com/nido-concert-image-ingestion-dev/uploads/abc.jpg',
+    example:
+      'https://storage.googleapis.com/nido-concert-image-ingestion-dev/uploads/abc.jpg',
   })
   posterUrl?: string | null;
+}
+
+export class AdminConcertResponseDto extends ConcertResponseDto {
+  @ApiProperty({
+    enum: ConcertCatalogStatus,
+    example: ConcertCatalogStatus.ACTIVE,
+  })
+  catalogStatus: ConcertCatalogStatus;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'When set, calendar sync preserves admin-edited source-managed content.',
+    example: '2026-07-31T23:00:00.000Z',
+  })
+  editorialLockedAt?: string | null;
+
+  @ApiProperty({ description: 'Optimistic concurrency version.', example: 1 })
+  version: number;
 }
 
 export class ConcertListResponseDto {
   @ApiProperty({ type: [ConcertResponseDto] })
   data: ConcertResponseDto[];
+
+  @ApiProperty({ example: 2 })
+  total: number;
+
+  @ApiProperty({ example: 1 })
+  page: number;
+
+  @ApiProperty({ example: 20 })
+  pageSize: number;
+}
+
+export class AdminConcertListResponseDto {
+  @ApiProperty({ type: [AdminConcertResponseDto] })
+  data: AdminConcertResponseDto[];
 
   @ApiProperty({ example: 2 })
   total: number;

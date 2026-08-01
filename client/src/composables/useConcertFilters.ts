@@ -59,6 +59,12 @@ export function useConcertFilters(
 
     if (sort.value === 'featured') {
       return [...result].sort((a, b) => {
+        const featuredDelta =
+          Number(Boolean(b.isFeatured)) - Number(Boolean(a.isFeatured));
+        if (featuredDelta !== 0) {
+          return featuredDelta;
+        }
+
         if (b.demoRank !== a.demoRank) {
           return b.demoRank - a.demoRank;
         }

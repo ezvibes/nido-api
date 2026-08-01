@@ -110,17 +110,13 @@ describe('ConcertsPage', () => {
       expect.any(Object),
     );
 
-    authenticatedResponse.resolve(
-      buildConcertResponse({ upvotedByMe: true }),
-    );
+    authenticatedResponse.resolve(buildConcertResponse({ upvotedByMe: true }));
     await flushPromises();
     expect(
       wrapper.get('.concert-card__upvote').attributes('aria-pressed'),
     ).toBe('true');
 
-    anonymousResponse.resolve(
-      buildConcertResponse({ upvotedByMe: false }),
-    );
+    anonymousResponse.resolve(buildConcertResponse({ upvotedByMe: false }));
     await flushPromises();
     expect(
       wrapper.get('.concert-card__upvote').attributes('aria-pressed'),
@@ -159,6 +155,31 @@ describe('ConcertsPage', () => {
     expect(api.fetchConcerts).toHaveBeenCalledTimes(2);
     expect(wrapper.text()).toContain('The Floozies');
     expect(wrapper.text()).not.toContain('Unable to load concerts');
+  });
+
+  it('requests and renders the manual Featured ordering', async () => {
+    api.fetchConcerts.mockResolvedValue({
+      data: [buildConcert({ isFeatured: true })],
+      total: 1,
+      page: 1,
+      pageSize: 100,
+    });
+    const wrapper = mount(ConcertsPage, {
+      global: { stubs: { IngestionUploadPanel: true } },
+    });
+    await flushPromises();
+
+    const sortField = wrapper
+      .findAll('.filters-bar__field')
+      .find((field) => field.text().includes('Sort'));
+    await sortField!.get('select').setValue('featured');
+    await flushPromises();
+
+    expect(api.fetchConcerts).toHaveBeenLastCalledWith(
+      undefined,
+      expect.objectContaining({ sort: 'featured' }),
+    );
+    expect(wrapper.text()).toContain('Sorted by featured priority.');
   });
 });
 

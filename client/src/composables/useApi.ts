@@ -1,6 +1,6 @@
 // src/composables/useApi.ts
 import axios from 'axios';
-import type { ConcertApiResponse } from '../types/concerts';
+import type { ConcertApiItem, ConcertApiResponse } from '../types/concerts';
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
@@ -69,6 +69,51 @@ export interface ConcertGenresResponse {
 export async function fetchConcertGenres(): Promise<ConcertGenresResponse> {
   const response = await apiClient.get<ConcertGenresResponse>(
     '/concerts/meta/genres',
+  );
+  return response.data;
+}
+
+export type AdminConcertCatalogStatus = 'active' | 'hidden' | 'archived';
+
+export interface UpdateAdminConcertPayload {
+  expectedVersion: number;
+  title?: string;
+  genre?: string;
+  startsAt?: string;
+  endsAt?: string | null;
+  venueId?: string | null;
+  description?: string | null;
+  catalogStatus?: AdminConcertCatalogStatus;
+  isFeatured?: boolean;
+  resumeSyncUpdates?: boolean;
+}
+
+export async function fetchAdminConcerts(
+  token: string,
+  params?: {
+    q?: string;
+    catalogStatus?: AdminConcertCatalogStatus | 'all';
+    isFeatured?: boolean;
+    page?: number;
+    pageSize?: number;
+  },
+): Promise<ConcertApiResponse> {
+  const response = await apiClient.get<ConcertApiResponse>('/admin/concerts', {
+    headers: { Authorization: `Bearer ${token}` },
+    params,
+  });
+  return response.data;
+}
+
+export async function updateAdminConcert(
+  token: string,
+  concertId: string,
+  payload: UpdateAdminConcertPayload,
+) {
+  const response = await apiClient.patch<ConcertApiItem>(
+    `/admin/concerts/${concertId}`,
+    payload,
+    { headers: { Authorization: `Bearer ${token}` } },
   );
   return response.data;
 }

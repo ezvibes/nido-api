@@ -10,6 +10,7 @@ import ProfilePage from './views/ProfilePage.vue';
 import SettingsPage from './views/SettingsPage.vue';
 import AdminIngestionUploadsPage from './pages/AdminIngestionUploadsPage.vue';
 import AdminVenuesPage from './pages/AdminVenuesPage.vue';
+import AdminConcertsPage from './pages/AdminConcertsPage.vue';
 import { isAdminEmail } from './utils/admin';
 
 const routes = [
@@ -55,6 +56,12 @@ const routes = [
     name: 'ConcertSync',
     component: ConcertSyncPage,
     meta: { requiresAuth: true },
+  },
+  {
+    path: '/admin/concerts',
+    name: 'AdminConcerts',
+    component: AdminConcertsPage,
+    meta: { requiresAuth: true, requiresAdmin: true },
   },
   {
     path: '/admin/ingestion/uploads',
