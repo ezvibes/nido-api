@@ -6,10 +6,11 @@ and decision-making predictable.
 
 ## Project Owner
 
-EZ Vibes Nido was created by and is led by Evan Bonertz, founder of EZ Vibes.
-Evan is the Project Owner and final decision-maker for product direction,
-roadmap priority, repository administration, releases, deployments, access to
-project infrastructure, and merge decisions.
+EZ Vibes Nido was created by Evan Bonertz and is owned and operated by EZ Vibes
+LLC. EZ Vibes LLC is the Project Owner. Evan, as founder and authorized
+maintainer, serves as the final reviewer for product direction, roadmap
+priority, repository administration, releases, deployments, access to project
+infrastructure, and merge decisions.
 
 The repository is public to invite useful participation. Public visibility and
 acceptance of a contribution do not transfer ownership or governance of Nido or
@@ -46,7 +47,8 @@ than unannounced merge requirements.
 
 ## Review And Merge
 
-- The Project Owner has final approval and merge authority.
+- EZ Vibes LLC retains final approval and merge authority, exercised through
+  its authorized maintainer.
 - External contributors do not self-merge.
 - Security, authentication, data, deployment, and infrastructure changes require
   explicit owner review.

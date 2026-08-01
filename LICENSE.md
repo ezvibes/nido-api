@@ -1,6 +1,6 @@
 # EZ Vibes Nido Source-Available License
 
-Copyright (c) 2026 Evan Bonertz, founder of EZ Vibes. All rights reserved.
+Copyright (c) 2026 EZ Vibes LLC. All rights reserved.
 
 This repository is publicly visible to support transparency, evaluation, and
 community contributions. Public visibility does not place the software in the
@@ -10,8 +10,8 @@ Subject to the GitHub Terms of Service, you may view and fork this repository.
 You may also copy and modify the software solely as reasonably necessary to
 prepare and submit a contribution to this repository.
 
-No other permission is granted. Without prior written permission from the
-Project Owner, you may not use the software to operate a production service,
+No other permission is granted. Without prior written permission from EZ Vibes
+LLC, you may not use the software to operate a production service,
 publish or distribute it, sublicense it, sell it, or use it in another product
 or commercial offering.
 

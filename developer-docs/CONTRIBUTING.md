@@ -1,6 +1,6 @@
 # Contributing To EZ Vibes Nido
 
-Thanks for considering a contribution. This is a public project owned by Evan Bonertz, creator and founder of EZ Vibes. Contributions are welcome when they are scoped, tested, and aligned with the current product direction.
+Thanks for considering a contribution. This is a public project owned by EZ Vibes LLC and maintained by its founder, Evan Bonertz. Contributions are welcome when they are scoped, tested, and aligned with the current product direction.
 
 Before submitting work, read [the contributor terms](../CONTRIBUTOR_TERMS.md),
 [ownership and governance policy](../OWNERSHIP.md), and
@@ -149,7 +149,8 @@ Fixes #<issue-number>
 
 ## Review And Merge
 
-- Evan Bonertz is the project owner and final reviewer.
+- EZ Vibes LLC is the Project Owner; founder Evan Bonertz is the authorized
+  maintainer and final reviewer.
 - External contributors should not self-merge.
 - Admin, deployment, and secret-related changes require owner review.
 - `.github/CODEOWNERS` marks `@ezvibes` as the default code owner.
