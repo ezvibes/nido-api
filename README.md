@@ -187,7 +187,7 @@ npm run smoke:local            # Local smoke test against running API
 
 ## Contributing
 
-This repo is public so other developers can pick up scoped issues and contribute. Start with issues labeled `good first issue` or `Starter`. A clean GitHub issue template is available for focused tasks, improvements, and bug reports.
+This repo is public so other developers can pick up scoped issues and contribute. Start with issues labeled `good first issue` or `Starter`. GitHub templates are available for focused tasks, improvements, bugs, and feature requests from users or contributors.
 
 Basic workflow:
 
@@ -210,7 +210,7 @@ Before opening a PR:
 - Update Swagger DTOs/docs when API contracts change.
 - Include a clear PR description with summary, testing, risk, and follow-ups.
 
-See [developer-docs/CONTRIBUTING.md](developer-docs/CONTRIBUTING.md) for the first-draft contributor process.
+See [developer-docs/CONTRIBUTING.md](developer-docs/CONTRIBUTING.md) for the contributor process, [CONTRIBUTOR_TERMS.md](CONTRIBUTOR_TERMS.md) for contribution rights, and [OWNERSHIP.md](OWNERSHIP.md) for project governance.
 
 ## Deployment
 
@@ -236,6 +236,12 @@ Use `.env.example` and `client/.env.example` as templates. Real values should li
 
 EZ Vibes Nido is owned and led by Evan Bonertz, creator and founder of EZ Vibes. Technical contributions are welcome, but roadmap direction, product positioning, admin access, deployments, and merge decisions remain owner-reviewed.
 
+Contributors are credited for their work and help improve the project, while
+project stewardship, governance, and merge authority remain with the owner. See
+[OWNERSHIP.md](OWNERSHIP.md) for the complete policy.
+
 ## License
 
-License terms are not finalized yet. The package currently remains marked as `UNLICENSED`; contributors should assume code is accepted only through reviewed pull requests until a formal license is added.
+Nido is publicly visible and source-available for evaluation and contribution,
+but it is not currently licensed as open-source software. All rights not
+expressly granted are reserved. See [LICENSE.md](LICENSE.md).

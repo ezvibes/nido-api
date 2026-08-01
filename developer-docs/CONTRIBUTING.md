@@ -2,6 +2,11 @@
 
 Thanks for considering a contribution. This is a public project owned by Evan Bonertz, creator and founder of EZ Vibes. Contributions are welcome when they are scoped, tested, and aligned with the current product direction.
 
+Before submitting work, read [the contributor terms](../CONTRIBUTOR_TERMS.md),
+[ownership and governance policy](../OWNERSHIP.md), and
+[source-available license](../LICENSE.md). Submitting a contribution does not
+provide ownership, equity, employment, or governance rights in Nido or EZ Vibes.
+
 ## Current Product Direction
 
 Nido is a concert intelligence platform and admin tool for EZ Vibes. The current API/domain language is:
@@ -17,6 +22,10 @@ Avoid introducing a separate `Event` model or broad architecture migration unles
 ## Picking Up Work
 
 Start with GitHub issues labeled `good first issue`, `Starter`, or explicitly assigned to you. Use the issue template when proposing focused tasks, improvements, or bug reports.
+
+Feature requests from users and contributors are welcome. Use the feature-request
+template to describe the user problem and desired outcome. Obtain issue assignment
+or maintainer confirmation before investing substantial effort in an implementation.
 
 Before coding:
 
@@ -147,6 +156,10 @@ Fixes #<issue-number>
 - GitHub branch protection should require code-owner approval before merges to `main`.
 - PRs should stay small enough to review quickly.
 - If a PR uncovers a larger architecture decision, pause and discuss it in the issue before expanding scope.
+- Review feedback should say whether it is required for merge or a non-blocking
+  follow-up. Useful ideas outside the approved scope should normally become a
+  separate feature request.
+- Pull requests must acknowledge `CONTRIBUTOR_TERMS.md` before merge.
 
 ## Security Rules
 

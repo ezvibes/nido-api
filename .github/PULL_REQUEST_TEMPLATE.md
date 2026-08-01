@@ -25,6 +25,8 @@ Add screenshots for UI changes or request/response examples for API changes.
 - [ ] Owner/code-owner review requested
 - [ ] Scope stays focused on one issue
 - [ ] No secrets, local env files, or credentials included
+- [ ] I have read and agree to `CONTRIBUTOR_TERMS.md`
+- [ ] Review feedback is marked as required for merge or non-blocking follow-up
 
 ## Follow-ups
 

@@ -4,7 +4,7 @@
   "description": "",
   "author": "",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE.md",
   "scripts": {
     "build": "nest build",
     "dev": "npm-run-all --parallel start:dev dev:client",
