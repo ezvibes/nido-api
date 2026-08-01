@@ -52,6 +52,8 @@ If a doc helps operate a specific private environment, it belongs in `docs/`.
 ## Current Public Docs
 
 - `catalog-operating-system/`: public guidance for catalog architecture, GitHub issue dossiers, agent handoff structure, and canonical event publishing planning.
+- `future-vision/2026-platform-vision.md`: directional product and platform vision for the remainder of 2026, intentionally separated from active MVP commitments.
+- `future-vision/public-api-decision-backlog.md`: unresolved ADR, governance, and developer-experience questions to settle before activating detailed public API work.
 - `api-docs-security.md`: guidance for safely publishing API docs, schema references, and diagrams while protecting production systems.
 - `CONTRIBUTING.md`: contributor workflow, development standards, and pull request expectations.
 - `DEPLOYMENT.md`: public deployment architecture, validation, and production-readiness overview.

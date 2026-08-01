@@ -6,8 +6,20 @@
 ## Testing
 
 - [ ] `npm test -- --runInBand <area>`
-- [ ] `npm run build`
-- [ ] `npm run build --prefix client` if client code changed
+- [ ] `npm run agent:gate`
+
+## Evidence
+
+| Layer | Result | Evidence |
+| --- | --- | --- |
+| Focused tests | Pass/Fail/Skipped | Exact command |
+| Shared gate | Pass/Fail | `npm run agent:gate` |
+| Migration review | Pass/Skipped | Forward/default/rollback assessment |
+| Manual or browser path | Pass/Skipped | Tested behavior and viewport |
+| Independent review | Pass/Findings/Skipped | Findings and resolution |
+| CI | Pass/Fail/Pending | Workflow run |
+| Dev deployment | Pass/Fail/Pending | Commit and revision |
+| Rollback target | Recorded/Pending | Prior commit or revision |
 
 ## Risk
 

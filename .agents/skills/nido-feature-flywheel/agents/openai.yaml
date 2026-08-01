@@ -1,0 +1,7 @@
+interface:
+  display_name: "Nido Feature Flywheel"
+  short_description: "Deliver Nido features with review evidence"
+  default_prompt: "Use $nido-feature-flywheel to scope, implement, verify, and prepare this change for review."
+
+policy:
+  allow_implicit_invocation: true

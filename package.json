@@ -7,6 +7,10 @@
   "license": "SEE LICENSE IN LICENSE.md",
   "scripts": {
     "build": "nest build",
+    "agent:gate": "npm-run-all --print-label agent:gate:api-test agent:gate:client-test build agent:gate:client-build",
+    "agent:gate:api-test": "jest --runInBand",
+    "agent:gate:client-test": "npm test --prefix client",
+    "agent:gate:client-build": "npm run build --prefix client",
     "dev": "npm-run-all --parallel start:dev dev:client",
     "dev:client": "npm run dev --prefix client",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
