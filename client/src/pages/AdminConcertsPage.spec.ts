@@ -120,7 +120,7 @@ describe('AdminConcertsPage', () => {
     expect(wrapper.text()).toContain('Summer Jam is now hidden.');
   });
 
-  it('edits content and shows the calendar overwrite warning', async () => {
+  it('edits content without exposing synchronization controls', async () => {
     api.updateAdminConcert.mockResolvedValue(
       buildConcert({ title: 'Summer Jam Updated', version: 8 }),
     );
@@ -128,9 +128,8 @@ describe('AdminConcertsPage', () => {
     await flushPromises();
 
     await wrapper.get('.concert-row__actions button').trigger('click');
-    expect(wrapper.text()).toContain(
-      'Saving content pauses calendar overwrites for this concert',
-    );
+    expect(wrapper.text()).not.toContain('Calendar updates');
+    expect(wrapper.text()).not.toContain('Resume updates');
 
     await wrapper
       .get<HTMLInputElement>('.field--wide input')
@@ -181,8 +180,10 @@ describe('AdminConcertsPage', () => {
     expect(wrapper.find('.catalog-pagination').exists()).toBe(false);
   });
 
-  it('requires confirmation before archiving', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('requires in-app confirmation before archiving', async () => {
+    api.updateAdminConcert.mockResolvedValue(
+      buildConcert({ catalogStatus: 'archived', version: 8 }),
+    );
     const wrapper = mount(AdminConcertsPage);
     await flushPromises();
 
@@ -191,8 +192,30 @@ describe('AdminConcertsPage', () => {
       .find((button) => button.text() === 'Archive');
     await archive!.trigger('click');
 
-    expect(confirm).toHaveBeenCalled();
+    expect(wrapper.get('[role="alertdialog"]').text()).toContain('Summer Jam');
     expect(api.updateAdminConcert).not.toHaveBeenCalled();
+
+    await wrapper.get('[role="alertdialog"] .button--secondary').trigger('click');
+    expect(wrapper.find('[role="alertdialog"]').exists()).toBe(false);
+    expect(api.updateAdminConcert).not.toHaveBeenCalled();
+
+    await archive!.trigger('click');
+    await wrapper.get('[role="alertdialog"]').trigger('keydown', {
+      key: 'Escape',
+    });
+    expect(wrapper.find('[role="alertdialog"]').exists()).toBe(false);
+    expect(api.updateAdminConcert).not.toHaveBeenCalled();
+
+    await archive!.trigger('click');
+    await wrapper.get('[role="alertdialog"] .button--danger').trigger('click');
+    await flushPromises();
+
+    expect(api.updateAdminConcert).toHaveBeenCalledWith(
+      'firebase-token',
+      'concert-1',
+      { expectedVersion: 7, catalogStatus: 'archived' },
+    );
+    expect(wrapper.find('[role="alertdialog"]').exists()).toBe(false);
   });
 
   it('closes a stale editor and keeps the conflict guidance visible', async () => {

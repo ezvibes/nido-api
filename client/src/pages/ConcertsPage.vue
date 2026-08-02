@@ -172,7 +172,7 @@ const loadPersistedConcerts = async () => {
           concert.posterUrl ??
           'https://placehold.co/720x900/e6ece4/31453a?text=Concert',
         sourceLabel: 'Concerts DB',
-        displayTags: [concert.genre, 'saved'],
+        displayTags: [concert.genre],
       }),
     );
     hasLoadedPersistedConcerts.value = true;

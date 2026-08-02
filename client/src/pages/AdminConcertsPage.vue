@@ -28,8 +28,11 @@ const page = ref(1);
 const pageSize = 25;
 const total = ref(0);
 const editing = ref<ConcertApiItem | null>(null);
+const archiveCandidate = ref<ConcertApiItem | null>(null);
 const closeEditorButton = ref<HTMLButtonElement | null>(null);
+const archiveCancelButton = ref<HTMLButtonElement | null>(null);
 let editorTrigger: HTMLElement | null = null;
+let archiveTrigger: HTMLElement | null = null;
 let latestLoadRequest = 0;
 
 const form = reactive({
@@ -171,6 +174,10 @@ function handleDialogKeydown(event: KeyboardEvent) {
     return;
   }
 
+  trapDialogFocus(event);
+}
+
+function trapDialogFocus(event: KeyboardEvent) {
   if (event.key !== 'Tab') return;
   const dialog = event.currentTarget as HTMLElement;
   const focusable = Array.from(
@@ -189,6 +196,39 @@ function handleDialogKeydown(event: KeyboardEvent) {
     event.preventDefault();
     first.focus();
   }
+}
+
+function openArchiveDialog(concert: ConcertApiItem) {
+  archiveTrigger = document.activeElement as HTMLElement | null;
+  archiveCandidate.value = concert;
+  void nextTick(() => archiveCancelButton.value?.focus());
+}
+
+function closeArchiveDialog() {
+  archiveCandidate.value = null;
+  void nextTick(() => archiveTrigger?.focus());
+}
+
+function handleArchiveDialogKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeArchiveDialog();
+    return;
+  }
+
+  trapDialogFocus(event);
+}
+
+async function confirmArchive() {
+  const concert = archiveCandidate.value;
+  if (!concert) return;
+
+  const updated = await update(
+    concert,
+    { catalogStatus: 'archived' },
+    `${concert.title} is now archived.`,
+  );
+  if (updated) closeArchiveDialog();
 }
 
 async function update(
@@ -245,14 +285,6 @@ async function setStatus(
   concert: ConcertApiItem,
   nextStatus: AdminConcertCatalogStatus,
 ) {
-  if (
-    nextStatus === 'archived' &&
-    !window.confirm(
-      `Archive "${concert.title}"? It will leave the public catalog but remain recoverable.`,
-    )
-  ) {
-    return;
-  }
   await update(
     concert,
     { catalogStatus: nextStatus },
@@ -265,14 +297,6 @@ async function toggleFeatured(concert: ConcertApiItem) {
     concert,
     { isFeatured: !concert.isFeatured },
     `${concert.title} ${concert.isFeatured ? 'removed from' : 'added to'} Featured.`,
-  );
-}
-
-async function resumeSync(concert: ConcertApiItem) {
-  await update(
-    concert,
-    { resumeSyncUpdates: true },
-    `Calendar updates resumed for ${concert.title}.`,
   );
 }
 
@@ -390,16 +414,6 @@ onMounted(async () => {
             {{ formatDate(concert.startsAt) }} |
             {{ concert.venue?.name || 'Venue not set' }} | {{ concert.genre }}
           </p>
-          <p v-if="concert.editorialLockedAt" class="sync-note">
-            Calendar updates paused after an editorial change.
-            <button
-              type="button"
-              :disabled="savingId === concert.id"
-              @click="resumeSync(concert)"
-            >
-              Resume updates
-            </button>
-          </p>
         </div>
         <div class="concert-row__actions">
           <button
@@ -442,7 +456,7 @@ onMounted(async () => {
             type="button"
             class="button button--danger"
             :disabled="savingId === concert.id"
-            @click="setStatus(concert, 'archived')"
+            @click="openArchiveDialog(concert)"
           >
             Archive
           </button>
@@ -498,10 +512,6 @@ onMounted(async () => {
             &times;
           </button>
         </header>
-        <p v-if="editing.syncSource" class="editor__sync-warning">
-          Saving content pauses calendar overwrites for this concert until you
-          resume them.
-        </p>
         <div class="editor__grid">
           <label class="field field--wide"
             ><span>Title</span><input v-model="form.title" required
@@ -551,6 +561,45 @@ onMounted(async () => {
           </button>
         </footer>
       </form>
+    </div>
+
+    <div
+      v-if="archiveCandidate"
+      class="dialog-backdrop"
+      @click.self="closeArchiveDialog"
+    >
+      <section
+        class="archive-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="archive-dialog-title"
+        aria-describedby="archive-dialog-description"
+        @keydown="handleArchiveDialogKeydown"
+      >
+        <h3 id="archive-dialog-title">Archive concert?</h3>
+        <p id="archive-dialog-description">
+          <strong>{{ archiveCandidate.title }}</strong> will leave the public
+          catalog but can be restored later.
+        </p>
+        <footer>
+          <button
+            ref="archiveCancelButton"
+            type="button"
+            class="button button--secondary"
+            @click="closeArchiveDialog"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="button button--danger button--danger-filled"
+            :disabled="savingId === archiveCandidate.id"
+            @click="confirmArchive"
+          >
+            {{ savingId === archiveCandidate.id ? 'Archiving...' : 'Archive' }}
+          </button>
+        </footer>
+      </section>
     </div>
   </section>
 </template>
@@ -769,21 +818,13 @@ textarea {
   background: white;
   color: #a32c23;
 }
+.button--danger-filled {
+  background: #a32c23;
+  color: white;
+}
 .button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
-}
-.sync-note {
-  color: #76520a !important;
-}
-.sync-note button {
-  border: 0;
-  background: transparent;
-  color: #9a341f;
-  font: inherit;
-  font-weight: 700;
-  text-decoration: underline;
-  cursor: pointer;
 }
 .empty-state {
   border-block: 1px solid var(--border);
@@ -808,6 +849,27 @@ textarea {
   background: white;
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.25);
 }
+.archive-dialog {
+  width: min(28rem, 100%);
+  border-radius: 6px;
+  background: white;
+  padding: 1.25rem;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.25);
+}
+.archive-dialog h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+}
+.archive-dialog p {
+  margin: 0;
+  color: var(--text-muted);
+}
+.archive-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
 .editor header,
 .editor footer {
   padding: 1rem 1.25rem;
@@ -826,14 +888,6 @@ textarea {
   color: var(--text-muted);
   font-size: 1.6rem;
   cursor: pointer;
-}
-.editor__sync-warning {
-  margin: 1rem 1.25rem 0;
-  border-left: 3px solid #d39b25;
-  background: #fff8e8;
-  padding: 0.7rem;
-  color: #76520a;
-  font-size: 0.85rem;
 }
 .editor__grid {
   display: grid;
