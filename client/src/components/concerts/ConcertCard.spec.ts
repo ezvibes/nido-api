@@ -4,7 +4,7 @@ import type { ConcertListItem } from '../../types/concerts';
 import ConcertCard from './ConcertCard.vue';
 
 describe('ConcertCard', () => {
-  it('places tags after venue details and removes a repeated lineup label', () => {
+  it('leads with the date and artist without repeating a redundant event title', () => {
     const wrapper = mount(ConcertCard, {
       props: {
         concert: buildConcert(),
@@ -12,16 +12,20 @@ describe('ConcertCard', () => {
     });
 
     const bodyText = wrapper.get('.concert-card__body').text();
+    expect(wrapper.get('.concert-card__body').element.firstElementChild).toBe(
+      wrapper.get('.concert-card__time').element,
+    );
+    expect(wrapper.get('.concert-card__artist').text()).toBe('The Floozies');
+    expect(wrapper.find('.concert-card__event').exists()).toBe(false);
     expect(bodyText.indexOf('Raleigh, NC')).toBeLessThan(
       bodyText.indexOf('Electronic'),
     );
     expect(bodyText.indexOf('Electronic')).toBeLessThan(
       bodyText.indexOf('Google Calendar Sync'),
     );
-    expect(wrapper.find('.concert-card__lineup').exists()).toBe(false);
   });
 
-  it('retains lineup information that is not already in the title', () => {
+  it('keeps a distinct event title beneath the prominent artist lineup', () => {
     const wrapper = mount(ConcertCard, {
       props: {
         concert: buildConcert({
@@ -50,8 +54,11 @@ describe('ConcertCard', () => {
       },
     });
 
-    expect(wrapper.get('.concert-card__lineup').text()).toBe(
+    expect(wrapper.get('.concert-card__artist').text()).toBe(
       'The Floozies · Night Drive',
+    );
+    expect(wrapper.get('.concert-card__event').text()).toBe(
+      'Downtown Summer Jam',
     );
   });
 });

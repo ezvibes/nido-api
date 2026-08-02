@@ -9,7 +9,11 @@
     </div>
 
     <div class="concert-card__body">
-      <h3 class="concert-card__title">{{ concert.title }}</h3>
+      <time class="concert-card__time" :datetime="concert.startsAt">
+        {{ formattedStartTime }}
+      </time>
+      <h3 class="concert-card__artist">{{ artistLabel }}</h3>
+      <p v-if="eventLabel" class="concert-card__event">{{ eventLabel }}</p>
       <p class="concert-card__venue">{{ primaryVenueName }}</p>
       <p class="concert-card__location">{{ locationLabel }}</p>
       <div
@@ -25,9 +29,6 @@
           {{ tag }}
         </span>
       </div>
-      <p v-if="lineupLabel" class="concert-card__lineup">{{ lineupLabel }}</p>
-      <p class="concert-card__time">{{ formattedStartTime }}</p>
-
       <p v-if="concert.description" class="concert-card__description">
         {{ concert.description }}
       </p>
@@ -85,16 +86,28 @@ const cardTags = computed(() => {
   });
 });
 
-const lineupLabel = computed(() => {
-  const names = [...props.concert.lineup]
+const artistNames = computed(() =>
+  [...props.concert.lineup]
     .sort((left, right) => left.performanceOrder - right.performanceOrder)
-    .map((entry) => entry.band.name);
+    .map((entry) => entry.band.name)
+    .filter((name, index, names) => names.indexOf(name) === index),
+);
+
+const artistLabel = computed(() =>
+  artistNames.value.length
+    ? artistNames.value.join(' · ')
+    : props.concert.title,
+);
+
+const eventLabel = computed(() => {
+  if (!artistNames.value.length) return '';
+
   const normalizedTitle = normalizeDisplayText(props.concert.title);
-  const addsInformation = names.some(
+  const titleAddsInformation = artistNames.value.some(
     (name) => !normalizedTitle.includes(normalizeDisplayText(name)),
   );
 
-  return addsInformation ? names.join(' · ') : '';
+  return titleAddsInformation ? props.concert.title : '';
 });
 
 function normalizeDisplayText(value: string) {
@@ -159,7 +172,8 @@ const formattedStartTime = computed(() =>
   padding: 1rem;
 }
 
-.concert-card__title,
+.concert-card__artist,
+.concert-card__event,
 .concert-card__venue,
 .concert-card__location,
 .concert-card__time,
@@ -188,18 +202,24 @@ const formattedStartTime = computed(() =>
   text-transform: uppercase;
 }
 
-.concert-card__title {
+.concert-card__artist {
   font-size: 1.2rem;
   line-height: 1.2;
 }
 
-.concert-card__venue,
 .concert-card__time {
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.concert-card__event,
+.concert-card__venue {
   font-weight: 600;
 }
 
 .concert-card__location,
-.concert-card__lineup,
 .concert-card__description {
   color: var(--text-light);
 }
@@ -282,7 +302,7 @@ const formattedStartTime = computed(() =>
     padding: 1.2rem;
   }
 
-  .concert-card__title {
+  .concert-card__artist {
     font-size: 1.35rem;
   }
 }
