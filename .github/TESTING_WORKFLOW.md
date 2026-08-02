@@ -90,6 +90,10 @@ For deployment-sensitive branches, inspect:
 
 ## Dev Environment Verification
 
+For the admin catalog feature, use the dedicated
+[Admin Concert Catalog Testing And Deployment Guide](../developer-docs/catalog-operating-system/admin-concert-testing-deployment-guide.md)
+from local verification through rollback evidence.
+
 After a PR merges to `main`, GitHub Actions runs the dev deploy workflow:
 
 ```text

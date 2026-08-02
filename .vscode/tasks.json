@@ -13,12 +13,19 @@
     },
     {
       "label": "Nido: Local Infra Gate",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "Nido: API Build",
-        "Nido: Client Build"
-      ],
+      "dependsOn": ["Nido: Agent Gate"],
       "problemMatcher": []
+    },
+    {
+      "label": "Nido: Agent Gate",
+      "type": "npm",
+      "script": "agent:gate",
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
     },
     {
       "label": "Nido: API Build",

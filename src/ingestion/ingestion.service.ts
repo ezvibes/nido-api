@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -486,11 +487,6 @@ export class IngestionService {
     const existingConcert = upload.concertId
       ? await concertRepository.findOne({ where: { id: upload.concertId } })
       : null;
-    const concert =
-      existingConcert ??
-      concertRepository.create({
-        owner: { id: ownerId },
-      });
     const genre = dto.concertGenre?.trim() || 'Live Music';
 
     const resolvedVenue = await this.venueService.findOrCreateByName(
@@ -503,27 +499,76 @@ export class IngestionService {
       dto.concertBandName?.trim() || dto.concertArtistName?.trim() || title,
     ]);
 
-    concert.owner = { id: ownerId } as Concert['owner'];
-    concert.title = title;
-    concert.genre = genre;
-    concert.startsAt = parsedStartsAt;
-    concert.endsAt = null;
-    concert.venue = resolvedVenue;
-    concert.lineup = resolvedBands.map((band, index) => {
+    const lineup = resolvedBands.map((band, index) => {
       const cbl = new ConcertBandLineup();
+      if (existingConcert) {
+        cbl.concertId = existingConcert.id;
+      }
       cbl.bandId = band.id;
       cbl.band = band;
       cbl.performanceRole = PerformanceRole.HEADLINER;
       cbl.performanceOrder = index;
       return cbl;
     });
-    concert.description =
+    const description =
       dto.concertDescription?.trim() ||
       dto.notes?.trim() ||
       `Approved flyer upload: ${upload.originalFilename}`;
-    concert.isAdminApproved = true;
-    concert.adminApprovedAt = new Date();
-    concert.adminApprovedByUserId = reviewedByUserId;
+
+    if (existingConcert) {
+      const updateResult = await concertRepository
+        .createQueryBuilder()
+        .update(Concert)
+        .set({
+          owner: { id: ownerId } as Concert['owner'],
+          title,
+          genre,
+          startsAt: parsedStartsAt,
+          endsAt: null,
+          venueId: resolvedVenue.id,
+          description,
+          isAdminApproved: true,
+          adminApprovedAt: new Date(),
+          adminApprovedByUserId: reviewedByUserId,
+        })
+        .where('id = :concertId', { concertId: existingConcert.id })
+        .andWhere('version = :observedVersion', {
+          observedVersion: existingConcert.version,
+        })
+        .execute();
+
+      if (updateResult.affected !== 1) {
+        throw new ConflictException(
+          'The linked concert changed during review. Reload the upload before approving it again.',
+        );
+      }
+
+      await concertRepository.manager.delete(ConcertBandLineup, {
+        concertId: existingConcert.id,
+      });
+      if (lineup.length) {
+        await concertRepository.manager.save(ConcertBandLineup, lineup);
+      }
+
+      return concertRepository.findOneOrFail({
+        where: { id: existingConcert.id },
+        relations: ['venue', 'lineup', 'sets'],
+      });
+    }
+
+    const concert = concertRepository.create({
+      owner: { id: ownerId },
+      title,
+      genre,
+      startsAt: parsedStartsAt,
+      endsAt: null,
+      venue: resolvedVenue,
+      lineup,
+      description,
+      isAdminApproved: true,
+      adminApprovedAt: new Date(),
+      adminApprovedByUserId: reviewedByUserId,
+    });
 
     return concertRepository.save(concert);
   }

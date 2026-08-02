@@ -7,11 +7,18 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  VersionColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Venue } from '../../venues/entities/venue.entity';
 import { ConcertBandLineup } from './concert-band-lineup.entity';
 import { ConcertSet } from './concert-set.entity';
+
+export enum ConcertCatalogStatus {
+  ACTIVE = 'active',
+  HIDDEN = 'hidden',
+  ARCHIVED = 'archived',
+}
 
 @Entity({ name: 'concerts' })
 export class Concert {
@@ -63,6 +70,20 @@ export class Concert {
   @Column({ type: 'text', nullable: true })
   description?: string | null;
 
+  @Column({
+    name: 'catalog_status',
+    type: 'varchar',
+    length: 20,
+    default: ConcertCatalogStatus.ACTIVE,
+  })
+  catalogStatus: ConcertCatalogStatus;
+
+  @Column({ name: 'is_featured', type: 'boolean', default: false })
+  isFeatured: boolean;
+
+  @Column({ name: 'editorial_locked_at', type: 'timestamptz', nullable: true })
+  editorialLockedAt?: Date | null;
+
   @Column({ name: 'is_top_pick', type: 'boolean', default: false })
   isTopPick: boolean;
 
@@ -82,8 +103,15 @@ export class Concert {
   @Column({ name: 'admin_approved_at', type: 'timestamptz', nullable: true })
   adminApprovedAt?: Date | null;
 
-  @Column({ name: 'admin_approved_by_user_id', type: 'integer', nullable: true })
+  @Column({
+    name: 'admin_approved_by_user_id',
+    type: 'integer',
+    nullable: true,
+  })
   adminApprovedByUserId?: number | null;
+
+  @VersionColumn({ type: 'integer', default: 1 })
+  version: number;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

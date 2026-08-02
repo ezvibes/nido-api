@@ -19,6 +19,26 @@ describe('useConcertFilters', () => {
       'The Floozies',
     );
   });
+
+  it('ranks manually featured concerts ahead of algorithmic Top Picks', async () => {
+    const concerts = ref([
+      { ...buildConcert('top-pick', 'Top Pick Band'), demoRank: 10 },
+      {
+        ...buildConcert('featured', 'Featured Band'),
+        isFeatured: true,
+        demoRank: 2,
+      },
+    ]);
+    const { sort, filteredConcerts } = useConcertFilters(concerts);
+
+    sort.value = 'featured';
+    await nextTick();
+
+    expect(filteredConcerts.value.map((concert) => concert.id)).toEqual([
+      'featured',
+      'top-pick',
+    ]);
+  });
 });
 
 function buildConcert(id: string, bandName: string): ConcertListItem {

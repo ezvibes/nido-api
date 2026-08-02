@@ -8,9 +8,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
 import { Between, In, Repository } from 'typeorm';
 import { Concert } from '../apis/concerts/entities/concert.entity';
+import { ConcertCatalogStatus } from '../apis/concerts/entities/concert.entity';
 import { Venue } from '../apis/venues/entities/venue.entity';
 import { Band } from '../apis/bands/entities/band.entity';
-import { ConcertBandLineup, PerformanceRole } from '../apis/concerts/entities/concert-band-lineup.entity';
+import {
+  ConcertBandLineup,
+  PerformanceRole,
+} from '../apis/concerts/entities/concert-band-lineup.entity';
 import { VenueService } from '../apis/venues/venue.service';
 import { BandService } from '../apis/bands/band.service';
 import { User } from '../apis/users/entities/user.entity';
@@ -258,6 +262,18 @@ export class ConcertSyncService {
           continue;
         }
 
+        if (
+          existingMapping &&
+          this.isProtectedFromSync(existingMapping.concert)
+        ) {
+          skipped += 1;
+          processed += 1;
+          existingMapping.lastJob = job;
+          existingMapping.lastSyncedAt = new Date();
+          await this.syncEventRepository.save(existingMapping);
+          continue;
+        }
+
         const extraction = await this.geminiExtractor.extractConcert(event, {
           customPrompt: options.customPrompt,
           customContext: options.customContext,
@@ -274,21 +290,24 @@ export class ConcertSyncService {
           }
         }
 
-        const { concert, wasCreated } = await this.upsertConcertFromEvent(
-          job.owner,
-          extraction,
-          existingMapping?.concert?.id,
-        );
+        const { concert, wasCreated, wasSkipped } =
+          await this.upsertConcertFromEvent(
+            job.owner,
+            extraction,
+            existingMapping?.concert?.id,
+          );
 
-        await this.upsertSyncMapping({
-          owner: job.owner,
-          job,
-          event,
-          eventFingerprint,
-          extraction,
-          concert,
-          mapping: existingMapping,
-        });
+        if (!wasSkipped) {
+          await this.upsertSyncMapping({
+            owner: job.owner,
+            job,
+            event,
+            eventFingerprint,
+            extraction,
+            concert,
+            mapping: existingMapping,
+          });
+        }
 
         if (extraction.needsGuidance) {
           extraction.guidanceQuestions.forEach((question) =>
@@ -296,7 +315,9 @@ export class ConcertSyncService {
           );
         }
 
-        if (wasCreated) {
+        if (wasSkipped) {
+          skipped += 1;
+        } else if (wasCreated) {
           created += 1;
         } else {
           updated += 1;
@@ -354,21 +375,13 @@ export class ConcertSyncService {
     const horizonEnd = new Date();
     horizonEnd.setDate(horizonEnd.getDate() + horizonDays);
 
-    await this.concertRepository
-      .createQueryBuilder()
-      .update(Concert)
-      .set({
-        isTopPick: false,
-        topPickScore: null,
-        topPickRefreshedAt: new Date(),
-      })
-      .where('owner_id = :ownerId', { ownerId })
-      .execute();
-
     const qb = this.concertRepository
       .createQueryBuilder('concert')
       .where('concert.owner_id = :ownerId', { ownerId })
       .andWhere('concert.isAdminApproved = true')
+      .andWhere('concert.catalogStatus = :activeCatalogStatus', {
+        activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
+      })
       .leftJoin('concert_upvotes', 'upvote', 'upvote.concert_id = concert.id')
       .addSelect('COUNT(DISTINCT upvote.id)', 'upvote_count')
       .groupBy('concert.id')
@@ -386,6 +399,7 @@ export class ConcertSyncService {
 
     const { entities, raw } = await qb.getRawAndEntities();
     if (!entities.length) {
+      await this.clearStaleTopPicks(ownerId, []);
       return {
         evaluated: 0,
         topPicks: 0,
@@ -428,19 +442,66 @@ export class ConcertSyncService {
       ranked.slice(0, Math.min(limit, 50)).map((row) => row.concert.id),
     );
 
+    let updatedTopPicks = 0;
     for (const row of ranked) {
-      row.concert.isTopPick = topConcertIds.has(row.concert.id);
-      row.concert.topPickScore = row.score;
-      row.concert.topPickRefreshedAt = new Date();
+      const isTopPick = topConcertIds.has(row.concert.id);
+      const result = await this.concertRepository
+        .createQueryBuilder()
+        .update(Concert)
+        .set({
+          isTopPick,
+          topPickScore: row.score,
+          topPickRefreshedAt: new Date(),
+        })
+        .where('id = :concertId', { concertId: row.concert.id })
+        .andWhere('version = :observedVersion', {
+          observedVersion: row.concert.version,
+        })
+        .andWhere('catalog_status = :activeCatalogStatus', {
+          activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
+        })
+        .andWhere('is_admin_approved = true')
+        .execute();
+
+      if (isTopPick && result.affected === 1) {
+        updatedTopPicks += 1;
+      }
     }
 
-    await this.concertRepository.save(ranked.map((row) => row.concert));
+    await this.clearStaleTopPicks(
+      ownerId,
+      ranked.map((row) => row.concert.id),
+    );
 
     return {
       evaluated: ranked.length,
-      topPicks: topConcertIds.size,
+      topPicks: updatedTopPicks,
       horizonDays,
     };
+  }
+
+  private async clearStaleTopPicks(
+    ownerId: number,
+    retainedConcertIds: string[],
+  ) {
+    const qb = this.concertRepository
+      .createQueryBuilder()
+      .update(Concert)
+      .set({
+        isTopPick: false,
+        topPickScore: null,
+        topPickRefreshedAt: new Date(),
+      })
+      .where('owner_id = :ownerId', { ownerId })
+      .andWhere('(is_top_pick = true OR top_pick_score IS NOT NULL)');
+
+    if (retainedConcertIds.length) {
+      qb.andWhere('id NOT IN (:...retainedConcertIds)', {
+        retainedConcertIds,
+      });
+    }
+
+    await qb.execute();
   }
 
   private async loadSourceEvents(
@@ -516,7 +577,13 @@ export class ConcertSyncService {
       concert = await this.findLikelyDuplicateConcert(owner, extraction);
     }
 
-    const wasCreated = !concert;
+    if (concert && this.isProtectedFromSync(concert)) {
+      return {
+        concert,
+        wasCreated: false,
+        wasSkipped: true,
+      };
+    }
 
     const firstVenue = extraction.venues?.[0];
     const resolvedVenue = firstVenue
@@ -531,19 +598,21 @@ export class ConcertSyncService {
     if (artistNames.length === 0) {
       artistNames.push(extraction.title);
     }
-    const resolvedBands = await this.bandService.findOrCreateManyByName(artistNames);
+    const resolvedBands =
+      await this.bandService.findOrCreateManyByName(artistNames);
 
-    const mappedLineup = resolvedBands.map((band, index) => {
-      const cbl = new ConcertBandLineup();
-      if (concert && concert.id) {
-        cbl.concertId = concert.id;
-      }
-      cbl.bandId = band.id;
-      cbl.band = band;
-      cbl.performanceRole = PerformanceRole.HEADLINER;
-      cbl.performanceOrder = index;
-      return cbl;
-    });
+    const buildLineup = (concertId?: string) =>
+      resolvedBands.map((band, index) => {
+        const cbl = new ConcertBandLineup();
+        if (concertId) {
+          cbl.concertId = concertId;
+        }
+        cbl.bandId = band.id;
+        cbl.band = band;
+        cbl.performanceRole = PerformanceRole.HEADLINER;
+        cbl.performanceOrder = index;
+        return cbl;
+      });
 
     if (!concert) {
       concert = this.concertRepository.create({
@@ -553,25 +622,74 @@ export class ConcertSyncService {
         startsAt: new Date(extraction.startsAt),
         endsAt: extraction.endsAt ? new Date(extraction.endsAt) : null,
         venue: resolvedVenue,
-        lineup: mappedLineup,
+        lineup: buildLineup(),
         description: extraction.description ?? null,
       });
-    } else {
-      await this.concertRepository.manager.delete(ConcertBandLineup, { concertId: concert.id });
-      concert.title = extraction.title;
-      concert.genre = extraction.genre;
-      concert.startsAt = new Date(extraction.startsAt);
-      concert.endsAt = extraction.endsAt ? new Date(extraction.endsAt) : null;
-      concert.venue = resolvedVenue;
-      concert.lineup = mappedLineup;
-      concert.description = extraction.description ?? null;
+
+      const saved = await this.concertRepository.save(concert);
+      return {
+        concert: saved,
+        wasCreated: true,
+        wasSkipped: false,
+      };
     }
 
-    const saved = await this.concertRepository.save(concert);
+    const existingConcert = concert;
+    const saved = await this.concertRepository.manager.transaction(
+      async (manager) => {
+        const updateResult = await manager
+          .createQueryBuilder()
+          .update(Concert)
+          .set({
+            title: extraction.title,
+            genre: extraction.genre,
+            startsAt: new Date(extraction.startsAt),
+            endsAt: extraction.endsAt ? new Date(extraction.endsAt) : null,
+            venueId: resolvedVenue?.id ?? null,
+            description: extraction.description ?? null,
+          })
+          .where('id = :concertId', { concertId: existingConcert.id })
+          .andWhere('owner_id = :ownerId', { ownerId: owner.id })
+          .andWhere('version = :observedVersion', {
+            observedVersion: existingConcert.version,
+          })
+          .andWhere('editorial_locked_at IS NULL')
+          .andWhere('catalog_status <> :archivedCatalogStatus', {
+            archivedCatalogStatus: ConcertCatalogStatus.ARCHIVED,
+          })
+          .execute();
+
+        if (updateResult.affected !== 1) {
+          return null;
+        }
+
+        await manager.delete(ConcertBandLineup, {
+          concertId: existingConcert.id,
+        });
+        const lineup = buildLineup(existingConcert.id);
+        if (lineup.length) {
+          await manager.save(ConcertBandLineup, lineup);
+        }
+
+        return manager.findOne(Concert, {
+          where: { id: existingConcert.id, owner: { id: owner.id } },
+          relations: ['venue', 'lineup', 'sets'],
+        });
+      },
+    );
+
+    if (!saved) {
+      return {
+        concert: existingConcert,
+        wasCreated: false,
+        wasSkipped: true,
+      };
+    }
 
     return {
       concert: saved,
-      wasCreated,
+      wasCreated: false,
+      wasSkipped: false,
     };
   }
 
@@ -608,6 +726,13 @@ export class ConcertSyncService {
         );
         return this.hasVenueOverlap(candidateVenue, venueName);
       }) ?? null
+    );
+  }
+
+  private isProtectedFromSync(concert?: Concert | null) {
+    return (
+      Boolean(concert?.editorialLockedAt) ||
+      concert?.catalogStatus === ConcertCatalogStatus.ARCHIVED
     );
   }
 

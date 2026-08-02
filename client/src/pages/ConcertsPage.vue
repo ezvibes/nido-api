@@ -249,7 +249,10 @@ watch(
 );
 
 watch(sort, (nextSort) => {
-  if (nextSort === 'trending_week' && hasLoadedPersistedConcerts.value) {
+  if (
+    (nextSort === 'featured' || nextSort === 'trending_week') &&
+    hasLoadedPersistedConcerts.value
+  ) {
     void loadPersistedConcerts();
   }
 });

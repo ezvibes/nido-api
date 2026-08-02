@@ -38,6 +38,12 @@ export interface ConcertApiItem {
   lineup: ConcertLineupEntry[];
   sets: ConcertSet[];
   description?: string | null;
+  catalogStatus?: 'active' | 'hidden' | 'archived';
+  isFeatured?: boolean;
+  editorialLockedAt?: string | null;
+  version?: number;
+  createdAt?: string;
+  updatedAt?: string;
   isTopPick?: boolean;
   topPickScore?: number | null;
   upvoteCount?: number;
@@ -102,7 +108,11 @@ export function mapConcertToListItem(
     displayTags: overrides?.displayTags ?? [concert.genre],
     demoRank:
       overrides?.demoRank ??
-      (concert.isTopPick ? (concert.topPickScore ?? 1) : 0),
+      (concert.isFeatured
+        ? 2
+        : concert.isTopPick
+          ? (concert.topPickScore ?? 1)
+          : 0),
     upvoteCount: overrides?.upvoteCount ?? concert.upvoteCount ?? 0,
     upvotedByMe: overrides?.upvotedByMe ?? concert.upvotedByMe ?? false,
     trendingWeekUpvotes:

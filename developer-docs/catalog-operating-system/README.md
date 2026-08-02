@@ -4,6 +4,15 @@ This guide describes how Nido plans and reviews catalog work across product, arc
 
 It is intentionally public-safe. It does not include private cloud resource names, credentials, internal URLs, or environment-specific runbooks.
 
+For the concise coordinator, verification, GitHub, and GCP operating model, see
+`agent-delivery-flywheel.md`.
+
+For the admin catalog API, optimistic concurrency, visibility, validation, and
+pagination contract, see `admin-concert-catalog.md`.
+
+For the feature-specific local test, deploy, dev smoke, evidence, and rollback
+checklist, see `admin-concert-testing-deployment-guide.md`.
+
 ## Product Thesis
 
 The catalog exists to turn event ingestion into trustworthy public discovery.
@@ -132,4 +141,3 @@ An implementation agent should be able to answer these questions before coding:
 - How will completion be verified?
 
 If the answer is not in the issue, the issue is not ready for autonomous implementation.
-

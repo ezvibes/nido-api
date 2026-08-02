@@ -6,7 +6,10 @@ import { ConcertUpvote } from '../apis/concerts/entities/concert-upvote.entity';
 import { User } from '../apis/users/entities/user.entity';
 import { Venue } from '../apis/venues/entities/venue.entity';
 import { Band } from '../apis/bands/entities/band.entity';
-import { ConcertBandLineup, PerformanceRole } from '../apis/concerts/entities/concert-band-lineup.entity';
+import {
+  ConcertBandLineup,
+  PerformanceRole,
+} from '../apis/concerts/entities/concert-band-lineup.entity';
 import { ConcertSet } from '../apis/concerts/entities/concert-set.entity';
 
 dotenv.config();
@@ -19,15 +22,20 @@ const devUser = {
 
 const seedMarker = '[dev-seed]';
 
+const futureStart = (daysFromNow: number, utcHour: number) => {
+  const startsAt = new Date();
+  startsAt.setUTCDate(startsAt.getUTCDate() + daysFromNow);
+  startsAt.setUTCHours(utcHour, 0, 0, 0);
+  return startsAt.toISOString();
+};
+
 const seededConcerts = [
   {
     title: 'Nido Rooftop Sessions',
     genre: 'Indie',
-    startsAt: '2026-06-15T20:00:00.000Z',
+    startsAt: futureStart(3, 20),
     venues: [{ name: 'Skyline Loft', city: 'Brooklyn', state: 'NY' }],
-    artists: [
-      { name: 'The Signal Lights', role: 'Headliner', genre: 'Indie' },
-    ],
+    artists: [{ name: 'The Signal Lights', role: 'Headliner', genre: 'Indie' }],
     description: `${seedMarker} Warm rooftop set for testing the local events feed.`,
     isTopPick: true,
     topPickScore: 0.94,
@@ -36,7 +44,7 @@ const seededConcerts = [
   {
     title: 'Warehouse Bass Night',
     genre: 'Electronic',
-    startsAt: '2026-06-18T02:00:00.000Z',
+    startsAt: futureStart(7, 2),
     venues: [{ name: 'The Foundry', city: 'Queens', state: 'NY' }],
     artists: [
       { name: 'Night Circuit', role: 'DJ', genre: 'Electronic' },
@@ -50,9 +58,11 @@ const seededConcerts = [
   {
     title: 'Latin Jazz Patio',
     genre: 'Jazz',
-    startsAt: '2026-06-20T23:30:00.000Z',
+    startsAt: futureStart(12, 23),
     venues: [{ name: 'Crescent Yard', city: 'Manhattan', state: 'NY' }],
-    artists: [{ name: 'Marisol Vega Quartet', role: 'Headliner', genre: 'Jazz' }],
+    artists: [
+      { name: 'Marisol Vega Quartet', role: 'Headliner', genre: 'Jazz' },
+    ],
     description: `${seedMarker} Outdoor latin jazz concert for venue and artist rendering.`,
     isTopPick: false,
     topPickScore: null,
@@ -61,7 +71,7 @@ const seededConcerts = [
   {
     title: 'Neighborhood Hip Hop Showcase',
     genre: 'Hip Hop',
-    startsAt: '2026-06-23T01:00:00.000Z',
+    startsAt: futureStart(18, 1),
     venues: [{ name: 'Blockhouse', city: 'Brooklyn', state: 'NY' }],
     artists: [
       { name: 'Eastline', role: 'Headliner', genre: 'Hip Hop' },
@@ -75,7 +85,7 @@ const seededConcerts = [
   {
     title: 'Sunday Country Brunch',
     genre: 'Country',
-    startsAt: '2026-06-28T16:00:00.000Z',
+    startsAt: futureStart(25, 16),
     venues: [{ name: 'Juniper Hall', city: 'Jersey City', state: 'NJ' }],
     artists: [{ name: 'Mason Creek', role: 'Headliner', genre: 'Country' }],
     description: `${seedMarker} Daytime show for date and timezone checks.`,
@@ -93,7 +103,15 @@ async function main() {
     username: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    entities: [User, Concert, ConcertUpvote, Venue, Band, ConcertBandLineup, ConcertSet],
+    entities: [
+      User,
+      Concert,
+      ConcertUpvote,
+      Venue,
+      Band,
+      ConcertBandLineup,
+      ConcertSet,
+    ],
     synchronize: false,
   });
 
@@ -125,11 +143,21 @@ async function main() {
         owner,
         seed,
       );
-      await seedUpvotes(upvoteRepository, concert, owner, audience, seed.upvotes);
+      await seedUpvotes(
+        upvoteRepository,
+        concert,
+        owner,
+        audience,
+        seed.upvotes,
+      );
     }
 
-    const count = await concertRepository.count({ where: { owner: { id: owner.id } } });
-    console.log(`Seeded ${seededConcerts.length} dev concerts for ${owner.email}.`);
+    const count = await concertRepository.count({
+      where: { owner: { id: owner.id } },
+    });
+    console.log(
+      `Seeded ${seededConcerts.length} dev concerts for ${owner.email}.`,
+    );
     console.log(`Owner now has ${count} concerts.`);
     console.log('Use these Bruno headers:');
     console.log(`x-dev-user-uid: ${owner.uid}`);
@@ -197,8 +225,12 @@ async function upsertConcert(
   }
 
   if (concert.id) {
-    await concertRepository.manager.delete(ConcertBandLineup, { concertId: concert.id });
-    await concertRepository.manager.delete(ConcertSet, { concertId: concert.id });
+    await concertRepository.manager.delete(ConcertBandLineup, {
+      concertId: concert.id,
+    });
+    await concertRepository.manager.delete(ConcertSet, {
+      concertId: concert.id,
+    });
   }
 
   const lineupConnections: ConcertBandLineup[] = [];
@@ -226,7 +258,8 @@ async function upsertConcert(
     if (concert.id) cbl.concertId = concert.id;
     cbl.bandId = band.id;
     cbl.band = band;
-    cbl.performanceRole = index === 0 ? PerformanceRole.HEADLINER : PerformanceRole.SUPPORT;
+    cbl.performanceRole =
+      index === 0 ? PerformanceRole.HEADLINER : PerformanceRole.SUPPORT;
     cbl.performanceOrder = index;
     lineupConnections.push(cbl);
 

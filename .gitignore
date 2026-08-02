@@ -66,5 +66,9 @@ nido-api-08fa5f15fac1.json
 /src/docs/*
 !/src/docs/ADMIN_INGESTION_REVIEW_ONBOARDING.md
 
-# Local agent briefs
-.agents/
+# Local agent briefs. Track only reviewed, project-wide skills.
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/nido-feature-flywheel/
+!.agents/skills/nido-feature-flywheel/**

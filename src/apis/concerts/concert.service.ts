@@ -1,7 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Concert } from './entities/concert.entity';
+import { Concert, ConcertCatalogStatus } from './entities/concert.entity';
 import { ConcertUpvote } from './entities/concert-upvote.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateConcertDto } from './dto/create-concert.dto';
@@ -9,8 +14,16 @@ import { UpdateConcertDto } from './dto/update-concert.dto';
 import { ListConcertsDto } from './dto/list-concerts.dto';
 import { Venue } from '../venues/entities/venue.entity';
 import { Band } from '../bands/entities/band.entity';
-import { ConcertBandLineup, PerformanceRole } from './entities/concert-band-lineup.entity';
+import {
+  ConcertBandLineup,
+  PerformanceRole,
+} from './entities/concert-band-lineup.entity';
 import { ConcertSet } from './entities/concert-set.entity';
+import {
+  AdminConcertCatalogFilter,
+  ListAdminConcertsDto,
+} from './dto/list-admin-concerts.dto';
+import { UpdateAdminConcertDto } from './dto/update-admin-concert.dto';
 
 export interface ConcertEngagement {
   upvoteCount: number;
@@ -36,7 +49,11 @@ export class ConcertService {
   ) {}
 
   async findAll(query: ListConcertsDto, currentUser?: User) {
-    const qb = this.concertRepository.createQueryBuilder('concert');
+    const qb = this.concertRepository
+      .createQueryBuilder('concert')
+      .where('concert.catalogStatus = :activeCatalogStatus', {
+        activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
+      });
     return this.findWithQuery(qb, query, currentUser);
   }
 
@@ -47,11 +64,35 @@ export class ConcertService {
     return this.findWithQuery(qb, query, owner);
   }
 
+  async findAllAdmin(query: ListAdminConcertsDto) {
+    const qb = this.concertRepository.createQueryBuilder('concert');
+
+    if (
+      query.catalogStatus &&
+      query.catalogStatus !== AdminConcertCatalogFilter.ALL
+    ) {
+      qb.where('concert.catalogStatus = :catalogStatus', {
+        catalogStatus: query.catalogStatus,
+      });
+    }
+
+    if (query.isFeatured !== undefined) {
+      qb.andWhere('concert.isFeatured = :isFeatured', {
+        isFeatured: query.isFeatured,
+      });
+    }
+
+    return this.findWithQuery(qb, query, undefined, true);
+  }
+
   async findAvailableGenres(): Promise<string[]> {
     const rows = await this.concertRepository
       .createQueryBuilder('concert')
       .select('DISTINCT TRIM(concert.genre)', 'genre')
-      .where('concert.genre IS NOT NULL')
+      .where('concert.catalogStatus = :activeCatalogStatus', {
+        activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
+      })
+      .andWhere('concert.genre IS NOT NULL')
       .andWhere("TRIM(concert.genre) <> ''")
       .getRawMany<{ genre: string | null }>();
 
@@ -70,6 +111,7 @@ export class ConcertService {
     qb: ReturnType<Repository<Concert>['createQueryBuilder']>,
     query: ListConcertsDto,
     currentUser?: User,
+    includeAdminMetadata = false,
   ) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
@@ -190,7 +232,11 @@ export class ConcertService {
         .addOrderBy('upvote_count', 'DESC')
         .addOrderBy('concert.startsAt', 'ASC')
         .addOrderBy('concert.id', 'ASC');
-    } else if (query.sort === 'featured' || query.sort === 'top_picks') {
+    } else if (query.sort === 'featured') {
+      qb.orderBy('concert.isFeatured', 'DESC')
+        .addOrderBy('concert.startsAt', 'ASC')
+        .addOrderBy('concert.id', 'ASC');
+    } else if (query.sort === 'top_picks') {
       qb.orderBy('concert.isTopPick', 'DESC')
         .addOrderBy('concert.topPickScore', 'DESC', 'NULLS LAST')
         .addOrderBy('concert.startsAt', 'ASC')
@@ -217,6 +263,7 @@ export class ConcertService {
         this.mapRawEngagement(rawByConcertId.get(concert.id)),
         this.mapRawSyncSource(rawByConcertId.get(concert.id)),
         this.mapRawPosterUrl(rawByConcertId.get(concert.id)),
+        includeAdminMetadata,
       ),
     );
 
@@ -224,7 +271,7 @@ export class ConcertService {
   }
 
   async createForOwner(owner: User, dto: CreateConcertDto) {
-    const venue = dto.venueId ? { id: dto.venueId } as Venue : null;
+    const venue = dto.venueId ? ({ id: dto.venueId } as Venue) : null;
 
     let lineup: ConcertBandLineup[] = [];
     if (dto.lineup && dto.lineup.length > 0) {
@@ -300,111 +347,271 @@ export class ConcertService {
 
   async updateForOwner(id: string, owner: User, dto: UpdateConcertDto) {
     const concert = await this.findOneForOwner(id, owner);
-
-    if (dto.title !== undefined) {
-      concert.title = this.normalizeRequiredString(dto.title);
+    if (
+      concert.catalogStatus !== ConcertCatalogStatus.ACTIVE ||
+      concert.editorialLockedAt
+    ) {
+      throw new ConflictException(
+        'This concert is under admin control and cannot be edited by its owner.',
+      );
     }
 
-    if (dto.genre !== undefined) {
-      concert.genre = this.normalizeRequiredString(dto.genre);
-    }
+    const saved = await this.concertRepository.manager.transaction(
+      async (manager) => {
+        const update: Partial<Concert> = {};
+        if (dto.title !== undefined) {
+          update.title = this.normalizeRequiredString(dto.title);
+        }
+        if (dto.genre !== undefined) {
+          update.genre = this.normalizeRequiredString(dto.genre);
+        }
+        if (dto.startsAt !== undefined) {
+          update.startsAt = new Date(dto.startsAt);
+        }
+        if (dto.endsAt !== undefined) {
+          update.endsAt = dto.endsAt ? new Date(dto.endsAt) : null;
+        }
+        if (dto.venueId !== undefined) {
+          update.venueId = dto.venueId;
+        }
+        if (dto.description !== undefined) {
+          update.description = this.normalizeOptionalString(dto.description);
+        }
 
-    if (dto.startsAt !== undefined) {
-      concert.startsAt = new Date(dto.startsAt);
-    }
+        const claim = await manager
+          .createQueryBuilder()
+          .update(Concert)
+          .set(update)
+          .where('id = :id', { id: concert.id })
+          .andWhere('owner_id = :ownerId', { ownerId: owner.id })
+          .andWhere('version = :observedVersion', {
+            observedVersion: concert.version,
+          })
+          .andWhere('catalog_status = :activeCatalogStatus', {
+            activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
+          })
+          .andWhere('editorial_locked_at IS NULL')
+          .execute();
 
-    if (dto.endsAt !== undefined) {
-      concert.endsAt = dto.endsAt ? new Date(dto.endsAt) : null;
-    }
+        if (claim.affected !== 1) {
+          throw new ConflictException(
+            'Concert changed while the update was being saved. Refresh and try again.',
+          );
+        }
 
-    if (dto.venueId !== undefined) {
-      concert.venue = dto.venueId ? { id: dto.venueId } as Venue : null;
-    }
+        if (dto.lineup !== undefined || dto.bandIds !== undefined) {
+          await manager.delete(ConcertBandLineup, { concertId: concert.id });
+          const lineup = dto.lineup?.length
+            ? dto.lineup.map((item) => {
+                const entry = new ConcertBandLineup();
+                entry.concertId = concert.id;
+                entry.bandId = item.bandId;
+                entry.band = { id: item.bandId } as Band;
+                entry.performanceRole = item.role ?? PerformanceRole.SUPPORT;
+                entry.performanceOrder = item.order ?? 0;
+                return entry;
+              })
+            : (dto.bandIds ?? []).map((bandId, index) => {
+                const entry = new ConcertBandLineup();
+                entry.concertId = concert.id;
+                entry.bandId = bandId;
+                entry.band = { id: bandId } as Band;
+                entry.performanceRole = PerformanceRole.HEADLINER;
+                entry.performanceOrder = index;
+                return entry;
+              });
+          if (lineup.length) {
+            await manager.save(ConcertBandLineup, lineup);
+          }
+        }
 
-    if (dto.lineup !== undefined || dto.bandIds !== undefined) {
-      await this.concertRepository.manager.delete(ConcertBandLineup, { concertId: concert.id });
+        if (dto.sets !== undefined) {
+          await manager.delete(ConcertSet, { concertId: concert.id });
+          const sets = dto.sets.map((setDto) => {
+            const set = new ConcertSet();
+            set.concertId = concert.id;
+            set.bandId = setDto.bandId;
+            set.band = { id: setDto.bandId } as Band;
+            set.stageName = setDto.stageName;
+            set.startsAt = new Date(setDto.startsAt);
+            set.endsAt = new Date(setDto.endsAt);
+            return set;
+          });
+          if (sets.length) {
+            await manager.save(ConcertSet, sets);
+          }
+        }
 
-      let lineup: ConcertBandLineup[] = [];
-      if (dto.lineup && dto.lineup.length > 0) {
-        lineup = dto.lineup.map((item) => {
-          const cbl = new ConcertBandLineup();
-          cbl.concertId = concert.id;
-          cbl.bandId = item.bandId;
-          cbl.band = { id: item.bandId } as Band;
-          cbl.performanceRole = item.role ?? PerformanceRole.SUPPORT;
-          cbl.performanceOrder = item.order ?? 0;
-          return cbl;
+        return manager.findOneOrFail(Concert, {
+          where: { id: concert.id, owner: { id: owner.id } },
+          relations: ['owner', 'venue', 'lineup', 'sets'],
         });
-      } else if (dto.bandIds && dto.bandIds.length > 0) {
-        lineup = dto.bandIds.map((id, index) => {
-          const cbl = new ConcertBandLineup();
-          cbl.concertId = concert.id;
-          cbl.bandId = id;
-          cbl.band = { id } as Band;
-          cbl.performanceRole = PerformanceRole.HEADLINER;
-          cbl.performanceOrder = index;
-          return cbl;
-        });
-      }
-      concert.lineup = lineup;
-    }
+      },
+    );
 
-    if (dto.sets !== undefined) {
-      await this.concertRepository.manager.delete(ConcertSet, { concertId: concert.id });
-
-      let sets: ConcertSet[] = [];
-      if (dto.sets && dto.sets.length > 0) {
-        sets = dto.sets.map((setDto) => {
-          const cs = new ConcertSet();
-          cs.concertId = concert.id;
-          cs.bandId = setDto.bandId;
-          cs.band = { id: setDto.bandId } as Band;
-          cs.stageName = setDto.stageName;
-          cs.startsAt = new Date(setDto.startsAt);
-          cs.endsAt = new Date(setDto.endsAt);
-          return cs;
-        });
-      }
-      concert.sets = sets;
-    }
-
-    if (dto.description !== undefined) {
-      concert.description = this.normalizeOptionalString(dto.description);
-    }
-
-    const saved = await this.concertRepository.save(concert);
     const engagement = await this.getEngagement(saved.id, owner);
-    const reloaded = await this.concertRepository.findOne({
-      where: { id: saved.id },
-      relations: ['owner', 'venue', 'lineup', 'sets'],
-    });
-
-    return this.withEngagement(reloaded!, engagement);
+    return this.withEngagement(saved, engagement, null, null, false);
   }
 
   async removeForOwner(id: string, owner: User) {
     const concert = await this.findOneForOwner(id, owner);
-    await this.concertRepository.remove(concert);
+    const result = await this.concertRepository
+      .createQueryBuilder()
+      .delete()
+      .from(Concert)
+      .where('id = :id', { id: concert.id })
+      .andWhere('owner_id = :ownerId', { ownerId: owner.id })
+      .andWhere('version = :observedVersion', {
+        observedVersion: concert.version,
+      })
+      .andWhere('catalog_status = :activeCatalogStatus', {
+        activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
+      })
+      .andWhere('editorial_locked_at IS NULL')
+      .execute();
+
+    if (result.affected !== 1) {
+      throw new ConflictException(
+        'This concert changed or is under admin control and cannot be deleted by its owner.',
+      );
+    }
   }
 
   async setAdminApproval(id: string, reviewer: User, approved: boolean) {
     const concert = await this.findOne(id);
-
-    concert.isAdminApproved = approved;
-    concert.adminApprovedAt = approved ? new Date() : null;
-    concert.adminApprovedByUserId = approved ? reviewer.id : null;
-
+    const update: Partial<Concert> = {
+      isAdminApproved: approved,
+      adminApprovedAt: approved ? new Date() : null,
+      adminApprovedByUserId: approved ? reviewer.id : null,
+    };
     if (!approved) {
-      concert.isTopPick = false;
-      concert.topPickScore = null;
-      concert.topPickRefreshedAt = new Date();
+      update.isTopPick = false;
+      update.topPickScore = null;
+      update.topPickRefreshedAt = new Date();
     }
 
-    return this.concertRepository.save(concert);
+    const result = await this.concertRepository
+      .createQueryBuilder()
+      .update(Concert)
+      .set(update)
+      .where('id = :id', { id })
+      .andWhere('version = :observedVersion', {
+        observedVersion: concert.version,
+      })
+      .execute();
+
+    if (result.affected !== 1) {
+      throw new ConflictException(
+        'Concert changed while approval was being saved. Refresh and try again.',
+      );
+    }
+
+    return this.findOneAdmin(id);
+  }
+
+  async findOneAdmin(id: string) {
+    const qb = this.concertRepository
+      .createQueryBuilder('concert')
+      .where('concert.id = :id', { id });
+    const result = await this.findWithQuery(
+      qb,
+      { page: 1, pageSize: 1 },
+      undefined,
+      true,
+    );
+
+    if (!result.data[0]) {
+      throw new NotFoundException('Concert not found');
+    }
+
+    return result.data[0];
+  }
+
+  async updateAdmin(id: string, dto: UpdateAdminConcertDto) {
+    const contentChanged =
+      dto.title !== undefined ||
+      dto.genre !== undefined ||
+      dto.startsAt !== undefined ||
+      dto.endsAt !== undefined ||
+      dto.venueId !== undefined ||
+      dto.description !== undefined;
+
+    if (contentChanged && dto.resumeSyncUpdates) {
+      throw new BadRequestException(
+        'Edit concert content or resume calendar updates, not both at once',
+      );
+    }
+
+    const concert = await this.findOne(id);
+
+    if (concert.version !== dto.expectedVersion) {
+      throw new ConflictException(
+        'Concert changed after it was loaded. Refresh and try again.',
+      );
+    }
+
+    const resultingStatus = dto.catalogStatus ?? concert.catalogStatus;
+    if (
+      dto.isFeatured === true &&
+      resultingStatus !== ConcertCatalogStatus.ACTIVE
+    ) {
+      throw new BadRequestException('Only active concerts can be featured');
+    }
+
+    const update: Partial<Concert> = {};
+    if (dto.title !== undefined) {
+      update.title = this.normalizeRequiredString(dto.title);
+    }
+    if (dto.genre !== undefined) {
+      update.genre = this.normalizeRequiredString(dto.genre);
+    }
+    if (dto.startsAt !== undefined) {
+      update.startsAt = new Date(dto.startsAt);
+    }
+    if (dto.endsAt !== undefined) {
+      update.endsAt = dto.endsAt ? new Date(dto.endsAt) : null;
+    }
+    if (dto.venueId !== undefined) {
+      update.venueId = dto.venueId;
+    }
+    if (dto.description !== undefined) {
+      update.description = this.normalizeOptionalString(dto.description);
+    }
+    if (contentChanged) {
+      update.editorialLockedAt = new Date();
+    } else if (dto.resumeSyncUpdates) {
+      update.editorialLockedAt = null;
+    }
+    if (dto.catalogStatus !== undefined) {
+      update.catalogStatus = dto.catalogStatus;
+    }
+    if (resultingStatus !== ConcertCatalogStatus.ACTIVE) {
+      update.isFeatured = false;
+    } else if (dto.isFeatured !== undefined) {
+      update.isFeatured = dto.isFeatured;
+    }
+
+    const result = await this.concertRepository
+      .createQueryBuilder()
+      .update(Concert)
+      .set(update)
+      .where('id = :id', { id })
+      .andWhere('version = :expectedVersion', {
+        expectedVersion: dto.expectedVersion,
+      })
+      .execute();
+
+    if (result.affected !== 1) {
+      throw new ConflictException(
+        'Concert changed while the update was being saved. Refresh and try again.',
+      );
+    }
+
+    return this.findOneAdmin(id);
   }
 
   async upvote(id: string, user: User) {
-    await this.findOne(id);
+    await this.findOnePublic(id);
 
     await this.concertUpvoteRepository
       .createQueryBuilder()
@@ -421,7 +628,7 @@ export class ConcertService {
   }
 
   async removeUpvote(id: string, user: User) {
-    await this.findOne(id);
+    await this.findOnePublic(id);
 
     await this.concertUpvoteRepository
       .createQueryBuilder()
@@ -429,15 +636,37 @@ export class ConcertService {
       .from(ConcertUpvote)
       .where('concert_id = :concertId', { concertId: id })
       .andWhere('user_id = :userId', { userId: user.id })
+      .andWhere(
+        `EXISTS (
+          SELECT 1 FROM concerts concert
+          WHERE concert.id = :concertId
+            AND concert.catalog_status = :activeCatalogStatus
+        )`,
+        { activeCatalogStatus: ConcertCatalogStatus.ACTIVE },
+      )
       .execute();
 
-    return this.getEngagement(id, user);
+    const engagement = await this.getEngagement(id, user);
+    await this.findOnePublic(id);
+    return engagement;
   }
 
   private async findOne(id: string) {
     const concert = await this.concertRepository.findOne({
       where: { id },
       relations: ['venue', 'lineup', 'sets'],
+    });
+
+    if (!concert) {
+      throw new NotFoundException('Concert not found');
+    }
+
+    return concert;
+  }
+
+  private async findOnePublic(id: string) {
+    const concert = await this.concertRepository.findOne({
+      where: { id, catalogStatus: ConcertCatalogStatus.ACTIVE },
     });
 
     if (!concert) {
@@ -520,13 +749,26 @@ export class ConcertService {
     engagement: ConcertEngagement,
     syncSource: ConcertSyncSource | null = null,
     posterUrl: string | null = null,
+    includeAdminMetadata = true,
   ) {
-    return {
+    const response = {
       ...concert,
       ...engagement,
       syncSource,
       posterUrl,
     };
+
+    if (includeAdminMetadata) {
+      return response;
+    }
+
+    const {
+      catalogStatus: _catalogStatus,
+      editorialLockedAt: _editorialLockedAt,
+      version: _version,
+      ...publicResponse
+    } = response;
+    return publicResponse;
   }
 
   private normalizeRequiredString(value: string) {

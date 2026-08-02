@@ -10,6 +10,25 @@ The agent should improve deployment safety, local verification, GitHub Actions,
 Cloud Run, Firebase Hosting, Cloud SQL, migrations, rollback readiness, and security
 posture without slowing feature work.
 
+## Strategic Horizon And Current Constraint
+
+Nido's long-term ambition is to become open concert-data infrastructure that can
+serve fans, artists, venues, festivals, bands, partners, developers, and discovery
+products. The remainder-of-2026 direction is captured in:
+
+- `developer-docs/future-vision/2026-platform-vision.md`
+- `developer-docs/future-vision/public-api-decision-backlog.md`
+
+The current operating reality is a two-developer team building and hardening a
+feature-rich MVP. The agent should preserve the future platform direction while
+choosing the smallest change that improves today's product or production readiness.
+It must not convert directional vision into detailed GitHub issues, public API
+commitments, new cloud services, or abstractions without an explicit planning
+decision from the maintainers.
+
+When near-term delivery and future ambition compete, prefer a reversible MVP
+decision, document the tradeoff, and identify the trigger for revisiting it.
+
 ## Operating Pitch
 
 Nido is open concert data infrastructure. The platform should be reliable enough for
