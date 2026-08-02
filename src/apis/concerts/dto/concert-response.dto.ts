@@ -152,6 +152,8 @@ export class ConcertResponseDto {
 export class AdminConcertResponseDto extends ConcertResponseDto {
   @ApiProperty({
     enum: ConcertCatalogStatus,
+    description:
+      'Authoritative admin lifecycle state. This field is not exposed by public discovery responses.',
     example: ConcertCatalogStatus.ACTIVE,
   })
   catalogStatus: ConcertCatalogStatus;
@@ -159,12 +161,16 @@ export class AdminConcertResponseDto extends ConcertResponseDto {
   @ApiPropertyOptional({
     nullable: true,
     description:
-      'When set, calendar sync preserves admin-edited source-managed content.',
+      'When set, calendar sync preserves admin-edited source-managed content and stale automation backs off.',
     example: '2026-07-31T23:00:00.000Z',
   })
   editorialLockedAt?: string | null;
 
-  @ApiProperty({ description: 'Optimistic concurrency version.', example: 1 })
+  @ApiProperty({
+    description:
+      'Optimistic concurrency version required as expectedVersion on the next admin update.',
+    example: 1,
+  })
   version: number;
 }
 

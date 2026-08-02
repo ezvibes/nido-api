@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import {
   BadRequestException,
+  ConflictException,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
@@ -37,6 +38,12 @@ describe('IngestionService', () => {
     create: jest.fn(),
     save: jest.fn(),
     findOne: jest.fn(),
+    findOneOrFail: jest.fn(),
+    createQueryBuilder: jest.fn(),
+    manager: {
+      delete: jest.fn(),
+      save: jest.fn(),
+    },
   };
 
   beforeEach(async () => {
@@ -185,11 +192,7 @@ describe('IngestionService', () => {
         },
       });
 
-      const result = await service.uploadImage(
-        file,
-        { genre },
-        'uid-1',
-      );
+      const result = await service.uploadImage(file, { genre }, 'uid-1');
 
       expect(concertUploadRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ genre: undefined }),
@@ -362,6 +365,55 @@ describe('IngestionService', () => {
       }
     },
   );
+
+  it('preserves a newer admin edit when linked ingestion approval is stale', async () => {
+    const upload = {
+      id: 'asset-1',
+      concertId: 'concert-1',
+      originalFilename: 'poster.jpg',
+      city: 'Raleigh',
+      state: 'NC',
+      source: 'flyer_upload',
+      size: 12,
+      uploadedByUid: 'uid-1',
+      uploadedByUserId: 3,
+      createdAt: new Date('2026-08-01T12:00:00.000Z'),
+      reviewStatus: 'submitted',
+    };
+    const updateQb: Record<string, jest.Mock> = {};
+    ['update', 'set', 'where', 'andWhere'].forEach((method) => {
+      updateQb[method] = jest.fn().mockReturnValue(updateQb);
+    });
+    updateQb.execute = jest.fn().mockResolvedValue({ affected: 0 });
+
+    concertUploadRepository.findOne.mockResolvedValue(upload);
+    concertRepository.findOne.mockResolvedValue({
+      id: 'concert-1',
+      version: 4,
+    });
+    concertRepository.createQueryBuilder.mockReturnValue(updateQb);
+
+    await expect(
+      service.adminReviewConcertUpload(
+        'asset-1',
+        {
+          status: 'approved',
+          concertTitle: 'Poster Show',
+          concertStartsAt: '2026-08-10T23:00:00.000Z',
+          concertVenueName: 'The Venue',
+          concertBandName: 'Poster Band',
+        },
+        7,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(updateQb.andWhere).toHaveBeenCalledWith(
+      'version = :observedVersion',
+      { observedVersion: 4 },
+    );
+    expect(concertRepository.manager.delete).not.toHaveBeenCalled();
+    expect(concertUploadRepository.save).not.toHaveBeenCalled();
+  });
 
   it('should not complete jobs when an admin returns an upload to submitted', async () => {
     const createdAt = new Date('2026-06-07T17:30:54.784Z');

@@ -165,4 +165,3 @@ validated integration requires it.
 
 Do not create detailed GitHub implementation issues from this document without
 an explicit maintainers' planning session.
-

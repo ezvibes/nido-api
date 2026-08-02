@@ -45,6 +45,7 @@ describe('ConcertSyncService', () => {
       delete: jest.fn().mockResolvedValue(undefined),
       findOne: jest.fn(),
       save: jest.fn(),
+      createQueryBuilder: jest.fn(),
       transaction: jest.fn(),
     },
   };
@@ -103,10 +104,10 @@ describe('ConcertSyncService', () => {
   });
 
   it('ranks all approved candidates before limiting top picks', async () => {
-    const resetQb = createQueryBuilderMock();
     const selectQb = createQueryBuilderMock();
     const nearConcert = {
       id: 'near-concert',
+      version: 2,
       startsAt: new Date('2026-06-02T00:00:00.000Z'),
       isTopPick: false,
       topPickScore: null,
@@ -114,16 +115,24 @@ describe('ConcertSyncService', () => {
     } as Concert;
     const laterConcert = {
       id: 'later-concert',
+      version: 4,
       startsAt: new Date('2026-06-20T00:00:00.000Z'),
       isTopPick: false,
       topPickScore: null,
       topPickRefreshedAt: null,
     } as Concert;
 
+    const nearUpdateQb = createQueryBuilderMock();
+    const laterUpdateQb = createQueryBuilderMock();
+    const staleClearQb = createQueryBuilderMock();
     concertRepository.createQueryBuilder
-      .mockReturnValueOnce(resetQb)
-      .mockReturnValueOnce(selectQb);
-    resetQb.execute.mockResolvedValue(undefined);
+      .mockReturnValueOnce(selectQb)
+      .mockReturnValueOnce(laterUpdateQb)
+      .mockReturnValueOnce(nearUpdateQb)
+      .mockReturnValueOnce(staleClearQb);
+    nearUpdateQb.execute.mockResolvedValue({ affected: 1 });
+    laterUpdateQb.execute.mockResolvedValue({ affected: 1 });
+    staleClearQb.execute.mockResolvedValue({ affected: 2 });
     selectQb.getRawAndEntities.mockResolvedValue({
       entities: [nearConcert, laterConcert],
       raw: [
@@ -131,8 +140,6 @@ describe('ConcertSyncService', () => {
         { concert_id: 'later-concert', upvote_count: '100' },
       ],
     });
-    concertRepository.save.mockResolvedValue([nearConcert, laterConcert]);
-
     const result = await (service as any).refreshTopPicks(7, {
       horizonDays: 90,
       limit: 1,
@@ -140,27 +147,54 @@ describe('ConcertSyncService', () => {
     });
 
     expect(selectQb.take).not.toHaveBeenCalled();
+    expect(staleClearQb.andWhere).toHaveBeenCalledWith(
+      '(is_top_pick = true OR top_pick_score IS NOT NULL)',
+    );
+    expect(staleClearQb.andWhere).toHaveBeenCalledWith(
+      'id NOT IN (:...retainedConcertIds)',
+      { retainedConcertIds: ['later-concert', 'near-concert'] },
+    );
     expect(selectQb.andWhere).toHaveBeenCalledWith(
       'concert.catalogStatus = :activeCatalogStatus',
       { activeCatalogStatus: ConcertCatalogStatus.ACTIVE },
     );
-    expect(concertRepository.save).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'later-concert',
-          isTopPick: true,
-        }),
-        expect.objectContaining({
-          id: 'near-concert',
-          isTopPick: false,
-        }),
-      ]),
+    expect(laterUpdateQb.set).toHaveBeenCalledWith(
+      expect.objectContaining({ isTopPick: true }),
     );
+    expect(laterUpdateQb.andWhere).toHaveBeenCalledWith(
+      'version = :observedVersion',
+      { observedVersion: 4 },
+    );
+    expect(nearUpdateQb.set).toHaveBeenCalledWith(
+      expect.objectContaining({ isTopPick: false }),
+    );
+    expect(concertRepository.save).not.toHaveBeenCalled();
     expect(result).toEqual({
       evaluated: 2,
       topPicks: 1,
       horizonDays: 90,
     });
+  });
+
+  it('clears only previously ranked state when no candidates remain', async () => {
+    const selectQb = createQueryBuilderMock();
+    const staleClearQb = createQueryBuilderMock();
+    concertRepository.createQueryBuilder
+      .mockReturnValueOnce(selectQb)
+      .mockReturnValueOnce(staleClearQb);
+    selectQb.getRawAndEntities.mockResolvedValue({ entities: [], raw: [] });
+    staleClearQb.execute.mockResolvedValue({ affected: 1 });
+
+    const result = await (service as any).refreshTopPicks(7);
+
+    expect(staleClearQb.andWhere).toHaveBeenCalledWith(
+      '(is_top_pick = true OR top_pick_score IS NOT NULL)',
+    );
+    expect(staleClearQb.andWhere).not.toHaveBeenCalledWith(
+      'id NOT IN (:...retainedConcertIds)',
+      expect.anything(),
+    );
+    expect(result).toEqual({ evaluated: 0, topPicks: 0, horizonDays: 90 });
   });
 
   it('stores dry-run previews without calling Gemini or writing concerts', async () => {
@@ -329,6 +363,7 @@ describe('ConcertSyncService', () => {
   it('updates a likely duplicate manual concert instead of creating another concert', async () => {
     const existingConcert = {
       id: 'existing-concert',
+      version: 3,
       title: 'Beer and Banjos',
       startsAt: new Date('2026-06-09T22:00:00.000Z'),
       venue: { name: 'Bowstring Brewyard' },
@@ -348,8 +383,14 @@ describe('ConcertSyncService', () => {
     };
 
     concertRepository.find.mockResolvedValue([existingConcert]);
-    concertRepository.manager.findOne.mockResolvedValue(existingConcert);
-    concertRepository.manager.save.mockImplementation(async (value) => value);
+    const updateQb = createQueryBuilderMock();
+    updateQb.execute.mockResolvedValue({ affected: 1 });
+    concertRepository.manager.createQueryBuilder.mockReturnValue(updateQb);
+    concertRepository.manager.findOne.mockResolvedValue({
+      ...existingConcert,
+      title: 'Beer & Banjos',
+      version: 4,
+    });
 
     const result = await (service as any).upsertConcertFromEvent(
       { id: 7 },
@@ -358,11 +399,12 @@ describe('ConcertSyncService', () => {
 
     expect(result.wasCreated).toBe(false);
     expect(concertRepository.create).not.toHaveBeenCalled();
-    expect(concertRepository.manager.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'existing-concert',
-        title: 'Beer & Banjos',
-      }),
+    expect(updateQb.set).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Beer & Banjos' }),
+    );
+    expect(updateQb.andWhere).toHaveBeenCalledWith(
+      'version = :observedVersion',
+      { observedVersion: 3 },
     );
   });
 
@@ -398,19 +440,18 @@ describe('ConcertSyncService', () => {
     expect(concertRepository.save).not.toHaveBeenCalled();
   });
 
-  it('rechecks the editorial lock while holding the row lock', async () => {
+  it('skips a stale sync update when an admin edit wins the version race', async () => {
     const staleConcert = {
       id: 'racing-concert',
       title: 'Calendar title',
       editorialLockedAt: null,
-    } as Concert;
-    const freshlyLockedConcert = {
-      ...staleConcert,
-      title: 'Admin title',
-      editorialLockedAt: new Date('2026-07-31T21:00:00.000Z'),
+      catalogStatus: ConcertCatalogStatus.ACTIVE,
+      version: 5,
     } as Concert;
     concertRepository.findOne.mockResolvedValue(staleConcert);
-    concertRepository.manager.findOne.mockResolvedValue(freshlyLockedConcert);
+    const updateQb = createQueryBuilderMock();
+    updateQb.execute.mockResolvedValue({ affected: 0 });
+    concertRepository.manager.createQueryBuilder.mockReturnValue(updateQb);
 
     const result = await (service as any).upsertConcertFromEvent(
       { id: 7 },
@@ -426,28 +467,26 @@ describe('ConcertSyncService', () => {
       'racing-concert',
     );
 
-    expect(concertRepository.manager.findOne).toHaveBeenCalledWith(
-      Concert,
-      expect.objectContaining({ lock: { mode: 'pessimistic_write' } }),
+    expect(updateQb.andWhere).toHaveBeenCalledWith(
+      'version = :observedVersion',
+      { observedVersion: 5 },
     );
     expect(result.wasSkipped).toBe(true);
     expect(concertRepository.manager.delete).not.toHaveBeenCalled();
     expect(concertRepository.manager.save).not.toHaveBeenCalled();
   });
 
-  it('rechecks archived status while holding the row lock', async () => {
+  it('skips a sync update when the concert becomes archived', async () => {
     const staleConcert = {
       id: 'archiving-concert',
       title: 'Calendar title',
       catalogStatus: ConcertCatalogStatus.ACTIVE,
-    } as Concert;
-    const archivedConcert = {
-      ...staleConcert,
-      title: 'Archived title',
-      catalogStatus: ConcertCatalogStatus.ARCHIVED,
+      version: 8,
     } as Concert;
     concertRepository.findOne.mockResolvedValue(staleConcert);
-    concertRepository.manager.findOne.mockResolvedValue(archivedConcert);
+    const updateQb = createQueryBuilderMock();
+    updateQb.execute.mockResolvedValue({ affected: 0 });
+    concertRepository.manager.createQueryBuilder.mockReturnValue(updateQb);
 
     const result = await (service as any).upsertConcertFromEvent(
       { id: 7 },
@@ -464,6 +503,10 @@ describe('ConcertSyncService', () => {
     );
 
     expect(result.wasSkipped).toBe(true);
+    expect(updateQb.andWhere).toHaveBeenCalledWith(
+      'catalog_status <> :archivedCatalogStatus',
+      { archivedCatalogStatus: ConcertCatalogStatus.ARCHIVED },
+    );
     expect(concertRepository.manager.delete).not.toHaveBeenCalled();
     expect(concertRepository.manager.save).not.toHaveBeenCalled();
   });

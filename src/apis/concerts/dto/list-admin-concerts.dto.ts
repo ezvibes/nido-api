@@ -13,6 +13,8 @@ export enum AdminConcertCatalogFilter {
 
 export class ListAdminConcertsDto extends ListConcertsDto {
   @ApiPropertyOptional({
+    description:
+      'Catalog lifecycle state. Use all to include active, hidden, and archived records.',
     enum: AdminConcertCatalogFilter,
     default: AdminConcertCatalogFilter.ALL,
   })
@@ -21,7 +23,9 @@ export class ListAdminConcertsDto extends ListConcertsDto {
   catalogStatus: AdminConcertCatalogFilter = AdminConcertCatalogFilter.ALL;
 
   @ApiPropertyOptional({
-    description: 'Filter by manual editorial feature state.',
+    description:
+      'When true, return only concerts selected for manual Featured placement.',
+    example: true,
   })
   @IsOptional()
   @Transform(({ value }) => {

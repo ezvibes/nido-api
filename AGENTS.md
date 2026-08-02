@@ -97,4 +97,3 @@ A feature handoff includes:
 - independent review findings or explicit reason it was unnecessary;
 - known limitations and follow-up issues;
 - dev verification plan and rollback target.
-

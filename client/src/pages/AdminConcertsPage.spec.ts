@@ -39,7 +39,7 @@ describe('AdminConcertsPage', () => {
       data: [buildConcert()],
       total: 1,
       page: 1,
-      pageSize: 100,
+      pageSize: 25,
     });
   });
 
@@ -51,16 +51,58 @@ describe('AdminConcertsPage', () => {
       q: undefined,
       catalogStatus: 'active',
       isFeatured: undefined,
-      pageSize: 100,
+      page: 1,
+      pageSize: 25,
     });
     expect(wrapper.text()).toContain('Summer Jam');
     expect(wrapper.text()).toContain('1 concert');
+  });
+
+  it('paginates through the complete admin catalog', async () => {
+    api.fetchAdminConcerts
+      .mockResolvedValueOnce({
+        data: [buildConcert()],
+        total: 30,
+        page: 1,
+        pageSize: 25,
+      })
+      .mockResolvedValueOnce({
+        data: [buildConcert({ id: 'concert-26', title: 'Late Page Show' })],
+        total: 30,
+        page: 2,
+        pageSize: 25,
+      });
+
+    const wrapper = mount(AdminConcertsPage);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('1-1 of 30 concerts');
+    await wrapper.get('.catalog-pagination button:last-child').trigger('click');
+    await flushPromises();
+
+    expect(api.fetchAdminConcerts).toHaveBeenLastCalledWith('firebase-token', {
+      q: undefined,
+      catalogStatus: 'active',
+      isFeatured: undefined,
+      page: 2,
+      pageSize: 25,
+    });
+    expect(wrapper.text()).toContain('Late Page Show');
+    expect(wrapper.text()).toContain('Page 2 of 2');
   });
 
   it('hides a concert using the version returned by the API', async () => {
     api.updateAdminConcert.mockResolvedValue(
       buildConcert({ catalogStatus: 'hidden', isFeatured: false, version: 8 }),
     );
+    api.fetchAdminConcerts
+      .mockResolvedValueOnce({
+        data: [buildConcert()],
+        total: 1,
+        page: 1,
+        pageSize: 25,
+      })
+      .mockResolvedValueOnce({ data: [], total: 0, page: 1, pageSize: 25 });
     const wrapper = mount(AdminConcertsPage);
     await flushPromises();
 
@@ -107,6 +149,36 @@ describe('AdminConcertsPage', () => {
       }),
     );
     expect(wrapper.find('.editor').exists()).toBe(false);
+    expect(api.fetchAdminConcerts).toHaveBeenCalledTimes(2);
+  });
+
+  it('reloads totals after a successful mutation changes the filtered result set', async () => {
+    api.fetchAdminConcerts
+      .mockResolvedValueOnce({
+        data: [buildConcert()],
+        total: 26,
+        page: 1,
+        pageSize: 25,
+      })
+      .mockResolvedValueOnce({
+        data: [],
+        total: 0,
+        page: 1,
+        pageSize: 25,
+      });
+    api.updateAdminConcert.mockResolvedValue(
+      buildConcert({ catalogStatus: 'hidden', isFeatured: false, version: 8 }),
+    );
+    const wrapper = mount(AdminConcertsPage);
+    await flushPromises();
+
+    await wrapper
+      .get('.concert-row__actions button:nth-child(2)')
+      .trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('0 concerts');
+    expect(wrapper.find('.catalog-pagination').exists()).toBe(false);
   });
 
   it('requires confirmation before archiving', async () => {

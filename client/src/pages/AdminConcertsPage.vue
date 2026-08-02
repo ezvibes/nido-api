@@ -24,9 +24,13 @@ const notice = ref('');
 const search = ref('');
 const catalogStatus = ref<AdminConcertCatalogStatus | 'all'>('active');
 const featuredOnly = ref(false);
+const page = ref(1);
+const pageSize = 25;
+const total = ref(0);
 const editing = ref<ConcertApiItem | null>(null);
 const closeEditorButton = ref<HTMLButtonElement | null>(null);
 let editorTrigger: HTMLElement | null = null;
+let latestLoadRequest = 0;
 
 const form = reactive({
   title: '',
@@ -48,9 +52,14 @@ const statusOptions: Array<{
 ];
 
 const resultSummary = computed(() => {
-  const noun = concerts.value.length === 1 ? 'concert' : 'concerts';
-  return `${concerts.value.length} ${noun}`;
+  if (!total.value) return '0 concerts';
+  const first = (page.value - 1) * pageSize + 1;
+  const last = Math.min(first + concerts.value.length - 1, total.value);
+  return `${first}-${last} of ${total.value} concerts`;
 });
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(total.value / pageSize)),
+);
 
 function toLocalInput(value?: string | null) {
   if (!value) return '';
@@ -81,6 +90,7 @@ async function token() {
 }
 
 async function load() {
+  const requestId = ++latestLoadRequest;
   loading.value = true;
   error.value = '';
   try {
@@ -89,14 +99,38 @@ async function load() {
       q: search.value.trim() || undefined,
       catalogStatus: catalogStatus.value,
       isFeatured: featuredOnly.value || undefined,
-      pageSize: 100,
+      page: page.value,
+      pageSize,
     });
+    if (requestId !== latestLoadRequest) return;
+
+    if (!response.data.length && page.value > 1 && response.total > 0) {
+      page.value = Math.max(1, Math.ceil(response.total / pageSize));
+      await load();
+      return;
+    }
+
     concerts.value = response.data;
+    total.value = response.total;
   } catch (reason) {
+    if (requestId !== latestLoadRequest) return;
     error.value = getMessage(reason, 'Unable to load the concert catalog.');
   } finally {
-    loading.value = false;
+    if (requestId === latestLoadRequest) loading.value = false;
   }
+}
+
+async function applyFilters() {
+  page.value = 1;
+  await load();
+}
+
+async function changePage(nextPage: number) {
+  if (nextPage < 1 || nextPage > totalPages.value || nextPage === page.value) {
+    return;
+  }
+  page.value = nextPage;
+  await load();
 }
 
 async function loadReferences() {
@@ -157,13 +191,6 @@ function handleDialogKeydown(event: KeyboardEvent) {
   }
 }
 
-function replaceConcert(updated: ConcertApiItem) {
-  const index = concerts.value.findIndex(
-    (concert) => concert.id === updated.id,
-  );
-  if (index >= 0) concerts.value[index] = updated;
-}
-
 async function update(
   concert: ConcertApiItem,
   payload: Omit<UpdateAdminConcertPayload, 'expectedVersion'>,
@@ -177,11 +204,8 @@ async function update(
       expectedVersion: concert.version ?? 1,
       ...payload,
     });
-    replaceConcert(updated);
-    if (featuredOnly.value && !updated.isFeatured) {
-      concerts.value = concerts.value.filter((item) => item.id !== updated.id);
-    }
     notice.value = successMessage;
+    await load();
     return updated;
   } catch (reason) {
     const status = (reason as { response?: { status?: number } }).response
@@ -229,18 +253,11 @@ async function setStatus(
   ) {
     return;
   }
-  const updated = await update(
+  await update(
     concert,
     { catalogStatus: nextStatus },
     `${concert.title} is now ${nextStatus}.`,
   );
-  if (
-    updated &&
-    catalogStatus.value !== 'all' &&
-    catalogStatus.value !== nextStatus
-  ) {
-    concerts.value = concerts.value.filter((item) => item.id !== concert.id);
-  }
 }
 
 async function toggleFeatured(concert: ConcertApiItem) {
@@ -261,7 +278,7 @@ async function resumeSync(concert: ConcertApiItem) {
 
 async function selectStatus(value: AdminConcertCatalogStatus | 'all') {
   catalogStatus.value = value;
-  await load();
+  await applyFilters();
 }
 
 onMounted(async () => {
@@ -290,7 +307,11 @@ onMounted(async () => {
       </button>
     </header>
 
-    <form class="catalog-admin__toolbar" role="search" @submit.prevent="load">
+    <form
+      class="catalog-admin__toolbar"
+      role="search"
+      @submit.prevent="applyFilters"
+    >
       <label class="search-field">
         <span>Search catalog</span>
         <input
@@ -301,7 +322,7 @@ onMounted(async () => {
       </label>
       <button type="submit" class="button">Search</button>
       <label class="featured-filter">
-        <input v-model="featuredOnly" type="checkbox" @change="load" />
+        <input v-model="featuredOnly" type="checkbox" @change="applyFilters" />
         Featured only
       </label>
     </form>
@@ -428,6 +449,30 @@ onMounted(async () => {
         </div>
       </article>
     </div>
+
+    <nav
+      v-if="totalPages > 1"
+      class="catalog-pagination"
+      aria-label="Concert catalog pages"
+    >
+      <button
+        type="button"
+        class="button button--secondary"
+        :disabled="loading || page === 1"
+        @click="changePage(page - 1)"
+      >
+        Previous
+      </button>
+      <span aria-live="polite">Page {{ page }} of {{ totalPages }}</span>
+      <button
+        type="button"
+        class="button button--secondary"
+        :disabled="loading || page === totalPages"
+        @click="changePage(page + 1)"
+      >
+        Next
+      </button>
+    </nav>
 
     <div v-if="editing" class="dialog-backdrop" @click.self="closeEditor">
       <form
@@ -628,6 +673,16 @@ textarea {
 .concert-table {
   border-top: 1px solid var(--border);
 }
+.catalog-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  min-height: 4rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
 .concert-row {
   align-items: flex-start;
   padding: 1rem 0;
@@ -815,6 +870,9 @@ textarea {
   .concert-row__actions {
     flex-basis: auto;
     justify-content: flex-start;
+  }
+  .catalog-pagination {
+    justify-content: space-between;
   }
   .editor__grid {
     grid-template-columns: 1fr;

@@ -161,6 +161,19 @@ Current admin capabilities:
 
 Admin allowlist values are controlled by `ADMIN_EMAILS` for the API and `VITE_ADMIN_EMAILS` for the client.
 
+### Admin Concert Catalog
+
+Allowlisted administrators can manage canonical concerts at `/admin/concerts`.
+The admin API supports paginated search, content correction, Featured placement,
+hide/restore, and recoverable archive actions. Updates use an optimistic `version`
+contract: stale writes return `409 Conflict`, admin decisions take precedence over
+automation, and no explicit distributed or database row-locking system is required.
+
+Public discovery and both upvote operations exclude hidden and archived concerts.
+See
+[`developer-docs/catalog-operating-system/admin-concert-catalog.md`](developer-docs/catalog-operating-system/admin-concert-catalog.md)
+for the complete API, validation, concurrency, and verification contract.
+
 ### Concert Sync
 
 `/concert-sync/*` supports calendar sync and concert normalization workflows. Gemini enrichment is optional and disabled by default for local/dev safety unless `CONCERT_SYNC_GEMINI_ENABLED=true` is set.

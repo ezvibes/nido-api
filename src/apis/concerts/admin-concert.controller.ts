@@ -9,8 +9,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
+  ApiConflictResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -44,7 +47,7 @@ export class AdminConcertController {
   @ApiOperation({
     summary: 'List concerts for catalog administration',
     description:
-      'Returns active, hidden, and archived concerts to authenticated admins. Defaults to all catalog states.',
+      'Returns a paginated, searchable catalog to authenticated admins. Includes active, hidden, and archived records and defaults to all catalog states.',
   })
   @ApiOkResponse({ type: AdminConcertListResponseDto })
   async list(@Query() query: ListAdminConcertsDto) {
@@ -55,6 +58,7 @@ export class AdminConcertController {
   @ApiOperation({ summary: 'Get a concert for catalog administration' })
   @ApiParam({ name: 'id', description: 'Concert id' })
   @ApiOkResponse({ type: AdminConcertResponseDto })
+  @ApiNotFoundResponse({ description: 'Concert not found.' })
   async get(@Param('id') id: string) {
     return this.concertService.findOneAdmin(id);
   }
@@ -63,11 +67,20 @@ export class AdminConcertController {
   @ApiOperation({
     summary: 'Edit concert content and editorial catalog state',
     description:
-      'Uses expectedVersion to reject stale admin edits. Editing source-managed content pauses future calendar overwrites until explicitly resumed.',
+      'Applies the supported content, venue, visibility, Featured, and sync-authority fields as one authoritative admin operation. Uses expectedVersion for lock-free optimistic concurrency. A stale request returns 409 and never overwrites the newer record. Editing source-managed content pauses calendar overwrites until explicitly resumed.',
   })
   @ApiParam({ name: 'id', description: 'Concert id' })
   @ApiBody({ type: UpdateAdminConcertDto })
   @ApiOkResponse({ type: AdminConcertResponseDto })
+  @ApiBadRequestResponse({
+    description:
+      'The request contains invalid fields, exceeds storage limits, or attempts to Feature a non-active concert.',
+  })
+  @ApiNotFoundResponse({ description: 'Concert not found.' })
+  @ApiConflictResponse({
+    description:
+      'The concert changed after the admin loaded it. Reload the current version before retrying.',
+  })
   async update(@Param('id') id: string, @Body() body: UpdateAdminConcertDto) {
     return this.concertService.updateAdmin(id, body);
   }

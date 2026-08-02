@@ -375,17 +375,6 @@ export class ConcertSyncService {
     const horizonEnd = new Date();
     horizonEnd.setDate(horizonEnd.getDate() + horizonDays);
 
-    await this.concertRepository
-      .createQueryBuilder()
-      .update(Concert)
-      .set({
-        isTopPick: false,
-        topPickScore: null,
-        topPickRefreshedAt: new Date(),
-      })
-      .where('owner_id = :ownerId', { ownerId })
-      .execute();
-
     const qb = this.concertRepository
       .createQueryBuilder('concert')
       .where('concert.owner_id = :ownerId', { ownerId })
@@ -410,6 +399,7 @@ export class ConcertSyncService {
 
     const { entities, raw } = await qb.getRawAndEntities();
     if (!entities.length) {
+      await this.clearStaleTopPicks(ownerId, []);
       return {
         evaluated: 0,
         topPicks: 0,
@@ -452,19 +442,66 @@ export class ConcertSyncService {
       ranked.slice(0, Math.min(limit, 50)).map((row) => row.concert.id),
     );
 
+    let updatedTopPicks = 0;
     for (const row of ranked) {
-      row.concert.isTopPick = topConcertIds.has(row.concert.id);
-      row.concert.topPickScore = row.score;
-      row.concert.topPickRefreshedAt = new Date();
+      const isTopPick = topConcertIds.has(row.concert.id);
+      const result = await this.concertRepository
+        .createQueryBuilder()
+        .update(Concert)
+        .set({
+          isTopPick,
+          topPickScore: row.score,
+          topPickRefreshedAt: new Date(),
+        })
+        .where('id = :concertId', { concertId: row.concert.id })
+        .andWhere('version = :observedVersion', {
+          observedVersion: row.concert.version,
+        })
+        .andWhere('catalog_status = :activeCatalogStatus', {
+          activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
+        })
+        .andWhere('is_admin_approved = true')
+        .execute();
+
+      if (isTopPick && result.affected === 1) {
+        updatedTopPicks += 1;
+      }
     }
 
-    await this.concertRepository.save(ranked.map((row) => row.concert));
+    await this.clearStaleTopPicks(
+      ownerId,
+      ranked.map((row) => row.concert.id),
+    );
 
     return {
       evaluated: ranked.length,
-      topPicks: topConcertIds.size,
+      topPicks: updatedTopPicks,
       horizonDays,
     };
+  }
+
+  private async clearStaleTopPicks(
+    ownerId: number,
+    retainedConcertIds: string[],
+  ) {
+    const qb = this.concertRepository
+      .createQueryBuilder()
+      .update(Concert)
+      .set({
+        isTopPick: false,
+        topPickScore: null,
+        topPickRefreshedAt: new Date(),
+      })
+      .where('owner_id = :ownerId', { ownerId })
+      .andWhere('(is_top_pick = true OR top_pick_score IS NOT NULL)');
+
+    if (retainedConcertIds.length) {
+      qb.andWhere('id NOT IN (:...retainedConcertIds)', {
+        retainedConcertIds,
+      });
+    }
+
+    await qb.execute();
   }
 
   private async loadSourceEvents(
@@ -600,30 +637,44 @@ export class ConcertSyncService {
     const existingConcert = concert;
     const saved = await this.concertRepository.manager.transaction(
       async (manager) => {
-        const current = await manager.findOne(Concert, {
-          where: { id: existingConcert.id, owner: { id: owner.id } },
-          lock: { mode: 'pessimistic_write' },
-        });
+        const updateResult = await manager
+          .createQueryBuilder()
+          .update(Concert)
+          .set({
+            title: extraction.title,
+            genre: extraction.genre,
+            startsAt: new Date(extraction.startsAt),
+            endsAt: extraction.endsAt ? new Date(extraction.endsAt) : null,
+            venueId: resolvedVenue?.id ?? null,
+            description: extraction.description ?? null,
+          })
+          .where('id = :concertId', { concertId: existingConcert.id })
+          .andWhere('owner_id = :ownerId', { ownerId: owner.id })
+          .andWhere('version = :observedVersion', {
+            observedVersion: existingConcert.version,
+          })
+          .andWhere('editorial_locked_at IS NULL')
+          .andWhere('catalog_status <> :archivedCatalogStatus', {
+            archivedCatalogStatus: ConcertCatalogStatus.ARCHIVED,
+          })
+          .execute();
 
-        if (!current) {
-          throw new NotFoundException('Concert no longer exists');
-        }
-
-        if (this.isProtectedFromSync(current)) {
+        if (updateResult.affected !== 1) {
           return null;
         }
 
         await manager.delete(ConcertBandLineup, {
-          concertId: current.id,
+          concertId: existingConcert.id,
         });
-        current.title = extraction.title;
-        current.genre = extraction.genre;
-        current.startsAt = new Date(extraction.startsAt);
-        current.endsAt = extraction.endsAt ? new Date(extraction.endsAt) : null;
-        current.venue = resolvedVenue;
-        current.lineup = buildLineup(current.id);
-        current.description = extraction.description ?? null;
-        return manager.save(current);
+        const lineup = buildLineup(existingConcert.id);
+        if (lineup.length) {
+          await manager.save(ConcertBandLineup, lineup);
+        }
+
+        return manager.findOne(Concert, {
+          where: { id: existingConcert.id, owner: { id: owner.id } },
+          relations: ['venue', 'lineup', 'sets'],
+        });
       },
     );
 

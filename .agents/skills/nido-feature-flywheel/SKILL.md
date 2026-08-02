@@ -63,4 +63,3 @@ dev smoke path and rollback target.
   includes publishing. Never merge or deploy production without approval.
 - After merge, verify dev behavior and convert failures into a regression test,
   runbook, gate, or follow-up issue.
-

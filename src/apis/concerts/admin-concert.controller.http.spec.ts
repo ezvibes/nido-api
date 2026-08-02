@@ -119,4 +119,56 @@ describe('AdminConcertController HTTP contract', () => {
       title: 'Updated title',
     });
   });
+
+  it('trims admin text fields before passing them to the service', async () => {
+    concertService.updateAdmin.mockResolvedValue({
+      id: 'concert-1',
+      version: 4,
+    });
+
+    await request(app.getHttpServer())
+      .patch('/admin/concerts/concert-1')
+      .set('Authorization', 'Bearer admin-token')
+      .send({
+        expectedVersion: 3,
+        title: '  Updated title  ',
+        genre: '  Rock  ',
+      })
+      .expect(200);
+
+    expect(concertService.updateAdmin).toHaveBeenCalledWith('concert-1', {
+      expectedVersion: 3,
+      title: 'Updated title',
+      genre: 'Rock',
+    });
+  });
+
+  it.each([
+    ['whitespace-only title', { expectedVersion: 3, title: '   ' }],
+    [
+      'title longer than 255 characters',
+      { expectedVersion: 3, title: 'x'.repeat(256) },
+    ],
+    [
+      'genre longer than 120 characters',
+      { expectedVersion: 3, genre: 'x'.repeat(121) },
+    ],
+    ['null title', { expectedVersion: 3, title: null }],
+    ['null genre', { expectedVersion: 3, genre: null }],
+    ['null start time', { expectedVersion: 3, startsAt: null }],
+    ['null catalog status', { expectedVersion: 3, catalogStatus: null }],
+    ['null Featured state', { expectedVersion: 3, isFeatured: null }],
+    [
+      'null sync-resume command',
+      { expectedVersion: 3, resumeSyncUpdates: null },
+    ],
+  ])('rejects %s before calling the service', async (_caseName, payload) => {
+    await request(app.getHttpServer())
+      .patch('/admin/concerts/concert-1')
+      .set('Authorization', 'Bearer admin-token')
+      .send(payload)
+      .expect(400);
+
+    expect(concertService.updateAdmin).not.toHaveBeenCalled();
+  });
 });

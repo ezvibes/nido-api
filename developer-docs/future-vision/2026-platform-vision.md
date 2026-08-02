@@ -163,4 +163,3 @@ means:
   and agent handoff model.
 - `../catalog-operating-system/nido-infrastructure-agent.md` defines the current
   infrastructure agent operating brief.
-
