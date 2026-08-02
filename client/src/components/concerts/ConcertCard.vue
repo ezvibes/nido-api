@@ -9,16 +9,22 @@
     </div>
 
     <div class="concert-card__body">
-      <div
-        v-if="isSynced"
-        class="concert-card__badges"
-        aria-label="Concert source"
-      >
-        <span class="concert-card__badge">Google Calendar Sync</span>
-      </div>
       <h3 class="concert-card__title">{{ concert.title }}</h3>
       <p class="concert-card__venue">{{ primaryVenueName }}</p>
       <p class="concert-card__location">{{ locationLabel }}</p>
+      <div
+        v-if="cardTags.length"
+        class="concert-card__badges"
+        aria-label="Concert details"
+      >
+        <span
+          v-for="tag in cardTags"
+          :key="tag"
+          class="concert-card__badge"
+        >
+          {{ tag }}
+        </span>
+      </div>
       <p v-if="lineupLabel" class="concert-card__lineup">{{ lineupLabel }}</p>
       <p class="concert-card__time">{{ formattedStartTime }}</p>
 
@@ -64,12 +70,36 @@ const primaryVenue = computed(() => props.concert.venue);
 const isSynced = computed(
   () => props.concert.syncSource?.source === 'google_calendar',
 );
-const lineupLabel = computed(() =>
-  [...props.concert.lineup]
+const cardTags = computed(() => {
+  const tags = [
+    ...props.concert.displayTags,
+    ...(isSynced.value ? ['Google Calendar Sync'] : []),
+  ];
+  const seen = new Set<string>();
+
+  return tags.filter((tag) => {
+    const normalized = tag.trim().toLowerCase();
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
+});
+
+const lineupLabel = computed(() => {
+  const names = [...props.concert.lineup]
     .sort((left, right) => left.performanceOrder - right.performanceOrder)
-    .map((entry) => entry.band.name)
-    .join(' · '),
-);
+    .map((entry) => entry.band.name);
+  const normalizedTitle = normalizeDisplayText(props.concert.title);
+  const addsInformation = names.some(
+    (name) => !normalizedTitle.includes(normalizeDisplayText(name)),
+  );
+
+  return addsInformation ? names.join(' · ') : '';
+});
+
+function normalizeDisplayText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
 
 const primaryVenueName = computed(
   () => primaryVenue.value?.name ?? 'Venue TBD',
@@ -102,7 +132,7 @@ const formattedStartTime = computed(() =>
   display: grid;
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 1rem;
+  border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 14px 30px rgba(31, 41, 55, 0.08);
 }
@@ -141,6 +171,7 @@ const formattedStartTime = computed(() =>
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
+  margin-top: 0.15rem;
 }
 
 .concert-card__badge {
@@ -153,7 +184,7 @@ const formattedStartTime = computed(() =>
   color: #285d33;
   font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
