@@ -10,8 +10,8 @@ these terms are intended to make the relationship predictable for everyone.
 
 "Contribution" means code, documentation, tests, designs, or other material
 intentionally submitted for inclusion in this repository. "Project Owner"
-means Evan Bonertz, creator of Nido and founder of EZ Vibes, or a successor
-owner designated by him in writing.
+means EZ Vibes LLC or its successor in interest. Evan Bonertz, founder of EZ
+Vibes LLC, is the project's authorized maintainer and final reviewer.
 
 ## Rights You Keep
 

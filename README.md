@@ -2,7 +2,7 @@
 
 EZ Vibes Nido is a full-stack concert intelligence platform for live music discovery, curation, and admin operations. The app helps EZ Vibes members collect show information, review uploaded flyers, sync concert data, and publish structured concert records for fans and future partner workflows.
 
-This is a public repository. Contributions are welcome through focused GitHub issues and pull requests. Evan Bonertz, creator and founder of EZ Vibes, is the project owner and final reviewer for product direction, roadmap fit, and merge decisions.
+This is a public repository. Contributions are welcome through focused GitHub issues and pull requests. EZ Vibes LLC is the project owner. Evan Bonertz, founder of EZ Vibes LLC, is the authorized maintainer and final reviewer for product direction, roadmap fit, and merge decisions.
 
 ## What This App Does
 
@@ -247,7 +247,7 @@ Use `.env.example` and `client/.env.example` as templates. Real values should li
 
 ## Project Ownership
 
-EZ Vibes Nido is owned and led by Evan Bonertz, creator and founder of EZ Vibes. Technical contributions are welcome, but roadmap direction, product positioning, admin access, deployments, and merge decisions remain owner-reviewed.
+EZ Vibes Nido is owned and operated by EZ Vibes LLC. Evan Bonertz, founder of EZ Vibes LLC, is the authorized maintainer and final reviewer. Technical contributions are welcome, but roadmap direction, product positioning, admin access, deployments, and merge decisions remain owner-reviewed.
 
 Contributors are credited for their work and help improve the project, while
 project stewardship, governance, and merge authority remain with the owner. See
