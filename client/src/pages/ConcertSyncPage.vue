@@ -238,10 +238,24 @@ const isPolling = ref(false);
 const pollingAttempts = ref(0);
 let pollingTimer: number | undefined;
 
+const formatDateTimeLocal = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const defaultFromDate = new Date();
+defaultFromDate.setHours(0, 0, 0, 0);
+const defaultToDate = new Date(defaultFromDate);
+defaultToDate.setDate(defaultToDate.getDate() + 7);
+
 const liveForm = reactive({
   calendarId: 'ezvibesinc@gmail.com',
-  fromDate: '2026-06-01T00:00',
-  toDate: '2026-07-01T00:00',
+  fromDate: formatDateTimeLocal(defaultFromDate),
+  toDate: formatDateTimeLocal(defaultToDate),
 });
 
 const calendarOptions = [
@@ -257,7 +271,7 @@ const calendarOptions = [
 ] as const;
 
 const sharedForm = reactive({
-  dryRun: true,
+  dryRun: false,
   refreshTopPicks: false,
   maxEvents: 1,
 });
