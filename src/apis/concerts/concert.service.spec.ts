@@ -66,12 +66,16 @@ describe('ConcertService', () => {
   const concertUpvoteRepository = {
     createQueryBuilder: jest.fn(),
   };
+  const configService = {
+    get: jest.fn(),
+  };
 
   let service: ConcertService;
   const owner = { id: 3 } as User;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    configService.get.mockReturnValue(undefined);
     concertRepository.manager.transaction.mockImplementation(
       async (
         callback: (manager: typeof concertRepository.manager) => unknown,
@@ -80,6 +84,7 @@ describe('ConcertService', () => {
     service = new ConcertService(
       concertRepository as any,
       concertUpvoteRepository as any,
+      configService as any,
     );
   });
 
@@ -565,6 +570,35 @@ describe('ConcertService', () => {
   });
 
   describe('findAvailableGenres', () => {
+    it('includes configured options and prefers their canonical spelling', async () => {
+      const qb = createQueryBuilderMock();
+      concertRepository.createQueryBuilder.mockReturnValue(qb);
+      configService.get.mockReturnValue(
+        'Jazz, Bluegrass, Funk, Jam, Reggae, Hip-Hop, Rock, Folk, Salsa, Electronic',
+      );
+      qb.getRawMany.mockResolvedValue([
+        { genre: 'rock' },
+        { genre: 'Indie Rock' },
+      ]);
+
+      const result = await service.findAvailableGenres();
+
+      expect(configService.get).toHaveBeenCalledWith('CONCERT_GENRE_OPTIONS');
+      expect(result).toEqual([
+        'Bluegrass',
+        'Electronic',
+        'Folk',
+        'Funk',
+        'Hip-Hop',
+        'Indie Rock',
+        'Jam',
+        'Jazz',
+        'Reggae',
+        'Rock',
+        'Salsa',
+      ]);
+    });
+
     it('deduplicates and alphabetically sorts genre values', async () => {
       const qb = createQueryBuilderMock();
       concertRepository.createQueryBuilder.mockReturnValue(qb);

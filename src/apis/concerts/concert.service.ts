@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import { Concert, ConcertCatalogStatus } from './entities/concert.entity';
 import { ConcertUpvote } from './entities/concert-upvote.entity';
@@ -46,6 +47,7 @@ export class ConcertService {
     private readonly concertRepository: Repository<Concert>,
     @InjectRepository(ConcertUpvote)
     private readonly concertUpvoteRepository: Repository<ConcertUpvote>,
+    private readonly configService: ConfigService,
   ) {}
 
   async findAll(query: ListConcertsDto, currentUser?: User) {
@@ -96,15 +98,26 @@ export class ConcertService {
       .andWhere("TRIM(concert.genre) <> ''")
       .getRawMany<{ genre: string | null }>();
 
-    const genres = new Set<string>();
-    for (const row of rows) {
-      const genre = row.genre?.trim();
+    const genres = new Map<string, string>();
+    const configuredGenres =
+      this.configService.get<string>('CONCERT_GENRE_OPTIONS') ?? '';
+
+    for (const configuredGenre of configuredGenres.split(',')) {
+      const genre = configuredGenre.trim();
       if (genre) {
-        genres.add(genre);
+        genres.set(genre.toLowerCase(), genre);
       }
     }
 
-    return Array.from(genres).sort((a, b) => a.localeCompare(b));
+    for (const row of rows) {
+      const genre = row.genre?.trim();
+      const key = genre?.toLowerCase();
+      if (genre && key && !genres.has(key)) {
+        genres.set(key, genre);
+      }
+    }
+
+    return Array.from(genres.values()).sort((a, b) => a.localeCompare(b));
   }
 
   private async findWithQuery(

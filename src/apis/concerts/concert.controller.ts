@@ -174,7 +174,7 @@ export class ConcertController {
   @ApiOperation({
     summary: 'List distinct concert genre values',
     description:
-      'Returns the distinct, trimmed, non-empty genre values currently present on Concert records, sorted alphabetically. Public endpoint; does not require authentication and does not synchronize or look up a user. Capitalization is preserved so values remain compatible with the exact-match genre filter on GET /concerts. Example: GET /concerts/meta/genres.',
+      'Returns configured genre options merged with distinct, trimmed, non-empty genre values currently present on active Concert records. Results are de-duplicated case-insensitively and sorted alphabetically. Public endpoint; does not require authentication and does not synchronize or look up a user. Example: GET /concerts/meta/genres.',
   })
   @ApiOkResponse({ type: ConcertGenresResponseDto })
   async getAvailableGenres() {
