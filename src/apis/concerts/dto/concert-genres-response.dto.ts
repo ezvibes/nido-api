@@ -3,9 +3,9 @@ import { ApiProperty } from '@nestjs/swagger';
 export class ConcertGenresResponseDto {
   @ApiProperty({
     description:
-      'Distinct, trimmed, non-empty Concert genre values currently in use, sorted alphabetically. Capitalization matches stored values so results remain compatible with the exact-match GET /concerts?genre= filter.',
+      'Configured genre options merged with distinct, trimmed, non-empty Concert genre values currently in use. Results are de-duplicated case-insensitively and sorted alphabetically.',
     type: [String],
-    example: ['Electronic', 'Indie Rock', 'Rock'],
+    example: ['Bluegrass', 'Electronic', 'Funk', 'Hip-Hop', 'Jazz', 'Rock'],
   })
   genres: string[];
 }
