@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",
+    "@google/generative-ai": "^0.24.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
@@ -91,6 +92,10 @@
     ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/src/docs/"
+    ],
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
