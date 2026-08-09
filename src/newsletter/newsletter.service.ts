@@ -260,7 +260,7 @@ export class NewsletterService {
           })
           .map(event => {
             const startVal = event.start?.dateTime || event.start?.date || '';
-            const dateStr = startVal 
+            const dateStr = startVal
               ? new Date(startVal).toLocaleDateString('en-US', {
                   weekday: 'long',
                   month: 'short',
@@ -376,7 +376,7 @@ export class NewsletterService {
 
   private mapIcalEvent(record: Record<string, string[]>): GoogleCalendarEvent {
     const firstVal = (arr?: string[]) => arr?.find(v => v.trim().length > 0)?.trim();
-    
+
     const uid = firstVal(record.UID);
     const start = this.parseIcalDate(firstVal(record.DTSTART));
     const end = this.parseIcalDate(firstVal(record.DTEND));
