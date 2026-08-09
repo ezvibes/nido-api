@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Concert } from '../apis/concerts/entities/concert.entity';
+import { User } from '../apis/users/entities/user.entity';
 import { UserModule } from '../apis/users/user.module';
 import { AuthModule } from '../auth/auth.module';
 import { VenueModule } from '../apis/venues/venue.module';
@@ -12,10 +13,11 @@ import { ConcertSyncJob } from './entities/concert-sync-job.entity';
 import { GeminiConcertExtractorService } from './services/gemini-concert-extractor.service';
 import { GoogleCalendarClientService } from './services/google-calendar-client.service';
 import { IcalCalendarClientService } from './services/ical-calendar-client.service';
+import { ConcertSyncSchedulerService } from './services/concert-sync-scheduler.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Concert, ConcertSyncEvent, ConcertSyncJob]),
+    TypeOrmModule.forFeature([Concert, ConcertSyncEvent, ConcertSyncJob, User]),
     AuthModule,
     UserModule,
     VenueModule,
@@ -27,6 +29,7 @@ import { IcalCalendarClientService } from './services/ical-calendar-client.servi
     GoogleCalendarClientService,
     IcalCalendarClientService,
     GeminiConcertExtractorService,
+    ConcertSyncSchedulerService,
   ],
   exports: [ConcertSyncService],
 })
