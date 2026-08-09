@@ -527,7 +527,7 @@ textarea.form-control {
 .preview-panel {
   display: flex;
   flex-direction: column;
-  min-height: 500px;
+  min-height: 750px;
 }
 
 .preview-header {
@@ -602,7 +602,7 @@ textarea.form-control {
 
 .newsletter-output-editor {
   width: 100%;
-  height: 400px;
+  height: 650px;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1rem;
