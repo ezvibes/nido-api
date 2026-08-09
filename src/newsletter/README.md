@@ -1,8 +1,8 @@
 # Weekly Newsletter Generation Module (TPS2)
 
-Project **TPS2** represents the future of how EZ Vibes curates, drafts, and delivers its weekly live music newsletter. 
+Project **TPS2** represents the future of how EZ Vibes curates, drafts, and delivers its weekly live music newsletter.
 
-This is peak AI application in action: utilizing advanced AI models (Google Gemini), structured prompt templates, and a verified canonical concert database to automate the heavy lifting of schedule organization, while keeping the human editor at the center of the output. The AI drafts the schedule and outlines the highlights; a human reviews, edits, and delivers the final vided copy. 
+This is peak AI application in action: utilizing advanced AI models (Google Gemini), structured prompt templates, and a verified canonical concert database to automate the heavy lifting of schedule organization, while keeping the human editor at the center of the output. The AI drafts the schedule and outlines the highlights; a human reviews, edits, and delivers the final vided copy.
 
 TPS2 is the North Star of the Nido platform—powering the flywheel of localized content, growing subscribers, and fulfilling our mission of bringing people together through live music.
 

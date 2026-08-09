@@ -26,7 +26,7 @@ onMounted(() => {
   // Pre-fill date values to next week's Tuesday -> Sunday
   const today = new Date();
   const currentDay = today.getDay();
-  
+
   // Calculate next Tuesday
   const daysUntilTuesday = (2 - currentDay + 7) % 7 || 7;
   const nextTuesday = new Date(today);
@@ -52,14 +52,14 @@ async function handleGenerate() {
   loading.value = true;
   error.value = '';
   success.value = '';
-  
+
   try {
     const authToken = await token();
-    
+
     // Construct ISO range strings
     const startIso = new Date(form.startDate + 'T00:00:00.000Z').toISOString();
     const endIso = new Date(form.endDate + 'T23:59:59.999Z').toISOString();
-    
+
     const payload = {
       startDate: startIso,
       endDate: endIso,
@@ -70,7 +70,7 @@ async function handleGenerate() {
       rawCalendarData: (form.augmentCalendar && form.rawCalendarData) ? form.rawCalendarData : undefined,
       useDatabase: form.useDatabase,
     };
-    
+
     const response = await generateNewsletter(authToken, payload);
     result.value = response;
     success.value = 'Newsletter template generated successfully!';
@@ -87,7 +87,7 @@ async function handleGenerate() {
 const copied = ref(false);
 function handleCopy() {
   if (!result.value?.newsletterDraft) return;
-  
+
   navigator.clipboard.writeText(result.value.newsletterDraft)
     .then(() => {
       copied.value = true;
@@ -209,7 +209,7 @@ function handleDownload() {
                 <span>Augment/Input raw calendar data (ICS url or text)</span>
               </label>
             </div>
-            
+
             <transition name="expand">
               <div v-if="form.augmentCalendar" class="form-group calendar-input-container">
                 <label for="rawCalendarData" class="form-label">ICS URL, raw ICS string, or text dump</label>
@@ -266,7 +266,7 @@ function handleDownload() {
               :value="result.newsletterDraft"
             ></textarea>
           </div>
-          
+
           <div class="meta-section">
             <h4 class="meta-title">Ingested Shows Evaluated ({{ result.concertsCount }})</h4>
             <ul class="meta-concerts-list">

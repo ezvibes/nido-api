@@ -37,7 +37,7 @@ export class NewsletterService {
     }
 
     const modelName = this.configService.get<string>('GEMINI_MODEL')?.trim() || 'gemini-1.5-flash';
-    
+
     // 1. Resolve date range label
     const dateRangeLabel = params.dateRangeLabel || this.formatDateRange(params.startDate, params.endDate);
 
@@ -55,7 +55,7 @@ export class NewsletterService {
 
     // Combine both database concerts and parsed feed events
     const combinedConcerts = [...concerts, ...parsedFeedEvents];
-    
+
     if (combinedConcerts.length === 0) {
       this.logger.warn(`No verified concerts or calendar events found for range ${params.startDate} - ${params.endDate}`);
     }
@@ -123,12 +123,12 @@ export class NewsletterService {
 
     let prompt = template;
     prompt = prompt.replace('[e.g., Tuesday, Aug 11 - Sunday, Aug 16, 2026]', params.dateRange);
-    
+
     // Replace the specific [Provided by Evan] instances
     prompt = prompt.replace('- **Weekend Recap Notes:** [Provided by Evan]', `- **Weekend Recap Notes:** ${params.recapNotes || 'None'}`);
     prompt = prompt.replace('- **Featured Show Notes:** [Provided by Evan]', `- **Featured Show Notes:** ${params.featuredShow || 'None'}`);
     prompt = prompt.replace('- **Featured Festival Notes:** [Provided by Evan]', `- **Featured Festival Notes:** ${params.featuredFestival || 'None'}`);
-    
+
     prompt = prompt.replace('[Injected programmatically or pasted here]', params.rawCalendarData || '[]');
 
     return prompt;
@@ -158,8 +158,8 @@ export class NewsletterService {
     const targetGenres = ['bluegrass', 'funk', 'rock', 'jam', 'alt-country', 'roots', 'soul', 'regae', 'reggae'];
     const targetCities = ['raleigh', 'durham', 'chapel hill', 'wilmington', 'asheville', 'charlotte', 'boone'];
     const partnerArtists = [
-      'dr bacon', 'dr. bacon', 'big fur', 'larry keel', 'sam fribush', 'treehouse', 'treehouse!', 
-      'julia', 'africa unplugged', 'nth power', 'the nth power', 'chill paxton', 'toubab krewe', 
+      'dr bacon', 'dr. bacon', 'big fur', 'larry keel', 'sam fribush', 'treehouse', 'treehouse!',
+      'julia', 'africa unplugged', 'nth power', 'the nth power', 'chill paxton', 'toubab krewe',
       'tand', 'badfish', 'sons of paradise', 'eggy', 'daniel donato', 'dogs in a pile', 'billy strings'
     ];
 
@@ -177,7 +177,7 @@ export class NewsletterService {
       // 3. Filter genre
       const genre = (concert.genre || '').toLowerCase().trim();
       const matchesGenre = targetGenres.some(g => genre.includes(g));
-      
+
       return matchesGenre;
     });
 
@@ -191,7 +191,7 @@ export class NewsletterService {
       });
 
       const lineupBands = concert.lineup?.map(l => l.band?.name).filter(Boolean) || [];
-      const hasPartnerArtist = lineupBands.some(bName => 
+      const hasPartnerArtist = lineupBands.some(bName =>
         partnerArtists.some(pa => bName.toLowerCase().includes(pa))
       ) || partnerArtists.some(pa => concert.title.toLowerCase().includes(pa));
 
@@ -239,15 +239,15 @@ export class NewsletterService {
     if (content.includes('BEGIN:VCALENDAR')) {
       this.logger.log('Parsing raw iCal/ICS input...');
       try {
-        const events = this.parseIcalEvents(content).filter(event => 
+        const events = this.parseIcalEvents(content).filter(event =>
           this.isWithinRange(event, timeMin, timeMax)
         );
 
         const targetGenres = ['bluegrass', 'funk', 'rock', 'jam', 'alt-country', 'roots', 'soul', 'regae', 'reggae'];
         const targetCities = ['raleigh', 'durham', 'chapel hill', 'wilmington', 'asheville', 'charlotte', 'boone'];
         const partnerArtists = [
-          'dr bacon', 'dr. bacon', 'big fur', 'larry keel', 'sam fribush', 'treehouse', 'treehouse!', 
-          'julia', 'africa unplugged', 'nth power', 'the nth power', 'chill paxton', 'toubab krewe', 
+          'dr bacon', 'dr. bacon', 'big fur', 'larry keel', 'sam fribush', 'treehouse', 'treehouse!',
+          'julia', 'africa unplugged', 'nth power', 'the nth power', 'chill paxton', 'toubab krewe',
           'tand', 'badfish', 'sons of paradise', 'eggy', 'daniel donato', 'dogs in a pile', 'billy strings'
         ];
 

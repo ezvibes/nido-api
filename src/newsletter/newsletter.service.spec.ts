@@ -113,7 +113,7 @@ describe('NewsletterService', () => {
       ];
 
       mockConcertRepository.find.mockResolvedValue(mockConcerts);
-      
+
       mockGenerateContent.mockResolvedValue({
         response: {
           text: () => 'Mocked generated newsletter Markdown content from Gemini',
