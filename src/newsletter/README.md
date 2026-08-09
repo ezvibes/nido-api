@@ -1,4 +1,4 @@
-# Weekly Newsletter Generation Module (TPS2q)
+# Weekly Newsletter Generation Module (TPS2)
 
 This module automates the curation and drafting of the weekly **Top Picks** newsletter using Google's Gemini API and North Carolina live music data from the Nido concert database.
 

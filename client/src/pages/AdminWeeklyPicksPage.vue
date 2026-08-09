@@ -118,7 +118,7 @@ function handleDownload() {
     <div class="page-header">
       <h2 class="page-title">Weekly Newsletter Curation</h2>
       <p class="page-description">
-        Project <strong>TPS2q</strong>: Dynamically pull verified NC shows, hydrate the curation prompt, and output copy-pasteable newsletter templates for Beehiiv.
+        Project <strong>TPS2</strong>: Dynamically pull verified NC shows, hydrate the curation prompt, and output copy-pasteable newsletter templates for Beehiiv.
       </p>
     </div>
 
