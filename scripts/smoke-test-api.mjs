@@ -73,6 +73,22 @@ if (authenticatedConcertsEnabled) {
     path: `/concerts?pageSize=1&startsAfter=${encodeURIComponent(new Date().toISOString())}`,
     validate: validateConcertsResponse,
   });
+  checks.push({
+    name: 'authenticated weekly newsletter generation',
+    path: '/api/newsletter/generate-weekly',
+    method: 'POST',
+    body: JSON.stringify({
+      startDate: new Date().toISOString(),
+      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      useDatabase: false,
+    }),
+    validate: async (response) => {
+      const body = await response.json();
+      if (!body.newsletterDraft || typeof body.newsletterDraft !== 'string') {
+        throw new Error('Newsletter generation did not return a valid draft');
+      }
+    },
+  });
 }
 
 console.log(`Smoke testing ${baseUrl} (${mode})`);
@@ -102,7 +118,9 @@ async function runWithRetries(check) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
       const response = await fetch(`${baseUrl}${check.path}`, {
+        method: check.method ?? 'GET',
         headers: requestHeaders(check),
+        body: check.body,
         signal: controller.signal,
       });
       clearTimeout(timeout);
@@ -143,6 +161,9 @@ function requestHeaders(check) {
   const headers = { accept: 'application/json' };
   if (bearerToken && !check.anonymous) {
     headers.authorization = `Bearer ${bearerToken}`;
+  }
+  if (check.body) {
+    headers['content-type'] = 'application/json';
   }
   return headers;
 }

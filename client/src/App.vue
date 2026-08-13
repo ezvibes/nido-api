@@ -158,6 +158,14 @@ onBeforeUnmount(() => {
                 Admin venues
               </router-link>
               <router-link
+                v-if="isAdmin"
+                to="/admin/weekly-picks"
+                class="account-menu__item"
+                @click="closeMenu"
+              >
+                Weekly top picks
+              </router-link>
+              <router-link
                 to="/settings"
                 class="account-menu__item"
                 @click="closeMenu"

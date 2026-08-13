@@ -564,3 +564,36 @@ export async function deleteVenue(token: string, id: string) {
   });
   return response.data;
 }
+
+export interface GenerateNewsletterPayload {
+  startDate: string;
+  endDate: string;
+  dateRangeLabel?: string;
+  weekendRecap?: string;
+  featuredShow?: string;
+  featuredFestival?: string;
+  rawCalendarData?: string;
+  useDatabase?: boolean;
+}
+
+export interface GenerateNewsletterResponse {
+  newsletterDraft: string;
+  concertsCount: number;
+  concerts: any[];
+}
+
+export async function generateNewsletter(
+  token: string,
+  payload: GenerateNewsletterPayload,
+): Promise<GenerateNewsletterResponse> {
+  const response = await apiClient.post<GenerateNewsletterResponse>(
+    '/api/newsletter/generate-weekly',
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+  return response.data;
+}

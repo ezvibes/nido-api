@@ -11,6 +11,7 @@ import SettingsPage from './views/SettingsPage.vue';
 import AdminIngestionUploadsPage from './pages/AdminIngestionUploadsPage.vue';
 import AdminVenuesPage from './pages/AdminVenuesPage.vue';
 import AdminConcertsPage from './pages/AdminConcertsPage.vue';
+import AdminWeeklyPicksPage from './pages/AdminWeeklyPicksPage.vue';
 import { isAdminEmail } from './utils/admin';
 
 const routes = [
@@ -73,6 +74,12 @@ const routes = [
     path: '/admin/venues',
     name: 'AdminVenues',
     component: AdminVenuesPage,
+    meta: { requiresAuth: true, requiresAdmin: true },
+  },
+  {
+    path: '/admin/weekly-picks',
+    name: 'AdminWeeklyPicks',
+    component: AdminWeeklyPicksPage,
     meta: { requiresAuth: true, requiresAdmin: true },
   },
 ];
