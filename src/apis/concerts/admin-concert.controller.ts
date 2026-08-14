@@ -4,27 +4,35 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   Put,
   Query,
+  UploadedFiles,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
   ApiConflictResponse,
+  ApiConsumes,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { UserService } from '../users/user.service';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { FirebaseAuthGuard } from '../../auth/firebase-auth/firebase-auth.guard';
 import { AdminEmailGuard } from '../../auth/guards/admin-email.guard';
 import { ConcertService } from './concert.service';
+import { IngestionService } from '../../ingestion/ingestion.service';
+import { UploadableFile } from '../../ingestion/interfaces/uploadable-file.interface';
 import { SetConcertApprovalDto } from './dto/set-concert-approval.dto';
 import {
   AdminConcertListResponseDto,
@@ -41,6 +49,7 @@ export class AdminConcertController {
   constructor(
     private readonly concertService: ConcertService,
     private readonly userService: UserService,
+    private readonly ingestionService: IngestionService,
   ) {}
 
   @Get()
@@ -101,5 +110,50 @@ export class AdminConcertController {
   ) {
     const reviewer = await this.userService.syncFromToken(user);
     return this.concertService.setAdminApproval(id, reviewer, body.approved);
+  }
+
+  @Post(':id/poster')
+  @ApiOperation({
+    summary: 'Upload and attach a poster/flyer image to an existing concert',
+    description:
+      'Uploads an image file to GCS, marks it approved, and links it directly to this concert.',
+  })
+  @ApiParam({ name: 'id', description: 'Concert id', example: 'concert-uuid' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        image: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'file', maxCount: 1 },
+        { name: 'image', maxCount: 1 },
+      ],
+      {
+        storage: memoryStorage(),
+        limits: {
+          fileSize: 50 * 1024 * 1024,
+        },
+      },
+    ),
+  )
+  async uploadPoster(
+    @Param('id') id: string,
+    @UploadedFiles()
+    files: {
+      file?: UploadableFile[];
+      image?: UploadableFile[];
+    },
+    @CurrentUser() user: DecodedIdToken,
+  ) {
+    const profile = await this.userService.syncFromToken(user);
+    const file = files?.file?.[0] ?? files?.image?.[0];
+    return this.ingestionService.attachPosterToConcert(id, file, user.uid, profile.id);
   }
 }

@@ -8,6 +8,7 @@ import { AdminEmailGuard } from '../../auth/guards/admin-email.guard';
 import { UserService } from '../users/user.service';
 import { AdminConcertController } from './admin-concert.controller';
 import { ConcertService } from './concert.service';
+import { IngestionService } from '../../ingestion/ingestion.service';
 
 describe('AdminConcertController HTTP contract', () => {
   let app: INestApplication;
@@ -19,6 +20,7 @@ describe('AdminConcertController HTTP contract', () => {
   };
   const userService = { syncFromToken: jest.fn() };
   const authService = { verifyIdToken: jest.fn() };
+  const ingestionService = { attachPosterToConcert: jest.fn() };
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -27,6 +29,7 @@ describe('AdminConcertController HTTP contract', () => {
         { provide: ConcertService, useValue: concertService },
         { provide: UserService, useValue: userService },
         { provide: AuthService, useValue: authService },
+        { provide: IngestionService, useValue: ingestionService },
         {
           provide: ConfigService,
           useValue: {
@@ -170,5 +173,54 @@ describe('AdminConcertController HTTP contract', () => {
       .expect(400);
 
     expect(concertService.updateAdmin).not.toHaveBeenCalled();
+  });
+
+  it('updates admin approval status on PUT /admin/concerts/:id/approval', async () => {
+    userService.syncFromToken.mockResolvedValue({ id: 1, email: 'admin@example.com' });
+    concertService.setAdminApproval.mockResolvedValue({
+      id: 'concert-1',
+      isAdminApproved: true,
+    });
+
+    await request(app.getHttpServer())
+      .put('/admin/concerts/concert-1/approval')
+      .set('Authorization', 'Bearer admin-token')
+      .send({ approved: true })
+      .expect(200)
+      .expect({
+        id: 'concert-1',
+        isAdminApproved: true,
+      });
+
+    expect(concertService.setAdminApproval).toHaveBeenCalledWith(
+      'concert-1',
+      { id: 1, email: 'admin@example.com' },
+      true,
+    );
+  });
+
+  it('attaches a poster image on POST /admin/concerts/:id/poster', async () => {
+    userService.syncFromToken.mockResolvedValue({ id: 1, email: 'admin@example.com' });
+    ingestionService.attachPosterToConcert.mockResolvedValue({
+      uploadId: 'upload-uuid',
+      posterUrl: '/ingestion/uploads/upload-uuid/image',
+    });
+
+    await request(app.getHttpServer())
+      .post('/admin/concerts/concert-1/poster')
+      .set('Authorization', 'Bearer admin-token')
+      .attach('file', Buffer.from('fake-image-bytes'), 'poster.jpg')
+      .expect(201)
+      .expect({
+        uploadId: 'upload-uuid',
+        posterUrl: '/ingestion/uploads/upload-uuid/image',
+      });
+
+    expect(ingestionService.attachPosterToConcert).toHaveBeenCalledWith(
+      'concert-1',
+      expect.objectContaining({ originalname: 'poster.jpg' }),
+      'admin-token-uid',
+      1,
+    );
   });
 });

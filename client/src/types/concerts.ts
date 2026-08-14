@@ -46,6 +46,9 @@ export interface ConcertApiItem {
   updatedAt?: string;
   isTopPick?: boolean;
   topPickScore?: number | null;
+  isAdminApproved?: boolean;
+  adminApprovedAt?: string | null;
+  adminApprovedByUserId?: number | null;
   upvoteCount?: number;
   upvotedByMe?: boolean;
   trendingWeekUpvotes?: number;
