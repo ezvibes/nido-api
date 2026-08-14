@@ -7,6 +7,9 @@ const api = vi.hoisted(() => ({
   fetchConcertGenres: vi.fn(),
   fetchVenues: vi.fn(),
   updateAdminConcert: vi.fn(),
+  setConcertApproval: vi.fn(),
+  createConcert: vi.fn(),
+  uploadConcertPoster: vi.fn(),
 }));
 
 const auth = vi.hoisted(() => ({
@@ -91,6 +94,31 @@ describe('AdminConcertsPage', () => {
     expect(wrapper.text()).toContain('Page 2 of 2');
   });
 
+  it('toggles Top Picks approval state for a concert', async () => {
+    api.setConcertApproval.mockResolvedValue({
+      id: 'concert-1',
+      isAdminApproved: true,
+    });
+
+    const wrapper = mount(AdminConcertsPage);
+    await flushPromises();
+
+    const approveButton = wrapper
+      .findAll('.concert-row__actions button')
+      .find((b) => b.text().includes('Approve Top Pick'));
+    expect(approveButton).toBeDefined();
+
+    await approveButton!.trigger('click');
+    await flushPromises();
+
+    expect(api.setConcertApproval).toHaveBeenCalledWith(
+      'firebase-token',
+      'concert-1',
+      true,
+    );
+    expect(wrapper.text()).toContain('approved for Top Picks');
+  });
+
   it('hides a concert using the version returned by the API', async () => {
     api.updateAdminConcert.mockResolvedValue(
       buildConcert({ catalogStatus: 'hidden', isFeatured: false, version: 8 }),
@@ -106,9 +134,10 @@ describe('AdminConcertsPage', () => {
     const wrapper = mount(AdminConcertsPage);
     await flushPromises();
 
-    await wrapper
-      .get('.concert-row__actions button:nth-child(2)')
-      .trigger('click');
+    const hideButton = wrapper
+      .findAll('.concert-row__actions button')
+      .find((b) => b.text() === 'Hide');
+    await hideButton!.trigger('click');
     await flushPromises();
 
     expect(api.updateAdminConcert).toHaveBeenCalledWith(
@@ -127,12 +156,16 @@ describe('AdminConcertsPage', () => {
     const wrapper = mount(AdminConcertsPage);
     await flushPromises();
 
-    await wrapper.get('.concert-row__actions button').trigger('click');
+    const editButton = wrapper
+      .findAll('.concert-row__actions button')
+      .find((b) => b.text() === 'Edit');
+    await editButton!.trigger('click');
+
     expect(wrapper.text()).not.toContain('Calendar updates');
     expect(wrapper.text()).not.toContain('Resume updates');
 
     await wrapper
-      .get<HTMLInputElement>('.field--wide input')
+      .get<HTMLInputElement>('.editor .field--wide input')
       .setValue('Summer Jam Updated');
     await wrapper.get('.editor').trigger('submit');
     await flushPromises();
@@ -149,6 +182,41 @@ describe('AdminConcertsPage', () => {
     );
     expect(wrapper.find('.editor').exists()).toBe(false);
     expect(api.fetchAdminConcerts).toHaveBeenCalledTimes(2);
+  });
+
+  it('creates a new concert via the Add Concert modal', async () => {
+    api.createConcert.mockResolvedValue(
+      buildConcert({ id: 'concert-new', title: 'New Funk Show' }),
+    );
+
+    const wrapper = mount(AdminConcertsPage);
+    await flushPromises();
+
+    const addButton = wrapper
+      .findAll('.catalog-admin__header button')
+      .find((b) => b.text().includes('Add Concert'));
+    await addButton!.trigger('click');
+
+    expect(wrapper.text()).toContain('Add new concert');
+
+    await wrapper
+      .get<HTMLInputElement>('.editor input[placeholder="e.g. Dr. Bacon & Friends"]')
+      .setValue('New Funk Show');
+    await wrapper
+      .get<HTMLSelectElement>('.editor select')
+      .setValue('venue-1');
+
+    await wrapper.get('.editor').trigger('submit');
+    await flushPromises();
+
+    expect(api.createConcert).toHaveBeenCalledWith(
+      'firebase-token',
+      expect.objectContaining({
+        title: 'New Funk Show',
+        venueId: 'venue-1',
+      }),
+    );
+    expect(wrapper.text()).toContain('Successfully created New Funk Show!');
   });
 
   it('reloads totals after a successful mutation changes the filtered result set', async () => {
@@ -171,9 +239,10 @@ describe('AdminConcertsPage', () => {
     const wrapper = mount(AdminConcertsPage);
     await flushPromises();
 
-    await wrapper
-      .get('.concert-row__actions button:nth-child(2)')
-      .trigger('click');
+    const hideButton = wrapper
+      .findAll('.concert-row__actions button')
+      .find((b) => b.text() === 'Hide');
+    await hideButton!.trigger('click');
     await flushPromises();
 
     expect(wrapper.text()).toContain('0 concerts');
@@ -223,7 +292,10 @@ describe('AdminConcertsPage', () => {
     const wrapper = mount(AdminConcertsPage);
     await flushPromises();
 
-    await wrapper.get('.concert-row__actions button').trigger('click');
+    const editButton = wrapper
+      .findAll('.concert-row__actions button')
+      .find((b) => b.text() === 'Edit');
+    await editButton!.trigger('click');
     await wrapper.get('.editor').trigger('submit');
     await flushPromises();
 
@@ -238,11 +310,11 @@ describe('AdminConcertsPage', () => {
     const wrapper = mount(AdminConcertsPage, { attachTo: document.body });
     await flushPromises();
 
-    const editButton = wrapper.get<HTMLButtonElement>(
-      '.concert-row__actions button',
-    );
-    editButton.element.focus();
-    await editButton.trigger('click');
+    const editButton = wrapper
+      .findAll('.concert-row__actions button')
+      .find((b) => b.text() === 'Edit');
+    (editButton!.element as HTMLElement).focus();
+    await editButton!.trigger('click');
     await flushPromises();
 
     expect(document.activeElement).toBe(
@@ -252,7 +324,7 @@ describe('AdminConcertsPage', () => {
     await flushPromises();
 
     expect(wrapper.find('.editor').exists()).toBe(false);
-    expect(document.activeElement).toBe(editButton.element);
+    expect(document.activeElement).toBe(editButton!.element);
   });
 });
 

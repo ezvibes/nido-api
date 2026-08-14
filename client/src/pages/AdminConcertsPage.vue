@@ -3,11 +3,15 @@ import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 import GenreCombobox from '../components/GenreCombobox.vue';
 import { useAuth } from '../composables/useAuth';
 import {
+  createConcert,
   fetchAdminConcerts,
   fetchConcertGenres,
   fetchVenues,
+  setConcertApproval,
   updateAdminConcert,
+  uploadConcertPoster,
   type AdminConcertCatalogStatus,
+  type CreateConcertPayload,
   type UpdateAdminConcertPayload,
   type VenueListItem,
 } from '../composables/useApi';
@@ -31,7 +35,24 @@ const editing = ref<ConcertApiItem | null>(null);
 const archiveCandidate = ref<ConcertApiItem | null>(null);
 const closeEditorButton = ref<HTMLButtonElement | null>(null);
 const archiveCancelButton = ref<HTMLButtonElement | null>(null);
+const editPosterFile = ref<File | null>(null);
+
+// Create Concert Modal State
+const isCreating = ref(false);
+const closeCreateButton = ref<HTMLButtonElement | null>(null);
+const isSavingNew = ref(false);
+const createPosterFile = ref<File | null>(null);
+const createForm = reactive({
+  title: '',
+  genre: '',
+  startsAt: '',
+  endsAt: '',
+  venueId: '',
+  description: '',
+});
+
 let editorTrigger: HTMLElement | null = null;
+let createTrigger: HTMLElement | null = null;
 let archiveTrigger: HTMLElement | null = null;
 let latestLoadRequest = 0;
 
@@ -150,9 +171,82 @@ async function loadReferences() {
   }
 }
 
+function openCreateModal() {
+  createTrigger = document.activeElement as HTMLElement | null;
+  const now = new Date();
+  now.setMinutes(0, 0, 0);
+  createForm.title = '';
+  createForm.genre = genres.value[0] || 'Rock';
+  createForm.startsAt = toLocalInput(now.toISOString());
+  createForm.endsAt = '';
+  createForm.venueId = venues.value[0]?.id || '';
+  createForm.description = '';
+  createPosterFile.value = null;
+  isCreating.value = true;
+  void nextTick(() => closeCreateButton.value?.focus());
+}
+
+function closeCreateModal() {
+  isCreating.value = false;
+  createPosterFile.value = null;
+  void nextTick(() => createTrigger?.focus());
+}
+
+function handleCreatePosterSelect(event: Event) {
+  const target = event.target as HTMLInputElement;
+  createPosterFile.value = target.files?.[0] || null;
+}
+
+function handleEditPosterSelect(event: Event) {
+  const target = event.target as HTMLInputElement;
+  editPosterFile.value = target.files?.[0] || null;
+}
+
+async function saveCreateConcert() {
+  if (!createForm.title.trim() || !createForm.startsAt || !createForm.venueId) {
+    error.value = 'Title, start time, and venue are required.';
+    return;
+  }
+
+  isSavingNew.value = true;
+  error.value = '';
+  notice.value = '';
+
+  try {
+    const authToken = await token();
+    const payload: CreateConcertPayload = {
+      title: createForm.title.trim(),
+      genre: createForm.genre.trim(),
+      startsAt: new Date(createForm.startsAt).toISOString(),
+      endsAt: createForm.endsAt ? new Date(createForm.endsAt).toISOString() : null,
+      venueId: createForm.venueId,
+      description: createForm.description.trim() || null,
+    };
+
+    const created = await createConcert(authToken, payload);
+
+    if (createPosterFile.value && created?.id) {
+      try {
+        await uploadConcertPoster(authToken, created.id, createPosterFile.value);
+      } catch (uploadErr) {
+        console.warn('Concert created but poster upload failed:', uploadErr);
+      }
+    }
+
+    notice.value = `Successfully created ${createForm.title.trim()}!`;
+    closeCreateModal();
+    await load();
+  } catch (reason) {
+    error.value = getMessage(reason, 'Unable to create concert.');
+  } finally {
+    isSavingNew.value = false;
+  }
+}
+
 function openEditor(concert: ConcertApiItem) {
   editorTrigger = document.activeElement as HTMLElement | null;
   editing.value = concert;
+  editPosterFile.value = null;
   form.title = concert.title;
   form.genre = concert.genre;
   form.startsAt = toLocalInput(concert.startsAt);
@@ -164,6 +258,7 @@ function openEditor(concert: ConcertApiItem) {
 
 function closeEditor() {
   editing.value = null;
+  editPosterFile.value = null;
   void nextTick(() => editorTrigger?.focus());
 }
 
@@ -171,6 +266,16 @@ function handleDialogKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     event.preventDefault();
     closeEditor();
+    return;
+  }
+
+  trapDialogFocus(event);
+}
+
+function handleCreateDialogKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeCreateModal();
     return;
   }
 
@@ -266,6 +371,8 @@ async function update(
 
 async function saveEditor() {
   if (!editing.value) return;
+  const currentConcertId = editing.value.id;
+
   const updated = await update(
     editing.value,
     {
@@ -278,7 +385,37 @@ async function saveEditor() {
     },
     `Saved changes to ${form.title.trim()}.`,
   );
-  if (updated) closeEditor();
+
+  if (updated) {
+    if (editPosterFile.value) {
+      try {
+        const authToken = await token();
+        await uploadConcertPoster(authToken, currentConcertId, editPosterFile.value);
+        notice.value = `Saved changes and uploaded new poster for ${form.title.trim()}.`;
+        await load();
+      } catch (posterErr) {
+        error.value = getMessage(posterErr, 'Concert updated, but poster upload failed.');
+      }
+    }
+    closeEditor();
+  }
+}
+
+async function toggleApproval(concert: ConcertApiItem) {
+  savingId.value = concert.id;
+  error.value = '';
+  notice.value = '';
+  const nextApproved = !concert.isAdminApproved;
+  try {
+    const authToken = await token();
+    await setConcertApproval(authToken, concert.id, nextApproved);
+    concert.isAdminApproved = nextApproved;
+    notice.value = `${concert.title} is now ${nextApproved ? 'approved' : 'unapproved'} for Top Picks.`;
+  } catch (reason) {
+    error.value = getMessage(reason, 'Unable to update approval status.');
+  } finally {
+    savingId.value = null;
+  }
 }
 
 async function setStatus(
@@ -321,14 +458,23 @@ onMounted(async () => {
           changes.
         </p>
       </div>
-      <button
-        type="button"
-        class="button button--secondary"
-        :disabled="loading"
-        @click="load"
-      >
-        Refresh
-      </button>
+      <div class="catalog-admin__header-actions">
+        <button
+          type="button"
+          class="button button--secondary"
+          :disabled="loading"
+          @click="load"
+        >
+          Refresh
+        </button>
+        <button
+          type="button"
+          class="button button--primary"
+          @click="openCreateModal"
+        >
+          + Add Concert
+        </button>
+      </div>
     </header>
 
     <form
@@ -409,6 +555,13 @@ onMounted(async () => {
             <span v-if="concert.isFeatured" class="status status--featured"
               >Featured</span
             >
+            <span
+              v-if="concert.isAdminApproved"
+              class="status status--approved"
+              title="Approved for Top Picks Weekly newsletter"
+            >
+              Top Pick Approved
+            </span>
           </div>
           <p>
             {{ formatDate(concert.startsAt) }} |
@@ -416,6 +569,14 @@ onMounted(async () => {
           </p>
         </div>
         <div class="concert-row__actions">
+          <button
+            type="button"
+            class="button button--secondary"
+            :disabled="savingId === concert.id"
+            @click="toggleApproval(concert)"
+          >
+            {{ concert.isAdminApproved ? 'Unapprove Top Pick' : 'Approve Top Pick' }}
+          </button>
           <button
             type="button"
             class="button button--secondary"
@@ -488,6 +649,89 @@ onMounted(async () => {
       </button>
     </nav>
 
+    <!-- Create Concert Modal -->
+    <div v-if="isCreating" class="dialog-backdrop" @click.self="closeCreateModal">
+      <form
+        class="editor"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="concert-create-title"
+        @submit.prevent="saveCreateConcert"
+        @keydown="handleCreateDialogKeydown"
+      >
+        <header>
+          <div>
+            <p class="catalog-admin__eyebrow">Catalog creation</p>
+            <h3 id="concert-create-title">Add new concert</h3>
+          </div>
+          <button
+            ref="closeCreateButton"
+            type="button"
+            class="close-button"
+            aria-label="Close dialog"
+            @click="closeCreateModal"
+          >
+            &times;
+          </button>
+        </header>
+        <div class="editor__grid">
+          <label class="field field--wide">
+            <span>Title *</span>
+            <input v-model="createForm.title" placeholder="e.g. Dr. Bacon & Friends" required />
+          </label>
+          <GenreCombobox
+            v-model="createForm.genre"
+            :options="genres"
+            allow-custom
+            label="Genre"
+          />
+          <label class="field">
+            <span>Venue *</span>
+            <select v-model="createForm.venueId" required>
+              <option value="" disabled>Select venue</option>
+              <option v-for="venue in venues" :key="venue.id" :value="venue.id">
+                {{ venue.name }} - {{ venue.city }}, {{ venue.region }}
+              </option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Starts *</span>
+            <input v-model="createForm.startsAt" type="datetime-local" required />
+          </label>
+          <label class="field">
+            <span>Ends (Optional)</span>
+            <input v-model="createForm.endsAt" type="datetime-local" />
+          </label>
+          <div class="field field--wide poster-field">
+            <span>Poster / Flyer Image (Optional)</span>
+            <input type="file" accept="image/*" @change="handleCreatePosterSelect" />
+            <p v-if="createPosterFile" class="file-selected-name">Selected: {{ createPosterFile.name }}</p>
+          </div>
+          <label class="field field--wide">
+            <span>Description / Lineup Notes</span>
+            <textarea v-model="createForm.description" rows="4" placeholder="Doors 7 PM, ticket link, bio, etc."></textarea>
+          </label>
+        </div>
+        <footer>
+          <button
+            type="button"
+            class="button button--secondary"
+            @click="closeCreateModal"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="button button--primary"
+            :disabled="isSavingNew"
+          >
+            {{ isSavingNew ? 'Creating...' : 'Create Concert' }}
+          </button>
+        </footer>
+      </form>
+    </div>
+
+    <!-- Edit Concert Modal -->
     <div v-if="editing" class="dialog-backdrop" @click.self="closeEditor">
       <form
         class="editor"
@@ -539,6 +783,15 @@ onMounted(async () => {
             ><span>Ends</span
             ><input v-model="form.endsAt" type="datetime-local"
           /></label>
+          <div class="field field--wide poster-field">
+            <span>Poster / Flyer Image</span>
+            <div v-if="editing.posterUrl" class="poster-preview">
+              <img :src="editing.posterUrl" alt="Concert poster preview" class="poster-thumbnail" />
+              <p class="poster-hint">Current artwork. Choose a file below to replace.</p>
+            </div>
+            <input type="file" accept="image/*" @change="handleEditPosterSelect" />
+            <p v-if="editPosterFile" class="file-selected-name">Selected: {{ editPosterFile.name }}</p>
+          </div>
           <label class="field field--wide"
             ><span>Description</span
             ><textarea v-model="form.description" rows="5"></textarea>
@@ -563,6 +816,7 @@ onMounted(async () => {
       </form>
     </div>
 
+    <!-- Archive Confirmation Dialog -->
     <div
       v-if="archiveCandidate"
       class="dialog-backdrop"
@@ -603,6 +857,7 @@ onMounted(async () => {
     </div>
   </section>
 </template>
+
 
 <style scoped>
 .catalog-admin {
@@ -789,9 +1044,45 @@ textarea {
   border-color: #1f9367;
   color: #146247;
 }
+.status--approved {
+  border-color: #0284c7;
+  color: #0369a1;
+  background: rgba(2, 132, 199, 0.08);
+}
+.catalog-admin__header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.poster-field {
+  margin-top: 0.25rem;
+}
+.poster-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.poster-thumbnail {
+  width: 54px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+.poster-hint,
+.file-selected-name {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.file-selected-name {
+  color: var(--accent);
+  font-weight: 600;
+  margin-top: 0.25rem;
+}
 .concert-row__actions {
   display: flex;
-  flex: 0 0 18rem;
+  flex: 0 0 22rem;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.4rem;
@@ -807,6 +1098,10 @@ textarea {
   font-weight: 750;
   padding: 0.45rem 0.8rem;
   cursor: pointer;
+}
+.button--primary {
+  background: var(--accent);
+  color: white;
 }
 .button--secondary {
   border-color: #cbd1d7;

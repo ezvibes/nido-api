@@ -10,12 +10,14 @@ import { UserModule } from '../users/user.module';
 
 import { ConcertBandLineup } from './entities/concert-band-lineup.entity';
 import { ConcertSet } from './entities/concert-set.entity';
+import { IngestionModule } from '../../ingestion/ingestion.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Concert, ConcertUpvote, ConcertBandLineup, ConcertSet]),
     AuthModule,
     UserModule,
+    IngestionModule,
   ],
   controllers: [ConcertController, AdminConcertController],
   providers: [ConcertService],

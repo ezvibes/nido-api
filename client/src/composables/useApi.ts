@@ -118,6 +118,88 @@ export async function updateAdminConcert(
   return response.data;
 }
 
+export async function setConcertApproval(
+  token: string,
+  concertId: string,
+  approved: boolean,
+) {
+  const response = await apiClient.put<ConcertApiItem>(
+    `/admin/concerts/${concertId}/approval`,
+    { approved },
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  return response.data;
+}
+
+export interface CreateConcertPayload {
+  title: string;
+  genre: string;
+  startsAt: string;
+  endsAt?: string | null;
+  venueId: string;
+  bandIds?: string[];
+  lineup?: Array<{ bandId: string; role?: string; order?: number }>;
+  description?: string | null;
+}
+
+export async function createConcert(
+  token: string,
+  payload: CreateConcertPayload,
+) {
+  const response = await apiClient.post<ConcertApiItem>(
+    '/concerts',
+    payload,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  return response.data;
+}
+
+export async function uploadConcertPoster(
+  token: string,
+  concertId: string,
+  file: File,
+) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await apiClient.post<{ uploadId: string; posterUrl: string }>(
+    `/admin/concerts/${concertId}/poster`,
+    formData,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data',
+      },
+    },
+  );
+  return response.data;
+}
+
+export interface BandListItem {
+  id: string;
+  name: string;
+  slug: string;
+  genres: string[];
+}
+
+export async function fetchBands(q?: string): Promise<BandListItem[]> {
+  const response = await apiClient.get<BandListItem[]>('/bands', {
+    params: q ? { q } : undefined,
+  });
+  return response.data;
+}
+
+export async function createBand(
+  token: string,
+  name: string,
+): Promise<BandListItem> {
+  const response = await apiClient.post<BandListItem>(
+    '/bands',
+    { name },
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  return response.data;
+}
+
 export async function fetchUserConcerts(
   token: string,
   params?: {

@@ -730,4 +730,91 @@ export class IngestionService {
     const normalizedExtension = extension.replace(/[^a-z0-9.]/g, '');
     return `${safeName || 'upload'}${normalizedExtension || ''}`;
   }
+
+  async attachPosterToConcert(
+    concertId: string,
+    file: UploadableFile | undefined,
+    uid: string,
+    userId: number,
+  ): Promise<{ uploadId: string; posterUrl: string }> {
+    if (!this.bucketName) {
+      throw new InternalServerErrorException(
+        'GCS_INGESTION_BUCKET is not configured for image uploads.',
+      );
+    }
+    if (!file) {
+      throw new BadRequestException('An image file is required.');
+    }
+    if (!file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('Only image uploads are supported.');
+    }
+    if (!file.buffer?.length) {
+      throw new BadRequestException('Uploaded image payload is empty.');
+    }
+
+    const concert = await this.concertRepository.findOne({
+      where: { id: concertId },
+      relations: ['venue'],
+    });
+    if (!concert) {
+      throw new NotFoundException('Concert not found.');
+    }
+
+    const uploadedAt = new Date().toISOString();
+    const objectName = this.buildObjectName(file.originalname, uid, uploadedAt);
+    const bucket = this.storage.bucket(this.bucketName);
+    const object = bucket.file(objectName);
+
+    try {
+      await object.save(file.buffer, {
+        resumable: false,
+        contentType: file.mimetype,
+        metadata: {
+          metadata: {
+            uploadedByUid: uid,
+            city: concert.venue?.city ?? '',
+            state: concert.venue?.region ?? '',
+            genre: concert.genre ?? '',
+            source: 'admin_poster_upload',
+            uploadedByUserId: userId.toString(),
+            originalFilename: file.originalname,
+            concertId: concert.id,
+          },
+        },
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown GCS upload error';
+      throw new InternalServerErrorException(
+        `Failed to upload image to GCS. ${errorMessage}`,
+      );
+    }
+
+    const concertUpload = await this.concertUploadRepository.save(
+      this.concertUploadRepository.create({
+        storageUri: `gs://${this.bucketName}/${objectName}`,
+        objectName,
+        bucket: this.bucketName,
+        mimeType: file.mimetype,
+        originalFilename: file.originalname,
+        city: concert.venue?.city ?? undefined,
+        state: concert.venue?.region ?? undefined,
+        genre: concert.genre ?? undefined,
+        source: 'admin_poster_upload',
+        reviewStatus: 'approved',
+        reviewedAt: new Date(),
+        reviewedByUserId: userId,
+        uploadedByUid: uid,
+        uploadedByUserId: userId,
+        concertId: concert.id,
+        size: file.size,
+      }),
+    );
+
+    return {
+      uploadId: concertUpload.id,
+      posterUrl: `/ingestion/uploads/${concertUpload.id}/image`,
+    };
+  }
 }
+
