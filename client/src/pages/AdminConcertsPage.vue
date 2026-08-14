@@ -543,6 +543,9 @@ onMounted(async () => {
             })
           }}</span>
         </div>
+        <div v-if="concert.posterUrl" class="concert-row__thumbnail">
+          <img :src="concert.posterUrl" alt="Artwork thumbnail" class="row-thumb-img" />
+        </div>
         <div class="concert-row__main">
           <div class="concert-row__title-line">
             <h3>{{ concert.title }}</h3>
@@ -561,6 +564,13 @@ onMounted(async () => {
               title="Approved for Top Picks Weekly newsletter"
             >
               Top Pick Approved
+            </span>
+            <span
+              v-if="concert.syncSource"
+              class="status status--synced"
+              title="Ingested via Sync Doctor / Calendar feed"
+            >
+              Synced
             </span>
           </div>
           <p>
@@ -1048,6 +1058,25 @@ textarea {
   border-color: #0284c7;
   color: #0369a1;
   background: rgba(2, 132, 199, 0.08);
+}
+.status--synced {
+  border-color: #6366f1;
+  color: #4f46e5;
+  background: rgba(99, 102, 241, 0.08);
+}
+.concert-row__thumbnail {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 58px;
+  overflow: hidden;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+.row-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .catalog-admin__header-actions {
   display: flex;

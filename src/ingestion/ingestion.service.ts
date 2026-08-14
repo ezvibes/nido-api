@@ -811,6 +811,17 @@ export class IngestionService {
       }),
     );
 
+    // Bump the concert version counter and update timestamp
+    await this.concertRepository
+      .createQueryBuilder()
+      .update(Concert)
+      .set({
+        version: () => 'version + 1',
+        updatedAt: new Date(),
+      })
+      .where('id = :concertId', { concertId: concert.id })
+      .execute();
+
     return {
       uploadId: concertUpload.id,
       posterUrl: `/ingestion/uploads/${concertUpload.id}/image`,
