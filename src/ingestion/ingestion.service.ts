@@ -828,4 +828,3 @@ export class IngestionService {
     };
   }
 }
-

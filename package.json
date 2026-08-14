@@ -7,7 +7,8 @@
   "license": "SEE LICENSE IN LICENSE.md",
   "scripts": {
     "build": "nest build",
-    "agent:gate": "npm-run-all --print-label agent:gate:api-test agent:gate:client-test build agent:gate:client-build",
+    "agent:gate": "npm-run-all --print-label agent:gate:hygiene agent:gate:api-test agent:gate:client-test build agent:gate:client-build",
+    "agent:gate:hygiene": "node scripts/check-hygiene.mjs",
     "agent:gate:api-test": "jest --runInBand",
     "agent:gate:client-test": "npm test --prefix client",
     "agent:gate:client-build": "npm run build --prefix client",

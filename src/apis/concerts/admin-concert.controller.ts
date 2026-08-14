@@ -157,4 +157,3 @@ export class AdminConcertController {
     return this.ingestionService.attachPosterToConcert(id, file, user.uid, profile.id);
   }
 }
-
