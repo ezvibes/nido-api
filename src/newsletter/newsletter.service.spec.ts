@@ -5,14 +5,13 @@ import { NewsletterService } from './newsletter.service';
 import { Concert, ConcertCatalogStatus } from '../apis/concerts/entities/concert.entity';
 
 const mockGenerateContent = jest.fn();
+const mockGetGenerativeModel = jest.fn();
 
 jest.mock('@google/generative-ai', () => {
   return {
     GoogleGenerativeAI: jest.fn().mockImplementation(() => {
       return {
-        getGenerativeModel: jest.fn().mockReturnValue({
-          generateContent: mockGenerateContent,
-        }),
+        getGenerativeModel: mockGetGenerativeModel,
       };
     }),
   };
@@ -28,13 +27,16 @@ describe('NewsletterService', () => {
   const mockConfigService = {
     get: jest.fn((key: string) => {
       if (key === 'GEMINI_API_KEY') return 'test-key';
-      if (key === 'GEMINI_MODEL') return 'gemini-1.5-flash';
+      if (key === 'GEMINI_MODEL') return 'gemini-3.6-flash';
       return null;
     }),
   };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockGetGenerativeModel.mockReturnValue({
+      generateContent: mockGenerateContent,
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -133,6 +135,9 @@ describe('NewsletterService', () => {
       expect(response.concerts[0].title).toBe('Dr. Bacon Live');
       expect(response.concerts[0].isPartnerArtist).toBe(true);
       expect(response.newsletterDraft).toBe('Mocked generated newsletter Markdown content from Gemini');
+      expect(mockGetGenerativeModel).toHaveBeenCalledWith({
+        model: 'gemini-3.6-flash',
+      });
     });
   });
 

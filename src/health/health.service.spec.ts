@@ -19,7 +19,7 @@ describe('HealthService', () => {
         'sync-doctor-calendar@nido-api.iam.gserviceaccount.com',
       GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY: 'set',
       GEMINI_API_KEY: 'set',
-      GEMINI_MODEL: 'gemini-2.5-flash',
+      GEMINI_MODEL: 'gemini-3.6-flash',
       ...options?.env,
     };
     const dataSource = {

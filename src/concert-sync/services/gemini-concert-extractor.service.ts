@@ -12,7 +12,7 @@ interface ExtractionContext {
   customContext?: string;
 }
 
-const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
 
 export interface ConcertExtractionPolicy {
   allowedGenres: string[];
@@ -136,7 +136,6 @@ export class GeminiConcertExtractorService {
           },
           body: JSON.stringify({
             generationConfig: {
-              temperature: 0.1,
               responseMimeType: 'application/json',
             },
             contents: [

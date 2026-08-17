@@ -13,7 +13,7 @@ The generation pipeline operates as follows:
 2. **NC Curation Query:** If enabled, the service queries active, approved concerts within the date range in North Carolina (Raleigh, Durham, Chapel Hill, Wilmington, Asheville, Charlotte, Boone) matching core genres (Bluegrass, Funk, Rock, Jam, Alt-Country, Roots, Soul, Reggae).
 3. **Calendar Feed Parsing:** If an ICS URL, raw ICS string, or JSON feed is supplied, the parser extracts events, filters them by NC criteria, and normalizes them.
 4. **Prompt Hydration:** The service reads the prompt template at `.gemini/prompts/weekly_top_picks.md` and injects the parameters and calendar dump.
-5. **Gemini Invocations:** The `@google/generative-ai` SDK executes the prompt using `gemini-1.5-flash` with `temperature: 0.7` to yield a creative, community-focused newsletter draft.
+5. **Gemini Invocations:** The `@google/generative-ai` SDK executes the prompt using `gemini-3.6-flash` to yield a creative, community-focused newsletter draft. Sampling parameters such as `temperature` are intentionally omitted because Gemini 3.x models deprecate those request fields.
 
 ---
 

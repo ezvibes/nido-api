@@ -143,7 +143,7 @@ DB_SYNCHRONIZE=false
 RUN_MIGRATIONS=true
 DB_MIGRATIONS_RUN=false
 DB_MIGRATION_TRANSACTION_MODE=all
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.6-flash
 CONCERT_SYNC_GEMINI_ENABLED=false
 CONCERT_SYNC_MAX_EVENTS_PER_JOB=25
 ```
@@ -461,7 +461,7 @@ FIREBASE_PROJECT_ID=nido-api-9ed65
 FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@nido-api-9ed65.iam.gserviceaccount.com
 ADMIN_EMAILS=<set-by-github-variable>
 GCS_INGESTION_BUCKET=nido-concert-image-ingestion-dev
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.6-flash
 CONCERT_SYNC_GEMINI_ENABLED=false
 CONCERT_SYNC_MAX_EVENTS_PER_JOB=25
 GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL=sync-doctor-calendar@nido-api.iam.gserviceaccount.com

@@ -8,6 +8,8 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import type { GoogleCalendarEvent } from '../concert-sync/interfaces/google-calendar-event.interface';
 
+const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
+
 @Injectable()
 export class NewsletterService {
   private readonly logger = new Logger(NewsletterService.name);
@@ -36,7 +38,7 @@ export class NewsletterService {
       throw new InternalServerErrorException('GEMINI_API_KEY is not configured in the application environment.');
     }
 
-    const modelName = this.configService.get<string>('GEMINI_MODEL')?.trim() || 'gemini-1.5-flash';
+    const modelName = this.configService.get<string>('GEMINI_MODEL')?.trim() || DEFAULT_GEMINI_MODEL;
 
     // 1. Resolve date range label
     const dateRangeLabel = params.dateRangeLabel || this.formatDateRange(params.startDate, params.endDate);
@@ -78,9 +80,6 @@ export class NewsletterService {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({
         model: modelName,
-        generationConfig: {
-          temperature: 0.7,
-        },
       });
 
       const result = await model.generateContent(prompt);
