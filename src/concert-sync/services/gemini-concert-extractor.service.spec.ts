@@ -61,7 +61,7 @@ describe('GeminiConcertExtractorService', () => {
     expect(extraction).toMatchObject({
       extractionSource: 'heuristic',
       fallbackReason: 'gemini_disabled',
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
     });
   });
 });
