@@ -76,6 +76,21 @@ export interface ConcertListItem extends ConcertApiItem {
   demoRank: number;
 }
 
+export function resolvePosterUrl(posterUrl?: string | null): string {
+  if (!posterUrl) return '';
+  if (
+    posterUrl.startsWith('http://') ||
+    posterUrl.startsWith('https://') ||
+    posterUrl.startsWith('data:') ||
+    posterUrl.startsWith('blob:')
+  ) {
+    return posterUrl;
+  }
+  const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+  const path = posterUrl.startsWith('/') ? posterUrl : `/${posterUrl}`;
+  return `${apiBase}${path}`;
+}
+
 export function mapConcertToListItem(
   concert: ConcertApiItem,
   overrides?: Partial<
@@ -92,17 +107,10 @@ export function mapConcertToListItem(
     >
   >,
 ): ConcertListItem {
-  let resolvedPosterUrl =
-    overrides?.posterUrl ??
-    concert.posterUrl ??
-    'https://placehold.co/720x900?text=Live+Music';
-
-  if (resolvedPosterUrl && resolvedPosterUrl.startsWith('/')) {
-    const apiBase = import.meta.env.VITE_API_BASE_URL || '';
-    // Strip trailing slash from apiBase and leading slash from resolvedPosterUrl if needed,
-    // but simply combining them is standard if apiBase has no trailing slash.
-    resolvedPosterUrl = `${apiBase}${resolvedPosterUrl}`;
-  }
+  const rawPosterUrl = overrides?.posterUrl ?? concert.posterUrl;
+  const resolvedPosterUrl = rawPosterUrl
+    ? resolvePosterUrl(rawPosterUrl)
+    : 'https://placehold.co/720x900?text=Live+Music';
 
   return {
     ...concert,
