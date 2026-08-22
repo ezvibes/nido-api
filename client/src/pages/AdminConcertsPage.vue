@@ -1011,7 +1011,7 @@ textarea {
   font-size: 0.85rem;
 }
 .concert-row {
-  align-items: flex-start;
+  align-items: center;
   padding: 1rem 0;
   border-bottom: 1px solid var(--border);
 }
@@ -1110,10 +1110,18 @@ textarea {
 }
 .concert-row__actions {
   display: flex;
-  flex: 0 0 22rem;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
   justify-content: flex-end;
-  gap: 0.4rem;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+.concert-row__actions .button {
+  white-space: nowrap;
+  padding: 0.35rem 0.65rem;
+  min-height: 2.15rem;
+  font-size: 0.8rem;
 }
 .button {
   min-height: 2.35rem;
