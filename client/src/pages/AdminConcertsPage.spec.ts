@@ -326,6 +326,35 @@ describe('AdminConcertsPage', () => {
     expect(wrapper.find('.editor').exists()).toBe(false);
     expect(document.activeElement).toBe(editButton!.element);
   });
+
+  it('displays the resolved poster preview in the edit modal', async () => {
+    api.fetchAdminConcerts.mockResolvedValueOnce({
+      data: [
+        buildConcert({
+          posterUrl: '/ingestion/uploads/sample-123/image',
+        }),
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 25,
+    });
+
+    const wrapper = mount(AdminConcertsPage);
+    await flushPromises();
+
+    // Table row should not have broken thumbnail
+    expect(wrapper.find('.concert-row__thumbnail').exists()).toBe(false);
+
+    const editButton = wrapper
+      .findAll('.concert-row__actions button')
+      .find((b) => b.text() === 'Edit');
+    await editButton!.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.poster-preview').exists()).toBe(true);
+    const img = wrapper.get('.poster-thumbnail');
+    expect(img.attributes('src')).toContain('/ingestion/uploads/sample-123/image');
+  });
 });
 
 function buildConcert(overrides: Record<string, unknown> = {}) {

@@ -15,7 +15,7 @@ import {
   type UpdateAdminConcertPayload,
   type VenueListItem,
 } from '../composables/useApi';
-import type { ConcertApiItem } from '../types/concerts';
+import { resolvePosterUrl, type ConcertApiItem } from '../types/concerts';
 
 const { user } = useAuth();
 const concerts = ref<ConcertApiItem[]>([]);
@@ -201,6 +201,20 @@ function handleEditPosterSelect(event: Event) {
   const target = event.target as HTMLInputElement;
   editPosterFile.value = target.files?.[0] || null;
 }
+
+const createPosterPreviewUrl = computed(() => {
+  if (createPosterFile.value) {
+    return URL.createObjectURL(createPosterFile.value);
+  }
+  return '';
+});
+
+const editPosterPreviewUrl = computed(() => {
+  if (editPosterFile.value) {
+    return URL.createObjectURL(editPosterFile.value);
+  }
+  return resolvePosterUrl(editing.value?.posterUrl);
+});
 
 async function saveCreateConcert() {
   if (!createForm.title.trim() || !createForm.startsAt || !createForm.venueId) {
@@ -543,9 +557,6 @@ onMounted(async () => {
             })
           }}</span>
         </div>
-        <div v-if="concert.posterUrl" class="concert-row__thumbnail">
-          <img :src="concert.posterUrl" alt="Artwork thumbnail" class="row-thumb-img" />
-        </div>
         <div class="concert-row__main">
           <div class="concert-row__title-line">
             <h3>{{ concert.title }}</h3>
@@ -595,35 +606,27 @@ onMounted(async () => {
             Edit
           </button>
           <button
-            v-if="concert.catalogStatus === 'active' || !concert.catalogStatus"
             type="button"
             class="button button--secondary"
             :disabled="savingId === concert.id"
-            @click="setStatus(concert, 'hidden')"
-          >
-            Hide
-          </button>
-          <button
-            v-else
-            type="button"
-            class="button button--secondary"
-            :disabled="savingId === concert.id"
-            @click="setStatus(concert, 'active')"
-          >
-            Restore
-          </button>
-          <button
-            type="button"
-            class="button button--secondary"
-            :disabled="
-              savingId === concert.id || concert.catalogStatus !== 'active'
+            @click="
+              setStatus(
+                concert,
+                concert.catalogStatus === 'hidden' ? 'active' : 'hidden',
+              )
             "
+          >
+            {{ concert.catalogStatus === 'hidden' ? 'Restore' : 'Hide' }}
+          </button>
+          <button
+            type="button"
+            class="button button--secondary"
+            :disabled="savingId === concert.id"
             @click="toggleFeatured(concert)"
           >
             {{ concert.isFeatured ? 'Unfeature' : 'Feature' }}
           </button>
           <button
-            v-if="concert.catalogStatus !== 'archived'"
             type="button"
             class="button button--danger"
             :disabled="savingId === concert.id"
@@ -659,26 +662,26 @@ onMounted(async () => {
       </button>
     </nav>
 
-    <!-- Create Concert Modal -->
+    <!-- Add Concert Modal -->
     <div v-if="isCreating" class="dialog-backdrop" @click.self="closeCreateModal">
       <form
         class="editor"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="concert-create-title"
+        aria-labelledby="create-dialog-title"
         @submit.prevent="saveCreateConcert"
         @keydown="handleCreateDialogKeydown"
       >
         <header>
           <div>
-            <p class="catalog-admin__eyebrow">Catalog creation</p>
-            <h3 id="concert-create-title">Add new concert</h3>
+            <p class="catalog-admin__eyebrow">Manual curation</p>
+            <h3 id="create-dialog-title">Add new concert</h3>
           </div>
           <button
             ref="closeCreateButton"
             type="button"
             class="close-button"
-            aria-label="Close dialog"
+            aria-label="Close create dialog"
             @click="closeCreateModal"
           >
             &times;
@@ -686,8 +689,12 @@ onMounted(async () => {
         </header>
         <div class="editor__grid">
           <label class="field field--wide">
-            <span>Title *</span>
-            <input v-model="createForm.title" placeholder="e.g. Dr. Bacon & Friends" required />
+            <span>Concert Title *</span>
+            <input
+              v-model="createForm.title"
+              placeholder="e.g. Dr. Bacon & Friends"
+              required
+            />
           </label>
           <GenreCombobox
             v-model="createForm.genre"
@@ -714,6 +721,10 @@ onMounted(async () => {
           </label>
           <div class="field field--wide poster-field">
             <span>Poster / Flyer Image (Optional)</span>
+            <div v-if="createPosterPreviewUrl" class="poster-preview">
+              <img :src="createPosterPreviewUrl" alt="Concert poster preview" class="poster-thumbnail" />
+              <p class="poster-hint">Selected artwork for this new concert.</p>
+            </div>
             <input type="file" accept="image/*" @change="handleCreatePosterSelect" />
             <p v-if="createPosterFile" class="file-selected-name">Selected: {{ createPosterFile.name }}</p>
           </div>
@@ -795,9 +806,11 @@ onMounted(async () => {
           /></label>
           <div class="field field--wide poster-field">
             <span>Poster / Flyer Image</span>
-            <div v-if="editing.posterUrl" class="poster-preview">
-              <img :src="editing.posterUrl" alt="Concert poster preview" class="poster-thumbnail" />
-              <p class="poster-hint">Current artwork. Choose a file below to replace.</p>
+            <div v-if="editPosterPreviewUrl" class="poster-preview">
+              <img :src="editPosterPreviewUrl" alt="Concert poster preview" class="poster-thumbnail" />
+              <p class="poster-hint">
+                {{ editPosterFile ? 'New image selected for upload.' : 'Current artwork. Choose a file below to replace.' }}
+              </p>
             </div>
             <input type="file" accept="image/*" @change="handleEditPosterSelect" />
             <p v-if="editPosterFile" class="file-selected-name">Selected: {{ editPosterFile.name }}</p>
@@ -998,7 +1011,7 @@ textarea {
   font-size: 0.85rem;
 }
 .concert-row {
-  align-items: flex-start;
+  align-items: center;
   padding: 1rem 0;
   border-bottom: 1px solid var(--border);
 }
@@ -1064,20 +1077,6 @@ textarea {
   color: #4f46e5;
   background: rgba(99, 102, 241, 0.08);
 }
-.concert-row__thumbnail {
-  flex: 0 0 44px;
-  width: 44px;
-  height: 58px;
-  overflow: hidden;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-}
-.row-thumb-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
 .catalog-admin__header-actions {
   display: flex;
   gap: 0.5rem;
@@ -1111,10 +1110,18 @@ textarea {
 }
 .concert-row__actions {
   display: flex;
-  flex: 0 0 22rem;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
   justify-content: flex-end;
-  gap: 0.4rem;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+.concert-row__actions .button {
+  white-space: nowrap;
+  padding: 0.35rem 0.65rem;
+  min-height: 2.15rem;
+  font-size: 0.8rem;
 }
 .button {
   min-height: 2.35rem;

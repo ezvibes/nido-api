@@ -61,6 +61,35 @@ describe('ConcertCard', () => {
       'Downtown Summer Jam',
     );
   });
+
+  it('hides internal ingestion flyer upload description strings from the card', () => {
+    const wrapper = mount(ConcertCard, {
+      props: {
+        concert: buildConcert({
+          description:
+            'Approved flyer upload: Big_Something_Van_Hoy_Farms_Social_1080_x_1440-lineup-v3-scaled.jpg',
+        }),
+      },
+    });
+
+    expect(wrapper.find('.concert-card__description').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('Approved flyer upload:');
+  });
+
+  it('renders genuine concert descriptions on the card', () => {
+    const wrapper = mount(ConcertCard, {
+      props: {
+        concert: buildConcert({
+          description: 'Special outdoor headline performance with full laser production.',
+        }),
+      },
+    });
+
+    expect(wrapper.find('.concert-card__description').exists()).toBe(true);
+    expect(wrapper.get('.concert-card__description').text()).toBe(
+      'Special outdoor headline performance with full laser production.',
+    );
+  });
 });
 
 function buildConcert(

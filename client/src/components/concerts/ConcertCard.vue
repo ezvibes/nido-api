@@ -29,8 +29,8 @@
           {{ tag }}
         </span>
       </div>
-      <p v-if="concert.description" class="concert-card__description">
-        {{ concert.description }}
+      <p v-if="displayDescription" class="concert-card__description">
+        {{ displayDescription }}
       </p>
 
       <div class="concert-card__actions">
@@ -129,6 +129,24 @@ const locationLabel = computed(() => {
   return pieces.length ? pieces.join(', ') : 'Location TBD';
 });
 
+const isInternalDescription = (desc: string | null | undefined): boolean => {
+  if (!desc) return true;
+  const normalized = desc.trim().toLowerCase();
+  return (
+    normalized.startsWith('approved flyer upload:') ||
+    normalized.startsWith('approved flyer upload for the public feed.') ||
+    normalized.startsWith('internal:')
+  );
+};
+
+const displayDescription = computed(() => {
+  const desc = props.concert.description;
+  if (!desc || isInternalDescription(desc)) {
+    return '';
+  }
+  return desc.trim();
+});
+
 const formattedStartTime = computed(() =>
   new Intl.DateTimeFormat('en-US', {
     weekday: 'short',
@@ -208,7 +226,7 @@ const formattedStartTime = computed(() =>
 }
 
 .concert-card__time {
-  color: var(--accent);
+  color: #34d399;
   font-size: 0.82rem;
   font-weight: 800;
   text-transform: uppercase;
