@@ -44,6 +44,7 @@ lerna-debug.log*
 **/.env
 **/.env.*
 !**/.env.example
+!.env.integrations.example
 
 # temp directory
 .temp
