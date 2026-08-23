@@ -62,21 +62,7 @@ describe('ConcertCard', () => {
     );
   });
 
-  it('hides internal ingestion flyer upload description strings from the card', () => {
-    const wrapper = mount(ConcertCard, {
-      props: {
-        concert: buildConcert({
-          description:
-            'Approved flyer upload: Big_Something_Van_Hoy_Farms_Social_1080_x_1440-lineup-v3-scaled.jpg',
-        }),
-      },
-    });
-
-    expect(wrapper.find('.concert-card__description').exists()).toBe(false);
-    expect(wrapper.text()).not.toContain('Approved flyer upload:');
-  });
-
-  it('renders genuine concert descriptions on the card', () => {
+  it('omits description from the concert card view', () => {
     const wrapper = mount(ConcertCard, {
       props: {
         concert: buildConcert({
@@ -85,10 +71,8 @@ describe('ConcertCard', () => {
       },
     });
 
-    expect(wrapper.find('.concert-card__description').exists()).toBe(true);
-    expect(wrapper.get('.concert-card__description').text()).toBe(
-      'Special outdoor headline performance with full laser production.',
-    );
+    expect(wrapper.find('.concert-card__description').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('Special outdoor headline performance');
   });
 });
 
