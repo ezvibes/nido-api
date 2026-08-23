@@ -94,6 +94,15 @@ export async function fetchAdminConcerts(
     q?: string;
     catalogStatus?: AdminConcertCatalogStatus | 'all';
     isFeatured?: boolean;
+    startsAfter?: string;
+    startsBefore?: string;
+    sort?:
+      | 'soonest'
+      | 'latest'
+      | 'recently_added'
+      | 'featured'
+      | 'top_picks'
+      | 'trending_week';
     page?: number;
     pageSize?: number;
   },

@@ -28,6 +28,16 @@ const notice = ref('');
 const search = ref('');
 const catalogStatus = ref<AdminConcertCatalogStatus | 'all'>('active');
 const featuredOnly = ref(false);
+type DateRangeOption = 'all' | 'week' | 'month' | 'past_month';
+type SortOption =
+  | 'soonest'
+  | 'latest'
+  | 'recently_added'
+  | 'featured'
+  | 'top_picks';
+
+const dateRange = ref<DateRangeOption>('all');
+const sortOption = ref<SortOption>('soonest');
 const page = ref(1);
 const pageSize = 25;
 const total = ref(0);
@@ -119,10 +129,35 @@ async function load() {
   error.value = '';
   try {
     const authToken = await token();
+
+    let startsAfter: string | undefined = undefined;
+    let startsBefore: string | undefined = undefined;
+
+    const now = new Date();
+    if (dateRange.value === 'week') {
+      startsAfter = now.toISOString();
+      startsBefore = new Date(
+        now.getTime() + 7 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+    } else if (dateRange.value === 'month') {
+      startsAfter = now.toISOString();
+      startsBefore = new Date(
+        now.getTime() + 30 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+    } else if (dateRange.value === 'past_month') {
+      startsAfter = new Date(
+        now.getTime() - 30 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      startsBefore = now.toISOString();
+    }
+
     const response = await fetchAdminConcerts(authToken, {
       q: search.value.trim() || undefined,
       catalogStatus: catalogStatus.value,
       isFeatured: featuredOnly.value || undefined,
+      startsAfter,
+      startsBefore,
+      sort: sortOption.value,
       page: page.value,
       pageSize,
     });
@@ -504,11 +539,30 @@ onMounted(async () => {
           placeholder="Title, artist, venue, or description"
         />
       </label>
-      <button type="submit" class="button">Search</button>
+      <label class="select-filter">
+        <span>Date Window</span>
+        <select v-model="dateRange" @change="applyFilters">
+          <option value="all">All Time</option>
+          <option value="week">Next 7 Days</option>
+          <option value="month">Next 30 Days</option>
+          <option value="past_month">Past 30 Days</option>
+        </select>
+      </label>
+      <label class="select-filter">
+        <span>Sort By</span>
+        <select v-model="sortOption" @change="applyFilters">
+          <option value="soonest">Date (Soonest)</option>
+          <option value="latest">Date (Latest)</option>
+          <option value="recently_added">Recently Added</option>
+          <option value="featured">Featured</option>
+          <option value="top_picks">Top Picks</option>
+        </select>
+      </label>
       <label class="featured-filter">
         <input v-model="featuredOnly" type="checkbox" @change="applyFilters" />
         Featured only
       </label>
+      <button type="submit" class="button">Search</button>
     </form>
 
     <div class="status-tabs" aria-label="Catalog status filter">
@@ -918,15 +972,24 @@ onMounted(async () => {
   text-transform: uppercase;
 }
 .catalog-admin__toolbar {
-  justify-content: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
   padding: 1rem 0;
   border-top: 1px solid var(--border);
 }
 .search-field {
   flex: 1;
-  max-width: 34rem;
+  min-width: 14rem;
+  max-width: 24rem;
+}
+.select-filter {
+  display: block;
+  min-width: 9rem;
 }
 .search-field span,
+.select-filter span,
 .field span,
 .genre-combobox :deep(.genre-combobox__label) {
   display: block;
@@ -951,6 +1014,7 @@ textarea {
   align-items: center;
   gap: 0.5rem;
   white-space: nowrap;
+  padding-bottom: 0.5rem;
 }
 .featured-filter input {
   width: 1rem;

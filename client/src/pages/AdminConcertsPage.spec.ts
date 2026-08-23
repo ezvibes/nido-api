@@ -54,11 +54,39 @@ describe('AdminConcertsPage', () => {
       q: undefined,
       catalogStatus: 'active',
       isFeatured: undefined,
+      startsAfter: undefined,
+      startsBefore: undefined,
+      sort: 'soonest',
       page: 1,
       pageSize: 25,
     });
     expect(wrapper.text()).toContain('Summer Jam');
     expect(wrapper.text()).toContain('1 concert');
+  });
+
+  it('filters by date window and sort order', async () => {
+    const wrapper = mount(AdminConcertsPage);
+    await flushPromises();
+
+    const selects = wrapper.findAll('.select-filter select');
+    const dateSelect = selects[0]!;
+    const sortSelect = selects[1]!;
+
+    await dateSelect.setValue('week');
+    await sortSelect.setValue('latest');
+    await flushPromises();
+
+    expect(api.fetchAdminConcerts).toHaveBeenLastCalledWith(
+      'firebase-token',
+      expect.objectContaining({
+        catalogStatus: 'active',
+        sort: 'latest',
+        startsAfter: expect.any(String),
+        startsBefore: expect.any(String),
+        page: 1,
+        pageSize: 25,
+      }),
+    );
   });
 
   it('paginates through the complete admin catalog', async () => {
@@ -87,6 +115,9 @@ describe('AdminConcertsPage', () => {
       q: undefined,
       catalogStatus: 'active',
       isFeatured: undefined,
+      startsAfter: undefined,
+      startsBefore: undefined,
+      sort: 'soonest',
       page: 2,
       pageSize: 25,
     });
