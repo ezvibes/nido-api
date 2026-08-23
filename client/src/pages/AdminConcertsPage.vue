@@ -1305,11 +1305,20 @@ textarea {
     flex-direction: column;
   }
   .catalog-admin__toolbar .button {
-    align-self: flex-start;
+    width: 100%;
+  }
+  .search-field,
+  .select-filter {
+    min-width: 100%;
+    max-width: 100%;
+  }
+  .featured-filter {
+    padding-bottom: 0;
   }
   .concert-row__date {
     width: auto;
     text-align: left;
+    margin-bottom: 0.25rem;
   }
   .concert-row__date strong,
   .concert-row__date span {
@@ -1317,8 +1326,15 @@ textarea {
     margin-right: 0.25rem;
   }
   .concert-row__actions {
-    flex-basis: auto;
+    flex-wrap: wrap;
     justify-content: flex-start;
+    margin-top: 0.75rem;
+    gap: 0.5rem;
+  }
+  .concert-row__actions .button {
+    flex: 1 1 calc(50% - 0.5rem);
+    min-width: 7.5rem;
+    text-align: center;
   }
   .catalog-pagination {
     justify-content: space-between;
