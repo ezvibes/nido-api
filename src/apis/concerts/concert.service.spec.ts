@@ -206,6 +206,24 @@ describe('ConcertService', () => {
     );
   });
 
+  it('sorts concerts by latest date or recently added', async () => {
+    const latestQb = createQueryBuilderMock();
+    const recentQb = createQueryBuilderMock();
+    concertRepository.createQueryBuilder
+      .mockReturnValueOnce(latestQb)
+      .mockReturnValueOnce(recentQb);
+    latestQb.getCount.mockResolvedValue(0);
+    latestQb.getRawAndEntities.mockResolvedValue({ entities: [], raw: [] });
+    recentQb.getCount.mockResolvedValue(0);
+    recentQb.getRawAndEntities.mockResolvedValue({ entities: [], raw: [] });
+
+    await service.findAll({ sort: 'latest', page: 1, pageSize: 20 });
+    await service.findAll({ sort: 'recently_added', page: 1, pageSize: 20 });
+
+    expect(latestQb.orderBy).toHaveBeenCalledWith('concert.startsAt', 'DESC');
+    expect(recentQb.orderBy).toHaveBeenCalledWith('concert.createdAt', 'DESC');
+  });
+
   it('filters the admin catalog by hidden state', async () => {
     const qb = createQueryBuilderMock();
     concertRepository.createQueryBuilder.mockReturnValue(qb);

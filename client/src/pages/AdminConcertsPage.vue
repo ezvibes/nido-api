@@ -15,7 +15,7 @@ import {
   type UpdateAdminConcertPayload,
   type VenueListItem,
 } from '../composables/useApi';
-import type { ConcertApiItem } from '../types/concerts';
+import { resolvePosterUrl, type ConcertApiItem } from '../types/concerts';
 
 const { user } = useAuth();
 const concerts = ref<ConcertApiItem[]>([]);
@@ -28,6 +28,16 @@ const notice = ref('');
 const search = ref('');
 const catalogStatus = ref<AdminConcertCatalogStatus | 'all'>('active');
 const featuredOnly = ref(false);
+type DateRangeOption = 'all' | 'week' | 'month' | 'past_month';
+type SortOption =
+  | 'soonest'
+  | 'latest'
+  | 'recently_added'
+  | 'featured'
+  | 'top_picks';
+
+const dateRange = ref<DateRangeOption>('all');
+const sortOption = ref<SortOption>('soonest');
 const page = ref(1);
 const pageSize = 25;
 const total = ref(0);
@@ -119,10 +129,35 @@ async function load() {
   error.value = '';
   try {
     const authToken = await token();
+
+    let startsAfter: string | undefined = undefined;
+    let startsBefore: string | undefined = undefined;
+
+    const now = new Date();
+    if (dateRange.value === 'week') {
+      startsAfter = now.toISOString();
+      startsBefore = new Date(
+        now.getTime() + 7 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+    } else if (dateRange.value === 'month') {
+      startsAfter = now.toISOString();
+      startsBefore = new Date(
+        now.getTime() + 30 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+    } else if (dateRange.value === 'past_month') {
+      startsAfter = new Date(
+        now.getTime() - 30 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      startsBefore = now.toISOString();
+    }
+
     const response = await fetchAdminConcerts(authToken, {
       q: search.value.trim() || undefined,
       catalogStatus: catalogStatus.value,
       isFeatured: featuredOnly.value || undefined,
+      startsAfter,
+      startsBefore,
+      sort: sortOption.value,
       page: page.value,
       pageSize,
     });
@@ -201,6 +236,20 @@ function handleEditPosterSelect(event: Event) {
   const target = event.target as HTMLInputElement;
   editPosterFile.value = target.files?.[0] || null;
 }
+
+const createPosterPreviewUrl = computed(() => {
+  if (createPosterFile.value) {
+    return URL.createObjectURL(createPosterFile.value);
+  }
+  return '';
+});
+
+const editPosterPreviewUrl = computed(() => {
+  if (editPosterFile.value) {
+    return URL.createObjectURL(editPosterFile.value);
+  }
+  return resolvePosterUrl(editing.value?.posterUrl);
+});
 
 async function saveCreateConcert() {
   if (!createForm.title.trim() || !createForm.startsAt || !createForm.venueId) {
@@ -490,11 +539,30 @@ onMounted(async () => {
           placeholder="Title, artist, venue, or description"
         />
       </label>
-      <button type="submit" class="button">Search</button>
+      <label class="select-filter">
+        <span>Date Window</span>
+        <select v-model="dateRange" @change="applyFilters">
+          <option value="all">All Time</option>
+          <option value="week">Next 7 Days</option>
+          <option value="month">Next 30 Days</option>
+          <option value="past_month">Past 30 Days</option>
+        </select>
+      </label>
+      <label class="select-filter">
+        <span>Sort By</span>
+        <select v-model="sortOption" @change="applyFilters">
+          <option value="soonest">Date (Soonest)</option>
+          <option value="latest">Date (Latest)</option>
+          <option value="recently_added">Recently Added</option>
+          <option value="featured">Featured</option>
+          <option value="top_picks">Top Picks</option>
+        </select>
+      </label>
       <label class="featured-filter">
         <input v-model="featuredOnly" type="checkbox" @change="applyFilters" />
         Featured only
       </label>
+      <button type="submit" class="button">Search</button>
     </form>
 
     <div class="status-tabs" aria-label="Catalog status filter">
@@ -542,9 +610,6 @@ onMounted(async () => {
               year: 'numeric',
             })
           }}</span>
-        </div>
-        <div v-if="concert.posterUrl" class="concert-row__thumbnail">
-          <img :src="concert.posterUrl" alt="Artwork thumbnail" class="row-thumb-img" />
         </div>
         <div class="concert-row__main">
           <div class="concert-row__title-line">
@@ -595,35 +660,27 @@ onMounted(async () => {
             Edit
           </button>
           <button
-            v-if="concert.catalogStatus === 'active' || !concert.catalogStatus"
             type="button"
             class="button button--secondary"
             :disabled="savingId === concert.id"
-            @click="setStatus(concert, 'hidden')"
-          >
-            Hide
-          </button>
-          <button
-            v-else
-            type="button"
-            class="button button--secondary"
-            :disabled="savingId === concert.id"
-            @click="setStatus(concert, 'active')"
-          >
-            Restore
-          </button>
-          <button
-            type="button"
-            class="button button--secondary"
-            :disabled="
-              savingId === concert.id || concert.catalogStatus !== 'active'
+            @click="
+              setStatus(
+                concert,
+                concert.catalogStatus === 'hidden' ? 'active' : 'hidden',
+              )
             "
+          >
+            {{ concert.catalogStatus === 'hidden' ? 'Restore' : 'Hide' }}
+          </button>
+          <button
+            type="button"
+            class="button button--secondary"
+            :disabled="savingId === concert.id"
             @click="toggleFeatured(concert)"
           >
             {{ concert.isFeatured ? 'Unfeature' : 'Feature' }}
           </button>
           <button
-            v-if="concert.catalogStatus !== 'archived'"
             type="button"
             class="button button--danger"
             :disabled="savingId === concert.id"
@@ -659,26 +716,26 @@ onMounted(async () => {
       </button>
     </nav>
 
-    <!-- Create Concert Modal -->
+    <!-- Add Concert Modal -->
     <div v-if="isCreating" class="dialog-backdrop" @click.self="closeCreateModal">
       <form
         class="editor"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="concert-create-title"
+        aria-labelledby="create-dialog-title"
         @submit.prevent="saveCreateConcert"
         @keydown="handleCreateDialogKeydown"
       >
         <header>
           <div>
-            <p class="catalog-admin__eyebrow">Catalog creation</p>
-            <h3 id="concert-create-title">Add new concert</h3>
+            <p class="catalog-admin__eyebrow">Manual curation</p>
+            <h3 id="create-dialog-title">Add new concert</h3>
           </div>
           <button
             ref="closeCreateButton"
             type="button"
             class="close-button"
-            aria-label="Close dialog"
+            aria-label="Close create dialog"
             @click="closeCreateModal"
           >
             &times;
@@ -686,8 +743,12 @@ onMounted(async () => {
         </header>
         <div class="editor__grid">
           <label class="field field--wide">
-            <span>Title *</span>
-            <input v-model="createForm.title" placeholder="e.g. Dr. Bacon & Friends" required />
+            <span>Concert Title *</span>
+            <input
+              v-model="createForm.title"
+              placeholder="e.g. Dr. Bacon & Friends"
+              required
+            />
           </label>
           <GenreCombobox
             v-model="createForm.genre"
@@ -714,6 +775,10 @@ onMounted(async () => {
           </label>
           <div class="field field--wide poster-field">
             <span>Poster / Flyer Image (Optional)</span>
+            <div v-if="createPosterPreviewUrl" class="poster-preview">
+              <img :src="createPosterPreviewUrl" alt="Concert poster preview" class="poster-thumbnail" />
+              <p class="poster-hint">Selected artwork for this new concert.</p>
+            </div>
             <input type="file" accept="image/*" @change="handleCreatePosterSelect" />
             <p v-if="createPosterFile" class="file-selected-name">Selected: {{ createPosterFile.name }}</p>
           </div>
@@ -795,9 +860,11 @@ onMounted(async () => {
           /></label>
           <div class="field field--wide poster-field">
             <span>Poster / Flyer Image</span>
-            <div v-if="editing.posterUrl" class="poster-preview">
-              <img :src="editing.posterUrl" alt="Concert poster preview" class="poster-thumbnail" />
-              <p class="poster-hint">Current artwork. Choose a file below to replace.</p>
+            <div v-if="editPosterPreviewUrl" class="poster-preview">
+              <img :src="editPosterPreviewUrl" alt="Concert poster preview" class="poster-thumbnail" />
+              <p class="poster-hint">
+                {{ editPosterFile ? 'New image selected for upload.' : 'Current artwork. Choose a file below to replace.' }}
+              </p>
             </div>
             <input type="file" accept="image/*" @change="handleEditPosterSelect" />
             <p v-if="editPosterFile" class="file-selected-name">Selected: {{ editPosterFile.name }}</p>
@@ -905,15 +972,24 @@ onMounted(async () => {
   text-transform: uppercase;
 }
 .catalog-admin__toolbar {
-  justify-content: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
   padding: 1rem 0;
   border-top: 1px solid var(--border);
 }
 .search-field {
   flex: 1;
-  max-width: 34rem;
+  min-width: 14rem;
+  max-width: 24rem;
+}
+.select-filter {
+  display: block;
+  min-width: 9rem;
 }
 .search-field span,
+.select-filter span,
 .field span,
 .genre-combobox :deep(.genre-combobox__label) {
   display: block;
@@ -938,6 +1014,7 @@ textarea {
   align-items: center;
   gap: 0.5rem;
   white-space: nowrap;
+  padding-bottom: 0.5rem;
 }
 .featured-filter input {
   width: 1rem;
@@ -998,7 +1075,7 @@ textarea {
   font-size: 0.85rem;
 }
 .concert-row {
-  align-items: flex-start;
+  align-items: center;
   padding: 1rem 0;
   border-bottom: 1px solid var(--border);
 }
@@ -1064,20 +1141,6 @@ textarea {
   color: #4f46e5;
   background: rgba(99, 102, 241, 0.08);
 }
-.concert-row__thumbnail {
-  flex: 0 0 44px;
-  width: 44px;
-  height: 58px;
-  overflow: hidden;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-}
-.row-thumb-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
 .catalog-admin__header-actions {
   display: flex;
   gap: 0.5rem;
@@ -1111,10 +1174,18 @@ textarea {
 }
 .concert-row__actions {
   display: flex;
-  flex: 0 0 22rem;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
   justify-content: flex-end;
-  gap: 0.4rem;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+.concert-row__actions .button {
+  white-space: nowrap;
+  padding: 0.35rem 0.65rem;
+  min-height: 2.15rem;
+  font-size: 0.8rem;
 }
 .button {
   min-height: 2.35rem;
@@ -1234,11 +1305,20 @@ textarea {
     flex-direction: column;
   }
   .catalog-admin__toolbar .button {
-    align-self: flex-start;
+    width: 100%;
+  }
+  .search-field,
+  .select-filter {
+    min-width: 100%;
+    max-width: 100%;
+  }
+  .featured-filter {
+    padding-bottom: 0;
   }
   .concert-row__date {
     width: auto;
     text-align: left;
+    margin-bottom: 0.25rem;
   }
   .concert-row__date strong,
   .concert-row__date span {
@@ -1246,8 +1326,15 @@ textarea {
     margin-right: 0.25rem;
   }
   .concert-row__actions {
-    flex-basis: auto;
+    flex-wrap: wrap;
     justify-content: flex-start;
+    margin-top: 0.75rem;
+    gap: 0.5rem;
+  }
+  .concert-row__actions .button {
+    flex: 1 1 calc(50% - 0.5rem);
+    min-width: 7.5rem;
+    text-align: center;
   }
   .catalog-pagination {
     justify-content: space-between;

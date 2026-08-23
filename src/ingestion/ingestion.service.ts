@@ -513,7 +513,7 @@ export class IngestionService {
     const description =
       dto.concertDescription?.trim() ||
       dto.notes?.trim() ||
-      `Approved flyer upload: ${upload.originalFilename}`;
+      null;
 
     if (existingConcert) {
       const updateResult = await concertRepository

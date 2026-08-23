@@ -254,6 +254,10 @@ export class ConcertService {
         .addOrderBy('concert.topPickScore', 'DESC', 'NULLS LAST')
         .addOrderBy('concert.startsAt', 'ASC')
         .addOrderBy('concert.id', 'ASC');
+    } else if (query.sort === 'latest') {
+      qb.orderBy('concert.startsAt', 'DESC').addOrderBy('concert.id', 'DESC');
+    } else if (query.sort === 'recently_added') {
+      qb.orderBy('concert.createdAt', 'DESC').addOrderBy('concert.id', 'DESC');
     } else {
       qb.orderBy('concert.startsAt', 'ASC').addOrderBy('concert.id', 'ASC');
     }

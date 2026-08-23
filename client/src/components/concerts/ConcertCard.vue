@@ -29,9 +29,6 @@
           {{ tag }}
         </span>
       </div>
-      <p v-if="concert.description" class="concert-card__description">
-        {{ concert.description }}
-      </p>
 
       <div class="concert-card__actions">
         <button
@@ -176,8 +173,7 @@ const formattedStartTime = computed(() =>
 .concert-card__event,
 .concert-card__venue,
 .concert-card__location,
-.concert-card__time,
-.concert-card__description {
+.concert-card__time {
   margin: 0;
 }
 
@@ -208,7 +204,7 @@ const formattedStartTime = computed(() =>
 }
 
 .concert-card__time {
-  color: var(--accent);
+  color: #34d399;
   font-size: 0.82rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -219,8 +215,7 @@ const formattedStartTime = computed(() =>
   font-weight: 600;
 }
 
-.concert-card__location,
-.concert-card__description {
+.concert-card__location {
   color: var(--text-light);
 }
 

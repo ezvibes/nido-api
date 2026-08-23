@@ -54,11 +54,39 @@ describe('AdminConcertsPage', () => {
       q: undefined,
       catalogStatus: 'active',
       isFeatured: undefined,
+      startsAfter: undefined,
+      startsBefore: undefined,
+      sort: 'soonest',
       page: 1,
       pageSize: 25,
     });
     expect(wrapper.text()).toContain('Summer Jam');
     expect(wrapper.text()).toContain('1 concert');
+  });
+
+  it('filters by date window and sort order', async () => {
+    const wrapper = mount(AdminConcertsPage);
+    await flushPromises();
+
+    const selects = wrapper.findAll('.select-filter select');
+    const dateSelect = selects[0]!;
+    const sortSelect = selects[1]!;
+
+    await dateSelect.setValue('week');
+    await sortSelect.setValue('latest');
+    await flushPromises();
+
+    expect(api.fetchAdminConcerts).toHaveBeenLastCalledWith(
+      'firebase-token',
+      expect.objectContaining({
+        catalogStatus: 'active',
+        sort: 'latest',
+        startsAfter: expect.any(String),
+        startsBefore: expect.any(String),
+        page: 1,
+        pageSize: 25,
+      }),
+    );
   });
 
   it('paginates through the complete admin catalog', async () => {
@@ -87,6 +115,9 @@ describe('AdminConcertsPage', () => {
       q: undefined,
       catalogStatus: 'active',
       isFeatured: undefined,
+      startsAfter: undefined,
+      startsBefore: undefined,
+      sort: 'soonest',
       page: 2,
       pageSize: 25,
     });
@@ -325,6 +356,35 @@ describe('AdminConcertsPage', () => {
 
     expect(wrapper.find('.editor').exists()).toBe(false);
     expect(document.activeElement).toBe(editButton!.element);
+  });
+
+  it('displays the resolved poster preview in the edit modal', async () => {
+    api.fetchAdminConcerts.mockResolvedValueOnce({
+      data: [
+        buildConcert({
+          posterUrl: '/ingestion/uploads/sample-123/image',
+        }),
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 25,
+    });
+
+    const wrapper = mount(AdminConcertsPage);
+    await flushPromises();
+
+    // Table row should not have broken thumbnail
+    expect(wrapper.find('.concert-row__thumbnail').exists()).toBe(false);
+
+    const editButton = wrapper
+      .findAll('.concert-row__actions button')
+      .find((b) => b.text() === 'Edit');
+    await editButton!.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.poster-preview').exists()).toBe(true);
+    const img = wrapper.get('.poster-thumbnail');
+    expect(img.attributes('src')).toContain('/ingestion/uploads/sample-123/image');
   });
 });
 

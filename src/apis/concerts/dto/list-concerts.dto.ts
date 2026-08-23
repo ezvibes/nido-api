@@ -12,6 +12,8 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export const concertSortOptions = [
   'soonest',
+  'latest',
+  'recently_added',
   'featured',
   'top_picks',
   'trending_week',

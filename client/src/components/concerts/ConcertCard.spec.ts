@@ -61,6 +61,19 @@ describe('ConcertCard', () => {
       'Downtown Summer Jam',
     );
   });
+
+  it('omits description from the concert card view', () => {
+    const wrapper = mount(ConcertCard, {
+      props: {
+        concert: buildConcert({
+          description: 'Special outdoor headline performance with full laser production.',
+        }),
+      },
+    });
+
+    expect(wrapper.find('.concert-card__description').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('Special outdoor headline performance');
+  });
 });
 
 function buildConcert(
