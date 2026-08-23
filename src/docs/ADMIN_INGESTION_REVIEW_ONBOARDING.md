@@ -99,32 +99,47 @@ That endpoint sets whether an existing concert is eligible for Top Picks scoring
 
 ## Required Configuration
 
-Backend `.env`:
+Backend `.env` starts from the minimal local template:
+
+```bash
+cp .env.example .env
+```
+
+For admin review without real cloud integrations, keep the local values small:
 
 ```env
+PORT=3001
+NODE_ENV=development
+CORS_ORIGINS=http://localhost:5173
 DB_HOST=localhost
 DB_PORT=5432
 DB_USER=user
 DB_PASSWORD=password
 DB_NAME=nido
 DB_SYNCHRONIZE=true
-
-FIREBASE_PROJECT_ID=
-FIREBASE_CLIENT_EMAIL=
-FIREBASE_PRIVATE_KEY=
-
-GCS_INGESTION_BUCKET=
+AUTH_DEV_BYPASS=true
 ADMIN_EMAILS=admin@example.com
+CONCERT_GENRE_OPTIONS=Jazz,Bluegrass,Funk,Jam,Reggae,Hip-Hop,Rock,Folk,Salsa,Electronic
+CONCERT_SYNC_MAX_EVENTS_PER_JOB=25
 ```
 
-GCS credentials can be provided with one of these options:
+Only copy optional integration keys from `.env.integrations.example` when testing
+real Firebase Admin verification, GCS image uploads, Gemini, or Google Calendar
+sync.
+
+GCS credentials can be provided with one of these options when testing real image
+uploads:
 
 - `GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json`
 - `GCP_SERVICE_ACCOUNT_PATH=/path/to/service-account.json`
 - `GCP_SERVICE_ACCOUNT_JSON='{"project_id":"...","client_email":"...","private_key":"..."}'`
 - `GCP_PROJECT_ID`, `GCP_CLIENT_EMAIL`, and `GCP_PRIVATE_KEY`
 
-Frontend `client/.env`:
+Frontend `client/.env` starts from the browser-safe template:
+
+```bash
+cp client/.env.example client/.env
+```
 
 ```env
 VITE_API_BASE_URL=http://localhost:3001
