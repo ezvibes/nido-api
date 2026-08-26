@@ -22,17 +22,25 @@ export class NewsletterService {
 
   /**
    * Main entry point to generate the weekly top picks newsletter.
+  /**
+   * Main entry point to generate the weekly or monthly top picks newsletter.
    */
   async generateNewsletter(params: {
     startDate: string;
     endDate: string;
+    editionType?: 'weekly' | 'monthly' | 'custom';
     dateRangeLabel?: string;
     weekendRecap?: string;
     featuredShow?: string;
     featuredFestival?: string;
     rawCalendarData?: string;
     useDatabase?: boolean;
-  }): Promise<{ newsletterDraft: string; concertsCount: number; concerts: any[] }> {
+    cities?: string[];
+    genres?: string[];
+    venues?: string[];
+    region?: string;
+    strictFiltering?: boolean;
+  }): Promise<{ newsletterDraft: string; concertsCount: number }> {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY')?.trim();
     if (!apiKey) {
       throw new InternalServerErrorException('GEMINI_API_KEY is not configured in the application environment.');
@@ -43,10 +51,16 @@ export class NewsletterService {
     // 1. Resolve date range label
     const dateRangeLabel = params.dateRangeLabel || this.formatDateRange(params.startDate, params.endDate);
 
-    // 2. Fetch and filter database concerts (NC events)
+    // 2. Fetch and filter database concerts
     let concerts: any[] = [];
     if (params.useDatabase !== false) {
-      concerts = await this.fetchNCConcerts(params.startDate, params.endDate);
+      concerts = await this.fetchNCConcerts(params.startDate, params.endDate, {
+        cities: params.cities,
+        genres: params.genres,
+        venues: params.venues,
+        region: params.region,
+        strictFiltering: params.strictFiltering,
+      });
     }
 
     // 3. Fetch and parse raw calendar data (feed or text)
@@ -68,6 +82,7 @@ export class NewsletterService {
     // 5. Build full prompt
     const prompt = await this.buildPrompt({
       dateRange: dateRangeLabel,
+      editionType: params.editionType || 'weekly',
       recapNotes: params.weekendRecap,
       featuredShow: params.featuredShow,
       featuredFestival: params.featuredFestival,
@@ -93,7 +108,6 @@ export class NewsletterService {
       return {
         newsletterDraft: text,
         concertsCount: combinedConcerts.length,
-        concerts: combinedConcerts,
       };
     } catch (err) {
       this.logger.error(`Gemini API generation failed: ${err.message}`, err.stack);
@@ -106,6 +120,7 @@ export class NewsletterService {
    */
   async buildPrompt(params: {
     dateRange: string;
+    editionType?: 'weekly' | 'monthly' | 'custom';
     recapNotes?: string;
     featuredShow?: string;
     featuredFestival?: string;
@@ -121,6 +136,17 @@ export class NewsletterService {
     }
 
     let prompt = template;
+
+    // Handle edition type title adjustment
+    const editionType = params.editionType || 'weekly';
+    if (editionType === 'monthly') {
+      prompt = prompt.replace('draft the weekly "Top Picks" newsletter', 'draft the monthly "Top Picks" newsletter');
+      prompt = prompt.replace('# EZ Vibes Weekly Top Picks:', '# EZ Vibes Monthly Top Picks:');
+    } else if (editionType === 'custom') {
+      prompt = prompt.replace('# EZ Vibes Weekly Top Picks:', '# EZ Vibes Top Picks:');
+    }
+
+    prompt = prompt.replaceAll('[Date Range]', params.dateRange);
     prompt = prompt.replace('[e.g., Tuesday, Aug 11 - Sunday, Aug 16, 2026]', params.dateRange);
 
     // Replace the specific [Provided by Evan] instances
@@ -134,13 +160,25 @@ export class NewsletterService {
   }
 
   /**
-   * Fetches active, approved concerts in North Carolina from the database.
+   * Fetches active, approved concerts from the database.
+   * By default (strictFiltering: false), fetches all active approved concerts within the date range.
+   * Optional filters (cities, genres, venues, region) can be passed to narrow the scope.
    */
-  private async fetchNCConcerts(startDateStr: string, endDateStr: string): Promise<any[]> {
+  private async fetchNCConcerts(
+    startDateStr: string,
+    endDateStr: string,
+    options?: {
+      cities?: string[];
+      genres?: string[];
+      venues?: string[];
+      region?: string;
+      strictFiltering?: boolean;
+    },
+  ): Promise<any[]> {
     const start = new Date(startDateStr);
     const end = new Date(endDateStr);
 
-    this.logger.log(`Fetching NC concerts from DB between ${start.toISOString()} and ${end.toISOString()}...`);
+    this.logger.log(`Fetching active approved concerts from DB between ${start.toISOString()} and ${end.toISOString()}...`);
 
     const dbConcerts = await this.concertRepository.find({
       where: {
@@ -156,28 +194,64 @@ export class NewsletterService {
 
     const targetGenres = ['bluegrass', 'funk', 'rock', 'jam', 'alt-country', 'roots', 'soul', 'regae', 'reggae'];
     const targetCities = ['raleigh', 'durham', 'chapel hill', 'wilmington', 'asheville', 'charlotte', 'boone'];
-    const partnerArtists = [
+    const highlightArtists = [
       'dr bacon', 'dr. bacon', 'big fur', 'larry keel', 'sam fribush', 'treehouse', 'treehouse!',
       'julia', 'africa unplugged', 'nth power', 'the nth power', 'chill paxton', 'toubab krewe',
       'tand', 'badfish', 'sons of paradise', 'eggy', 'daniel donato', 'dogs in a pile', 'billy strings'
     ];
 
     const filtered = dbConcerts.filter(concert => {
-      // 1. Filter region (North Carolina)
-      const region = (concert.venue?.region || '').toLowerCase().trim();
-      const isNC = region === 'nc' || region === 'north carolina';
-      if (!isNC) return false;
+      // 0. Exclude placeholder/dev-seed dummy titles
+      const titleLower = concert.title.toLowerCase().trim();
+      if (titleLower === 'unknown concert' || titleLower === 'untitled event' || titleLower === 'untitled concert') {
+        return false;
+      }
 
-      // 2. Filter city
-      const city = (concert.venue?.city || '').toLowerCase().trim();
-      const matchesCity = targetCities.some(c => city.includes(c));
-      if (!matchesCity) return false;
+      // 1. Strict filtering mode (legacy behavior)
+      if (options?.strictFiltering) {
+        const region = (concert.venue?.region || '').toLowerCase().trim();
+        const isNC = region === 'nc' || region === 'north carolina';
+        if (!isNC) return false;
 
-      // 3. Filter genre
-      const genre = (concert.genre || '').toLowerCase().trim();
-      const matchesGenre = targetGenres.some(g => genre.includes(g));
+        const city = (concert.venue?.city || '').toLowerCase().trim();
+        const matchesCity = targetCities.some(c => city.includes(c));
+        if (!matchesCity) return false;
 
-      return matchesGenre;
+        const genre = (concert.genre || '').toLowerCase().trim();
+        const matchesGenre = targetGenres.some(g => genre.includes(g));
+
+        return matchesGenre;
+      }
+
+      // 2. Custom filter criteria (when specified)
+      if (options?.region) {
+        const concertRegion = (concert.venue?.region || '').toLowerCase().trim();
+        const targetRegion = options.region.toLowerCase().trim();
+        if (concertRegion !== targetRegion && !(targetRegion === 'nc' && concertRegion === 'north carolina')) {
+          return false;
+        }
+      }
+
+      if (options?.cities && options.cities.length > 0) {
+        const concertCity = (concert.venue?.city || '').toLowerCase().trim();
+        const matchesCity = options.cities.some(c => concertCity.includes(c.toLowerCase().trim()));
+        if (!matchesCity) return false;
+      }
+
+      if (options?.genres && options.genres.length > 0) {
+        const concertGenre = (concert.genre || '').toLowerCase().trim();
+        const matchesGenre = options.genres.some(g => concertGenre.includes(g.toLowerCase().trim()));
+        if (!matchesGenre) return false;
+      }
+
+      if (options?.venues && options.venues.length > 0) {
+        const concertVenue = (concert.venue?.name || '').toLowerCase().trim();
+        const matchesVenue = options.venues.some(v => concertVenue.includes(v.toLowerCase().trim()));
+        if (!matchesVenue) return false;
+      }
+
+      // 3. Default: include all active, admin-approved DB concerts in range
+      return true;
     });
 
     return filtered.map(concert => {
@@ -190,9 +264,9 @@ export class NewsletterService {
       });
 
       const lineupBands = concert.lineup?.map(l => l.band?.name).filter(Boolean) || [];
-      const hasPartnerArtist = lineupBands.some(bName =>
-        partnerArtists.some(pa => bName.toLowerCase().includes(pa))
-      ) || partnerArtists.some(pa => concert.title.toLowerCase().includes(pa));
+      const hasHighlightArtist = lineupBands.some(bName =>
+        highlightArtists.some(pa => bName.toLowerCase().includes(pa))
+      ) || highlightArtists.some(pa => concert.title.toLowerCase().includes(pa));
 
       return {
         title: concert.title,
@@ -203,7 +277,8 @@ export class NewsletterService {
         description: concert.description || '',
         isTopPick: concert.isTopPick,
         topPickScore: concert.topPickScore || 0,
-        isPartnerArtist: hasPartnerArtist,
+        isHighlightArtist: hasHighlightArtist,
+        isPartnerArtist: hasHighlightArtist,
         source: 'Nido Concert Database',
       };
     });
@@ -221,13 +296,21 @@ export class NewsletterService {
       try {
         const response = await fetch(content, {
           method: 'GET',
-          headers: { Accept: 'text/calendar,text/plain,*/*' },
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': 'text/calendar,text/plain,application/ics,*/*',
+          },
         });
         if (!response.ok) {
           this.logger.warn(`Failed to fetch URL feed (${response.status}): ${content}`);
           return [];
         }
         content = (await response.text()).trim();
+
+        if (content.toLowerCase().includes('safeguarding your website') || content.toLowerCase().startsWith('<!doctype html')) {
+          this.logger.warn(`URL feed ${content} returned an HTML bot challenge instead of raw iCal content. Paste the raw ICS content into rawCalendarData or run sync.`);
+          return [];
+        }
       } catch (err) {
         this.logger.warn(`Error fetching URL feed ${content}: ${err.message}`);
         return [];
@@ -242,45 +325,37 @@ export class NewsletterService {
           this.isWithinRange(event, timeMin, timeMax)
         );
 
-        const targetGenres = ['bluegrass', 'funk', 'rock', 'jam', 'alt-country', 'roots', 'soul', 'regae', 'reggae'];
-        const targetCities = ['raleigh', 'durham', 'chapel hill', 'wilmington', 'asheville', 'charlotte', 'boone'];
-        const partnerArtists = [
+        const highlightArtists = [
           'dr bacon', 'dr. bacon', 'big fur', 'larry keel', 'sam fribush', 'treehouse', 'treehouse!',
           'julia', 'africa unplugged', 'nth power', 'the nth power', 'chill paxton', 'toubab krewe',
           'tand', 'badfish', 'sons of paradise', 'eggy', 'daniel donato', 'dogs in a pile', 'billy strings'
         ];
 
-        return events
-          .filter(event => {
-            const txt = `${event.summary || ''} ${event.description || ''} ${event.location || ''}`.toLowerCase();
-            const matchesCity = targetCities.some(c => txt.includes(c));
-            const matchesGenre = targetGenres.some(g => txt.includes(g));
-            return matchesCity && matchesGenre;
-          })
-          .map(event => {
-            const startVal = event.start?.dateTime || event.start?.date || '';
-            const dateStr = startVal
-              ? new Date(startVal).toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                  timeZone: 'America/New_York',
-                })
-              : 'Unknown Date';
+        return events.map(event => {
+          const startVal = event.start?.dateTime || event.start?.date || '';
+          const dateStr = startVal
+            ? new Date(startVal).toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                timeZone: 'America/New_York',
+              })
+            : 'Unknown Date';
 
-            const summary = event.summary || 'Untitled show';
-            const isPartner = partnerArtists.some(pa => summary.toLowerCase().includes(pa));
+          const summary = event.summary || 'Untitled show';
+          const isHighlight = highlightArtists.some(pa => summary.toLowerCase().includes(pa));
 
-            return {
-              title: summary,
-              date: dateStr,
-              venue: event.location || 'Unknown Venue',
-              description: event.description || '',
-              isPartnerArtist: isPartner,
-              source: 'Calendar Feed (ICS)',
-            };
-          });
+          return {
+            title: summary,
+            date: dateStr,
+            venue: event.location || 'Unknown Venue',
+            description: event.description || '',
+            isHighlightArtist: isHighlight,
+            isPartnerArtist: isHighlight,
+            source: 'Calendar Feed (ICS)',
+          };
+        });
       } catch (err) {
         this.logger.warn(`Failed to parse iCal contents: ${err.message}`);
       }

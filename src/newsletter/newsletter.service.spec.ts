@@ -60,9 +60,10 @@ describe('NewsletterService', () => {
   });
 
   describe('buildPrompt', () => {
-    it('should substitute placeholders in prompt template', async () => {
+    it('should substitute placeholders in prompt template for weekly edition', async () => {
       const prompt = await service.buildPrompt({
         dateRange: 'Tuesday, Aug 11 - Sunday, Aug 16, 2026',
+        editionType: 'weekly',
         recapNotes: 'Evan played a gig.',
         featuredShow: 'Dr. Bacon at Pour House',
         featuredFestival: 'Grassroots Festival',
@@ -74,46 +75,57 @@ describe('NewsletterService', () => {
       expect(prompt).toContain('Dr. Bacon at Pour House');
       expect(prompt).toContain('Grassroots Festival');
     });
+
+    it('should format title header for monthly edition', async () => {
+      const prompt = await service.buildPrompt({
+        dateRange: 'September 2026',
+        editionType: 'monthly',
+        recapNotes: 'Fall lineup preview.',
+        rawCalendarData: '[]',
+      });
+
+      expect(prompt).toContain('# EZ Vibes Monthly Top Picks: September 2026');
+    });
   });
 
   describe('fetchNCConcerts and generateNewsletter', () => {
-    it('should retrieve database concerts and filter by genre and NC locations', async () => {
-      const mockConcerts = [
-        {
-          title: 'Dr. Bacon Live',
-          startsAt: new Date('2026-08-12T20:00:00Z'),
-          genre: 'Funk-Rock',
-          catalogStatus: ConcertCatalogStatus.ACTIVE,
-          isAdminApproved: true,
-          isTopPick: true,
-          topPickScore: 0.9,
-          venue: {
-            name: 'The Pour House Music Hall',
-            city: 'Raleigh',
-            region: 'NC',
-          },
-          lineup: [
-            {
-              band: {
-                name: 'Dr. Bacon',
-              },
+    const mockConcerts = [
+      {
+        title: 'Dr. Bacon Live',
+        startsAt: new Date('2026-08-12T20:00:00Z'),
+        genre: 'Funk-Rock',
+        catalogStatus: ConcertCatalogStatus.ACTIVE,
+        isAdminApproved: true,
+        isTopPick: true,
+        topPickScore: 0.9,
+        venue: {
+          name: 'The Pour House Music Hall',
+          city: 'Raleigh',
+          region: 'NC',
+        },
+        lineup: [
+          {
+            band: {
+              name: 'Dr. Bacon',
             },
-          ],
-        },
-        {
-          title: 'Unrelated NYC Concert',
-          startsAt: new Date('2026-08-13T20:00:00Z'),
-          genre: 'Electronic',
-          catalogStatus: ConcertCatalogStatus.ACTIVE,
-          isAdminApproved: true,
-          venue: {
-            name: 'Brooklyn Bowl',
-            city: 'Brooklyn',
-            region: 'NY',
           },
+        ],
+      },
+      {
+        title: 'Pop Indie Show',
+        startsAt: new Date('2026-08-13T20:00:00Z'),
+        genre: 'Indie Pop',
+        catalogStatus: ConcertCatalogStatus.ACTIVE,
+        isAdminApproved: true,
+        venue: {
+          name: 'Cat\'s Cradle',
+          city: 'Carrboro',
+          region: 'NC',
         },
-      ];
+      },
+    ];
 
+    it('should include all active approved database concerts by default', async () => {
       mockConcertRepository.find.mockResolvedValue(mockConcerts);
 
       mockGenerateContent.mockResolvedValue({
@@ -129,20 +141,54 @@ describe('NewsletterService', () => {
         useDatabase: true,
       });
 
-      // Raleigh NC concert matches NC check, NYC concert is filtered out
+      // By default (strictFiltering = false), both active approved DB concerts are included
       expect(mockConcertRepository.find).toHaveBeenCalled();
-      expect(response.concertsCount).toBe(1);
-      expect(response.concerts[0].title).toBe('Dr. Bacon Live');
-      expect(response.concerts[0].isPartnerArtist).toBe(true);
+      expect(response.concertsCount).toBe(2);
       expect(response.newsletterDraft).toBe('Mocked generated newsletter Markdown content from Gemini');
-      expect(mockGetGenerativeModel).toHaveBeenCalledWith({
-        model: 'gemini-3.6-flash',
+    });
+
+    it('should filter by specific city when cities filter is provided', async () => {
+      mockConcertRepository.find.mockResolvedValue(mockConcerts);
+
+      mockGenerateContent.mockResolvedValue({
+        response: {
+          text: () => 'Filtered city newsletter draft',
+        },
       });
+
+      const response = await service.generateNewsletter({
+        startDate: '2026-08-11T00:00:00Z',
+        endDate: '2026-08-16T23:59:59Z',
+        cities: ['Raleigh'],
+        useDatabase: true,
+      });
+
+      expect(response.concertsCount).toBe(1);
+    });
+
+    it('should enforce legacy strict city and genre rules when strictFiltering is true', async () => {
+      mockConcertRepository.find.mockResolvedValue(mockConcerts);
+
+      mockGenerateContent.mockResolvedValue({
+        response: {
+          text: () => 'Strict filtered newsletter draft',
+        },
+      });
+
+      const response = await service.generateNewsletter({
+        startDate: '2026-08-11T00:00:00Z',
+        endDate: '2026-08-16T23:59:59Z',
+        strictFiltering: true,
+        useDatabase: true,
+      });
+
+      // Raleigh NC Funk-Rock matches; Carrboro NC Indie Pop is filtered out by strict rules
+      expect(response.concertsCount).toBe(1);
     });
   });
 
   describe('parseCalendarData', () => {
-    it('should parse raw ICS calendar events and filter by target city/genre', async () => {
+    it('should parse raw ICS calendar events and include all events within the date range', async () => {
       const icsData = `BEGIN:VCALENDAR
 VERSION:2.0
 BEGIN:VEVENT
@@ -156,7 +202,7 @@ END:VEVENT
 BEGIN:VEVENT
 UID:event-2
 SUMMARY:Some Other Show
-DESCRIPTION:Alt country show in Georgia
+DESCRIPTION:Custom curated show
 LOCATION:Eddie's Attic, Decatur, GA
 DTSTART:20260814T200000Z
 DTEND:20260814T230000Z
@@ -176,11 +222,8 @@ END:VCALENDAR`;
         useDatabase: false,
       });
 
-      // event-1 matches Raleigh NC and target genres (Jam/Funk/Rock). event-2 (GA) is filtered out.
-      expect(response.concertsCount).toBe(1);
-      expect(response.concerts[0].title).toBe('Dr. Bacon Show');
-      expect(response.concerts[0].venue).toBe('The Pour House, Raleigh, NC');
-      expect(response.concerts[0].isPartnerArtist).toBe(true);
+      // Both in-range ICS events (event-1 and event-2) are included without getting dropped by hardcoded filters
+      expect(response.concertsCount).toBe(2);
     });
   });
 });
