@@ -21,9 +21,7 @@ export class NewsletterService {
   ) {}
 
   /**
-   * Main entry point to generate the weekly top picks newsletter.
-  /**
-   * Main entry point to generate the weekly or monthly top picks newsletter.
+   * Main entry point to generate the weekly, monthly, or custom top picks newsletter.
    */
   async generateNewsletter(params: {
     startDate: string;

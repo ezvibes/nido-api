@@ -125,4 +125,3 @@ export class GenerateNewsletterDto {
   @IsBoolean()
   strictFiltering?: boolean = false;
 }
-
