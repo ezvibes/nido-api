@@ -10,9 +10,4 @@ export class GenerateNewsletterResponseDto {
     description: 'The number of concerts evaluated/included in the prompt',
   })
   concertsCount: number;
-
-  @ApiProperty({
-    description: 'The list of parsed and filtered concerts used in the generation',
-  })
-  concerts: any[];
 }
