@@ -1,13 +1,21 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { useAuth } from '../composables/useAuth';
-import { generateNewsletter, type GenerateNewsletterResponse } from '../composables/useApi';
+import {
+  generateNewsletter,
+  previewNewsletterSources,
+  type GenerateNewsletterPayload,
+  type GenerateNewsletterResponse,
+  type NewsletterSourcePreviewResponse,
+} from '../composables/useApi';
 
 const { user } = useAuth();
 const loading = ref(false);
+const previewLoading = ref(false);
 const error = ref('');
 const success = ref('');
 const result = ref<GenerateNewsletterResponse | null>(null);
+const sourcePreview = ref<NewsletterSourcePreviewResponse | null>(null);
 
 // Form Inputs
 const form = reactive({
@@ -48,6 +56,51 @@ async function token() {
   return user.value.getIdToken();
 }
 
+function buildPayload(): GenerateNewsletterPayload {
+  const startIso = new Date(form.startDate + 'T00:00:00.000Z').toISOString();
+  const endIso = new Date(form.endDate + 'T23:59:59.999Z').toISOString();
+
+  return {
+    startDate: startIso,
+    endDate: endIso,
+    dateRangeLabel: form.dateRangeLabel || undefined,
+    weekendRecap: form.weekendRecap || undefined,
+    featuredShow: form.featuredShow || undefined,
+    featuredFestival: form.featuredFestival || undefined,
+    rawCalendarData: form.augmentCalendar && form.rawCalendarData
+      ? form.rawCalendarData
+      : undefined,
+    useDatabase: form.useDatabase,
+  };
+}
+
+function sourceItemLabel(count: number) {
+  return `source item${count === 1 ? '' : 's'} ready for generation`;
+}
+
+async function handlePreviewSources() {
+  previewLoading.value = true;
+  error.value = '';
+  success.value = '';
+
+  try {
+    const authToken = await token();
+    result.value = null;
+    sourcePreview.value = await previewNewsletterSources(authToken, buildPayload());
+    success.value = sourcePreview.value.totalCount
+      ? `Preview loaded with ${sourcePreview.value.totalCount} source item${sourcePreview.value.totalCount === 1 ? '' : 's'}.`
+      : 'Preview loaded. No source concerts match these parameters.';
+  } catch (err: any) {
+    console.error(err);
+    const responseErr = err.response?.data?.message;
+    error.value = Array.isArray(responseErr)
+      ? responseErr.join(' ')
+      : (responseErr || err.message || 'Unable to preview source concerts.');
+  } finally {
+    previewLoading.value = false;
+  }
+}
+
 async function handleGenerate() {
   loading.value = true;
   error.value = '';
@@ -55,22 +108,8 @@ async function handleGenerate() {
 
   try {
     const authToken = await token();
-
-    // Construct ISO range strings
-    const startIso = new Date(form.startDate + 'T00:00:00.000Z').toISOString();
-    const endIso = new Date(form.endDate + 'T23:59:59.999Z').toISOString();
-
-    const payload = {
-      startDate: startIso,
-      endDate: endIso,
-      dateRangeLabel: form.dateRangeLabel || undefined,
-      weekendRecap: form.weekendRecap || undefined,
-      featuredShow: form.featuredShow || undefined,
-      featuredFestival: form.featuredFestival || undefined,
-      rawCalendarData: (form.augmentCalendar && form.rawCalendarData) ? form.rawCalendarData : undefined,
-      useDatabase: form.useDatabase,
-    };
-
+    const payload = buildPayload();
+    sourcePreview.value = await previewNewsletterSources(authToken, payload);
     const response = await generateNewsletter(authToken, payload);
     result.value = response;
     success.value = 'Newsletter template generated successfully!';
@@ -227,10 +266,21 @@ function handleDownload() {
           <div v-if="error" class="error-banner">{{ error }}</div>
           <div v-if="success" class="success-banner">{{ success }}</div>
 
-          <button type="submit" :disabled="loading" class="btn btn-primary btn-block">
-            <span v-if="loading" class="loader-spinner"></span>
-            <span>{{ loading ? 'Generating newsletter...' : 'Generate Newsletter Draft' }}</span>
-          </button>
+          <div class="form-actions">
+            <button
+              type="button"
+              :disabled="previewLoading || loading"
+              class="btn btn-outline btn-block"
+              @click="handlePreviewSources"
+            >
+              <span v-if="previewLoading" class="loader-spinner loader-spinner--dark"></span>
+              <span>{{ previewLoading ? 'Loading sources...' : 'Preview Source Concerts' }}</span>
+            </button>
+            <button type="submit" :disabled="loading || previewLoading" class="btn btn-primary btn-block">
+              <span v-if="loading" class="loader-spinner"></span>
+              <span>{{ loading ? 'Generating newsletter...' : 'Generate Newsletter Draft' }}</span>
+            </button>
+          </div>
         </form>
       </div>
 
@@ -268,9 +318,29 @@ function handleDownload() {
           </div>
 
           <div class="meta-section">
-            <h4 class="meta-title">Ingested Shows Evaluated ({{ result.concertsCount }})</h4>
+            <h4 class="meta-title">Source Items Evaluated ({{ result.concertsCount }})</h4>
+            <p v-if="sourcePreview" class="meta-help">
+              Matches the latest source preview for {{ sourcePreview.dateRangeLabel }}.
+            </p>
+          </div>
+        </div>
+
+        <div v-else-if="sourcePreview" class="preview-container">
+          <div class="source-preview-summary">
+            <p class="source-preview-count">{{ sourcePreview.totalCount }}</p>
+            <p class="source-preview-label">{{ sourceItemLabel(sourcePreview.totalCount) }}</p>
+            <p class="source-preview-detail">
+              {{ sourcePreview.concertsCount }} approved Nido concerts
+              <span v-if="sourcePreview.calendarEventsCount">
+                + {{ sourcePreview.calendarEventsCount }} calendar items
+              </span>
+            </p>
+          </div>
+
+          <div class="meta-section">
+            <h4 class="meta-title">Approved Nido Concerts ({{ sourcePreview.concertsCount }})</h4>
             <ul class="meta-concerts-list">
-              <li v-for="(concert, idx) in result.concerts" :key="idx" class="meta-concert-item">
+              <li v-for="concert in sourcePreview.concerts" :key="concert.id || concert.title" class="meta-concert-item">
                 <div class="concert-header-row">
                   <span class="concert-title-lbl">{{ concert.title || 'Untitled' }}</span>
                   <span class="concert-badge" :class="{'badge-partner': concert.isPartnerArtist}">
@@ -283,12 +353,31 @@ function handleDownload() {
                 <div class="concert-source-badge">{{ concert.source }}</div>
               </li>
             </ul>
+            <p v-if="!sourcePreview.concerts.length" class="empty-inline">
+              No approved Nido concerts match this range.
+            </p>
+          </div>
+
+          <div v-if="sourcePreview.calendarEvents.length" class="meta-section">
+            <h4 class="meta-title">Calendar Items ({{ sourcePreview.calendarEventsCount }})</h4>
+            <ul class="meta-concerts-list">
+              <li v-for="(concert, idx) in sourcePreview.calendarEvents" :key="`${concert.title}-${idx}`" class="meta-concert-item">
+                <div class="concert-header-row">
+                  <span class="concert-title-lbl">{{ concert.title || 'Untitled' }}</span>
+                  <span class="concert-badge">Calendar</span>
+                </div>
+                <div class="concert-meta-details">
+                  <span>{{ concert.date }}</span> • <span>{{ concert.venue }}</span>
+                </div>
+                <div class="concert-source-badge">{{ concert.source }}</div>
+              </li>
+            </ul>
           </div>
         </div>
 
         <div v-else class="preview-placeholder empty-placeholder">
           <span class="empty-icon">📝</span>
-          <p>Fill out the parameters and click generate to review the newsletter preview.</p>
+          <p>Fill out the parameters and preview source concerts before generating the newsletter draft.</p>
         </div>
       </div>
     </div>
@@ -491,6 +580,11 @@ textarea.form-control {
   width: 100%;
 }
 
+.form-actions {
+  display: grid;
+  gap: 0.75rem;
+}
+
 .error-banner {
   background: #fef2f2;
   border: 1px solid #fee2e2;
@@ -517,6 +611,11 @@ textarea.form-control {
   border-radius: 50%;
   border-top-color: #ffffff;
   animation: spin 0.8s linear infinite;
+}
+
+.loader-spinner--dark {
+  border-color: rgba(31, 41, 55, 0.2);
+  border-top-color: var(--primary);
 }
 
 @keyframes spin {
@@ -623,6 +722,29 @@ textarea.form-control {
 .meta-section {
   border-top: 1px solid var(--border);
   padding-top: 1.5rem;
+}
+
+.source-preview-summary {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 1rem;
+}
+
+.source-preview-count {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--text-dark);
+}
+
+.source-preview-label,
+.source-preview-detail,
+.meta-help,
+.empty-inline {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
 }
 
 .meta-title {

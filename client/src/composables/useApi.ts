@@ -659,6 +659,7 @@ export async function deleteVenue(token: string, id: string) {
 export interface GenerateNewsletterPayload {
   startDate: string;
   endDate: string;
+  editionType?: 'weekly' | 'monthly' | 'custom';
   dateRangeLabel?: string;
   weekendRecap?: string;
   featuredShow?: string;
@@ -670,7 +671,30 @@ export interface GenerateNewsletterPayload {
 export interface GenerateNewsletterResponse {
   newsletterDraft: string;
   concertsCount: number;
-  concerts: any[];
+}
+
+export interface NewsletterSourceConcert {
+  id?: string;
+  title: string;
+  date: string;
+  venue: string;
+  artists?: string;
+  genre?: string;
+  description?: string;
+  isTopPick: boolean;
+  topPickScore: number;
+  isHighlightArtist: boolean;
+  isPartnerArtist: boolean;
+  source: string;
+}
+
+export interface NewsletterSourcePreviewResponse {
+  dateRangeLabel: string;
+  concerts: NewsletterSourceConcert[];
+  calendarEvents: NewsletterSourceConcert[];
+  concertsCount: number;
+  calendarEventsCount: number;
+  totalCount: number;
 }
 
 export async function generateNewsletter(
@@ -679,6 +703,22 @@ export async function generateNewsletter(
 ): Promise<GenerateNewsletterResponse> {
   const response = await apiClient.post<GenerateNewsletterResponse>(
     '/api/newsletter/generate-weekly',
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+  return response.data;
+}
+
+export async function previewNewsletterSources(
+  token: string,
+  payload: GenerateNewsletterPayload,
+): Promise<NewsletterSourcePreviewResponse> {
+  const response = await apiClient.post<NewsletterSourcePreviewResponse>(
+    '/api/newsletter/preview-sources',
     payload,
     {
       headers: {

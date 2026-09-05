@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsISO8601, IsOptional, IsString, IsBoolean, IsEnum, IsArray } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsISO8601,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export enum NewsletterEditionType {
   WEEKLY = 'weekly',
@@ -78,6 +85,32 @@ export class GenerateNewsletterDto {
   @IsOptional()
   @IsBoolean()
   useDatabase?: boolean = true;
+
+  @ApiPropertyOptional({
+    description: 'Restrict database concert inclusion to admin Featured concerts.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  featuredOnly?: boolean = false;
+
+  @ApiPropertyOptional({
+    description: 'Restrict database concert inclusion to calculated Top Pick concerts.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  topPicksOnly?: boolean = false;
+
+  @ApiPropertyOptional({
+    description:
+      'Approved Nido concert ids to exclude from this newsletter run without changing catalog data.',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  excludeConcertIds?: string[];
 
   @ApiPropertyOptional({
     description: 'Optional list of cities to restrict database concert inclusion to',

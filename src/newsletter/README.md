@@ -14,12 +14,43 @@ The generation pipeline operates as follows:
 3. **Request Ingestion:** The controller accepts parameters including dates, `editionType` (`weekly`, `monthly`, `custom`), recap notes, featured highlights, and optional filters (`cities`, `genres`, `venues`, `region`).
 4. **Database Query:** If enabled, the service queries all active, admin-approved database concerts within the target date range. By default, all approved concerts in range are included; custom filters (`cities`, `genres`, etc.) can be passed to restrict scope.
 5. **Calendar Feed Parsing:** If an ICS URL, raw ICS string, or JSON feed is supplied, the parser extracts events, filters them, and normalizes them.
-6. **Prompt Hydration:** The service reads the prompt template at `.gemini/prompts/weekly_top_picks.md` and injects the parameters and calendar dump.
-7. **Gemini Invocations:** The `@google/generative-ai` SDK executes the prompt using `gemini-3.6-flash` to yield a creative, community-focused newsletter draft.
+6. **Source Preview:** Admins can preview the exact approved database concerts and optional parsed calendar items before spending a Gemini call.
+7. **Prompt Hydration:** The service reads the prompt template at `.gemini/prompts/weekly_top_picks.md` and injects the parameters and calendar dump.
+8. **Gemini Invocations:** The `@google/generative-ai` SDK executes the prompt using `gemini-3.6-flash` to yield a creative, community-focused newsletter draft.
 
 ---
 
 ## API Documentation
+
+### Preview Newsletter Sources
+- **Endpoint:** `POST /api/newsletter/preview-sources`
+- **Headers:** `Authorization: Bearer <Firebase_ID_Token>`
+- **Content-Type:** `application/json`
+- **Behavior:** Returns source items that would be injected into the prompt without calling Gemini.
+
+```json
+{
+  "dateRangeLabel": "September 2026",
+  "concerts": [
+    {
+      "id": "concert-uuid",
+      "title": "Dr. Bacon Live",
+      "date": "Friday, Sep 4, 2026",
+      "venue": "The Pour House Music Hall (Raleigh, NC)",
+      "artists": "Dr. Bacon",
+      "genre": "Funk",
+      "isTopPick": true,
+      "topPickScore": 0.9,
+      "isHighlightArtist": true,
+      "source": "Nido Concert Database"
+    }
+  ],
+  "calendarEvents": [],
+  "concertsCount": 1,
+  "calendarEventsCount": 0,
+  "totalCount": 1
+}
+```
 
 ### Generate Newsletter Draft
 - **Endpoint:** `POST /api/newsletter/generate-weekly`
