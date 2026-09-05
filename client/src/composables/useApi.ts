@@ -64,6 +64,10 @@ export async function fetchConcerts(
 
 export interface ConcertGenresResponse {
   genres: string[];
+  options?: Array<{
+    slug: string;
+    name: string;
+  }>;
 }
 
 export async function fetchConcertGenres(): Promise<ConcertGenresResponse> {

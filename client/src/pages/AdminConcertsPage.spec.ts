@@ -198,6 +198,7 @@ describe('AdminConcertsPage', () => {
     await wrapper
       .get<HTMLInputElement>('.editor .field--wide input')
       .setValue('Summer Jam Updated');
+    await selectGenre(wrapper, 'jazz', 'Jazz');
     await wrapper.get('.editor').trigger('submit');
     await flushPromises();
 
@@ -207,7 +208,7 @@ describe('AdminConcertsPage', () => {
       expect.objectContaining({
         expectedVersion: 7,
         title: 'Summer Jam Updated',
-        genre: 'Rock',
+        genre: 'Jazz',
         venueId: 'venue-1',
       }),
     );
@@ -233,6 +234,7 @@ describe('AdminConcertsPage', () => {
     await wrapper
       .get<HTMLInputElement>('.editor input[placeholder="e.g. Dr. Bacon & Friends"]')
       .setValue('New Funk Show');
+    await selectGenre(wrapper, 'jazz', 'Jazz');
     await wrapper
       .get<HTMLSelectElement>('.editor select')
       .setValue('venue-1');
@@ -244,6 +246,7 @@ describe('AdminConcertsPage', () => {
       'firebase-token',
       expect.objectContaining({
         title: 'New Funk Show',
+        genre: 'Jazz',
         venueId: 'venue-1',
       }),
     );
@@ -410,4 +413,23 @@ function buildConcert(overrides: Record<string, unknown> = {}) {
     },
     ...overrides,
   };
+}
+
+async function selectGenre(
+  wrapper: ReturnType<typeof mount<typeof AdminConcertsPage>>,
+  query: string,
+  expectedOption: string,
+) {
+  const input = wrapper.get<HTMLInputElement>('[role="combobox"]');
+  await input.trigger('focus');
+  await input.setValue(query);
+  const option = wrapper
+    .findAll('[role="option"]')
+    .find((candidate) => candidate.text() === expectedOption);
+
+  if (!option) {
+    throw new Error(`Missing ${expectedOption} genre option`);
+  }
+
+  await option.trigger('click');
 }

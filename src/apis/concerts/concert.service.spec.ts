@@ -66,6 +66,9 @@ describe('ConcertService', () => {
   const concertUpvoteRepository = {
     createQueryBuilder: jest.fn(),
   };
+  const genreRepository = {
+    find: jest.fn(),
+  };
   const configService = {
     get: jest.fn(),
   };
@@ -84,6 +87,7 @@ describe('ConcertService', () => {
     service = new ConcertService(
       concertRepository as any,
       concertUpvoteRepository as any,
+      genreRepository as any,
       configService as any,
     );
   });
@@ -588,69 +592,49 @@ describe('ConcertService', () => {
   });
 
   describe('findAvailableGenres', () => {
-    it('includes configured options and prefers their canonical spelling', async () => {
-      const qb = createQueryBuilderMock();
-      concertRepository.createQueryBuilder.mockReturnValue(qb);
-      configService.get.mockReturnValue(
-        'Jazz, Bluegrass, Funk, Jam, Reggae, Hip-Hop, Rock, Folk, Salsa, Electronic',
-      );
-      qb.getRawMany.mockResolvedValue([
-        { genre: 'rock' },
-        { genre: 'Indie Rock' },
+    it('returns active controlled genre options in catalog order', async () => {
+      genreRepository.find.mockResolvedValue([
+        { slug: 'jazz', name: 'Jazz' },
+        { slug: 'bluegrass', name: 'Bluegrass' },
+        { slug: 'funk', name: 'Funk' },
+        { slug: 'jam', name: 'Jam' },
+        { slug: 'reggae', name: 'Reggae' },
+        { slug: 'hip-hop', name: 'Hip-Hop' },
+        { slug: 'rock', name: 'Rock' },
+        { slug: 'folk', name: 'Folk' },
+        { slug: 'salsa', name: 'Salsa' },
+        { slug: 'electronic', name: 'Electronic' },
       ]);
 
       const result = await service.findAvailableGenres();
 
-      expect(configService.get).toHaveBeenCalledWith('CONCERT_GENRE_OPTIONS');
       expect(result).toEqual([
-        'Bluegrass',
-        'Electronic',
-        'Folk',
-        'Funk',
-        'Hip-Hop',
-        'Indie Rock',
-        'Jam',
-        'Jazz',
-        'Reggae',
-        'Rock',
-        'Salsa',
+        { slug: 'jazz', name: 'Jazz' },
+        { slug: 'bluegrass', name: 'Bluegrass' },
+        { slug: 'funk', name: 'Funk' },
+        { slug: 'jam', name: 'Jam' },
+        { slug: 'reggae', name: 'Reggae' },
+        { slug: 'hip-hop', name: 'Hip-Hop' },
+        { slug: 'rock', name: 'Rock' },
+        { slug: 'folk', name: 'Folk' },
+        { slug: 'salsa', name: 'Salsa' },
+        { slug: 'electronic', name: 'Electronic' },
       ]);
+      expect(genreRepository.find).toHaveBeenCalledWith({
+        where: { isActive: true },
+        order: {
+          sortOrder: 'ASC',
+          name: 'ASC',
+        },
+      });
+      expect(concertRepository.createQueryBuilder).not.toHaveBeenCalled();
+      expect(configService.get).not.toHaveBeenCalledWith(
+        'CONCERT_GENRE_OPTIONS',
+      );
     });
 
-    it('deduplicates and alphabetically sorts genre values', async () => {
-      const qb = createQueryBuilderMock();
-      concertRepository.createQueryBuilder.mockReturnValue(qb);
-      qb.getRawMany.mockResolvedValue([
-        { genre: 'Rock' },
-        { genre: 'Electronic' },
-        { genre: 'Rock' },
-        { genre: 'Indie Rock' },
-      ]);
-
-      const result = await service.findAvailableGenres();
-
-      expect(result).toEqual(['Electronic', 'Indie Rock', 'Rock']);
-    });
-
-    it('excludes null, empty, and whitespace-only genre values', async () => {
-      const qb = createQueryBuilderMock();
-      concertRepository.createQueryBuilder.mockReturnValue(qb);
-      qb.getRawMany.mockResolvedValue([
-        { genre: 'Rock' },
-        { genre: null },
-        { genre: '' },
-        { genre: '   ' },
-      ]);
-
-      const result = await service.findAvailableGenres();
-
-      expect(result).toEqual(['Rock']);
-    });
-
-    it('returns an empty array when no genres are available', async () => {
-      const qb = createQueryBuilderMock();
-      concertRepository.createQueryBuilder.mockReturnValue(qb);
-      qb.getRawMany.mockResolvedValue([]);
+    it('returns an empty array when no active controlled genres are available', async () => {
+      genreRepository.find.mockResolvedValue([]);
 
       const result = await service.findAvailableGenres();
 
