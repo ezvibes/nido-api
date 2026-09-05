@@ -10,6 +10,53 @@ import type { GoogleCalendarEvent } from '../concert-sync/interfaces/google-cale
 
 const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
 
+type NewsletterEditionType = 'weekly' | 'monthly' | 'custom';
+
+export interface NewsletterSourceConcert {
+  id?: string;
+  title: string;
+  date: string;
+  venue: string;
+  artists?: string;
+  genre?: string;
+  description?: string;
+  rawText?: string;
+  isTopPick: boolean;
+  topPickScore: number;
+  isHighlightArtist: boolean;
+  isPartnerArtist: boolean;
+  source: string;
+}
+
+export interface NewsletterSourcePreview {
+  dateRangeLabel: string;
+  concerts: NewsletterSourceConcert[];
+  calendarEvents: NewsletterSourceConcert[];
+  concertsCount: number;
+  calendarEventsCount: number;
+  totalCount: number;
+}
+
+export interface NewsletterRequestParams {
+  startDate: string;
+  endDate: string;
+  editionType?: NewsletterEditionType;
+  dateRangeLabel?: string;
+  weekendRecap?: string;
+  featuredShow?: string;
+  featuredFestival?: string;
+  rawCalendarData?: string;
+  useDatabase?: boolean;
+  featuredOnly?: boolean;
+  topPicksOnly?: boolean;
+  excludeConcertIds?: string[];
+  cities?: string[];
+  genres?: string[];
+  venues?: string[];
+  region?: string;
+  strictFiltering?: boolean;
+}
+
 @Injectable()
 export class NewsletterService {
   private readonly logger = new Logger(NewsletterService.name);
@@ -23,52 +70,17 @@ export class NewsletterService {
   /**
    * Main entry point to generate the weekly, monthly, or custom top picks newsletter.
    */
-  async generateNewsletter(params: {
-    startDate: string;
-    endDate: string;
-    editionType?: 'weekly' | 'monthly' | 'custom';
-    dateRangeLabel?: string;
-    weekendRecap?: string;
-    featuredShow?: string;
-    featuredFestival?: string;
-    rawCalendarData?: string;
-    useDatabase?: boolean;
-    cities?: string[];
-    genres?: string[];
-    venues?: string[];
-    region?: string;
-    strictFiltering?: boolean;
-  }): Promise<{ newsletterDraft: string; concertsCount: number }> {
+  async generateNewsletter(
+    params: NewsletterRequestParams,
+  ): Promise<{ newsletterDraft: string; concertsCount: number }> {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY')?.trim();
     if (!apiKey) {
       throw new InternalServerErrorException('GEMINI_API_KEY is not configured in the application environment.');
     }
 
     const modelName = this.configService.get<string>('GEMINI_MODEL')?.trim() || DEFAULT_GEMINI_MODEL;
-
-    // 1. Resolve date range label
-    const dateRangeLabel = params.dateRangeLabel || this.formatDateRange(params.startDate, params.endDate);
-
-    // 2. Fetch and filter database concerts
-    let concerts: any[] = [];
-    if (params.useDatabase !== false) {
-      concerts = await this.fetchNCConcerts(params.startDate, params.endDate, {
-        cities: params.cities,
-        genres: params.genres,
-        venues: params.venues,
-        region: params.region,
-        strictFiltering: params.strictFiltering,
-      });
-    }
-
-    // 3. Fetch and parse raw calendar data (feed or text)
-    let parsedFeedEvents: any[] = [];
-    if (params.rawCalendarData) {
-      parsedFeedEvents = await this.parseCalendarData(params.rawCalendarData, params.startDate, params.endDate);
-    }
-
-    // Combine both database concerts and parsed feed events
-    const combinedConcerts = [...concerts, ...parsedFeedEvents];
+    const preview = await this.previewNewsletterSources(params);
+    const combinedConcerts = [...preview.concerts, ...preview.calendarEvents];
 
     if (combinedConcerts.length === 0) {
       this.logger.warn(`No verified concerts or calendar events found for range ${params.startDate} - ${params.endDate}`);
@@ -79,7 +91,7 @@ export class NewsletterService {
 
     // 5. Build full prompt
     const prompt = await this.buildPrompt({
-      dateRange: dateRangeLabel,
+      dateRange: preview.dateRangeLabel,
       editionType: params.editionType || 'weekly',
       recapNotes: params.weekendRecap,
       featuredShow: params.featuredShow,
@@ -105,12 +117,51 @@ export class NewsletterService {
 
       return {
         newsletterDraft: text,
-        concertsCount: combinedConcerts.length,
+        concertsCount: preview.totalCount,
       };
     } catch (err) {
       this.logger.error(`Gemini API generation failed: ${err.message}`, err.stack);
       throw new InternalServerErrorException(`Gemini generation failed: ${err.message}`);
     }
+  }
+
+  async previewNewsletterSources(
+    params: NewsletterRequestParams,
+  ): Promise<NewsletterSourcePreview> {
+    const dateRangeLabel =
+      params.dateRangeLabel ||
+      this.formatDateRange(params.startDate, params.endDate);
+
+    let concerts: NewsletterSourceConcert[] = [];
+    if (params.useDatabase !== false) {
+      concerts = await this.fetchNCConcerts(params.startDate, params.endDate, {
+        cities: params.cities,
+        genres: params.genres,
+        venues: params.venues,
+        region: params.region,
+        strictFiltering: params.strictFiltering,
+        featuredOnly: params.featuredOnly,
+        topPicksOnly: params.topPicksOnly,
+        excludeConcertIds: params.excludeConcertIds,
+      });
+    }
+
+    const calendarEvents = params.rawCalendarData
+      ? await this.parseCalendarData(
+          params.rawCalendarData,
+          params.startDate,
+          params.endDate,
+        )
+      : [];
+
+    return {
+      dateRangeLabel,
+      concerts,
+      calendarEvents,
+      concertsCount: concerts.length,
+      calendarEventsCount: calendarEvents.length,
+      totalCount: concerts.length + calendarEvents.length,
+    };
   }
 
   /**
@@ -171,8 +222,11 @@ export class NewsletterService {
       venues?: string[];
       region?: string;
       strictFiltering?: boolean;
+      featuredOnly?: boolean;
+      topPicksOnly?: boolean;
+      excludeConcertIds?: string[];
     },
-  ): Promise<any[]> {
+  ): Promise<NewsletterSourceConcert[]> {
     const start = new Date(startDateStr);
     const end = new Date(endDateStr);
 
@@ -202,6 +256,18 @@ export class NewsletterService {
       // 0. Exclude placeholder/dev-seed dummy titles
       const titleLower = concert.title.toLowerCase().trim();
       if (titleLower === 'unknown concert' || titleLower === 'untitled event' || titleLower === 'untitled concert') {
+        return false;
+      }
+
+      if (options?.excludeConcertIds?.includes(concert.id)) {
+        return false;
+      }
+
+      if (options?.featuredOnly && !concert.isFeatured) {
+        return false;
+      }
+
+      if (options?.topPicksOnly && !concert.isTopPick) {
         return false;
       }
 
@@ -267,13 +333,14 @@ export class NewsletterService {
       ) || highlightArtists.some(pa => concert.title.toLowerCase().includes(pa));
 
       return {
+        id: concert.id,
         title: concert.title,
         date: dateStr,
         venue: concert.venue ? `${concert.venue.name} (${concert.venue.city}, ${concert.venue.region})` : 'Unknown Venue',
         artists: lineupBands.join(', '),
         genre: concert.genre,
         description: concert.description || '',
-        isTopPick: concert.isTopPick,
+        isTopPick: Boolean(concert.isTopPick),
         topPickScore: concert.topPickScore || 0,
         isHighlightArtist: hasHighlightArtist,
         isPartnerArtist: hasHighlightArtist,
@@ -285,7 +352,7 @@ export class NewsletterService {
   /**
    * Parser helper for calendar feeds (ICS urls, raw text, JSON strings).
    */
-  private async parseCalendarData(rawInput: string, timeMin?: string, timeMax?: string): Promise<any[]> {
+  private async parseCalendarData(rawInput: string, timeMin?: string, timeMax?: string): Promise<NewsletterSourceConcert[]> {
     let content = rawInput.trim();
 
     // 1. URL fetch
@@ -349,6 +416,8 @@ export class NewsletterService {
             date: dateStr,
             venue: event.location || 'Unknown Venue',
             description: event.description || '',
+            isTopPick: false,
+            topPickScore: 0,
             isHighlightArtist: isHighlight,
             isPartnerArtist: isHighlight,
             source: 'Calendar Feed (ICS)',
@@ -370,6 +439,10 @@ export class NewsletterService {
           date: item.date || item.start || item.dateTime || 'Unknown Date',
           venue: item.venue || item.location || 'Unknown Venue',
           description: item.description || item.desc || '',
+          isTopPick: false,
+          topPickScore: 0,
+          isHighlightArtist: false,
+          isPartnerArtist: false,
           source: 'Calendar Feed (JSON)',
         }));
       } catch {
@@ -381,6 +454,13 @@ export class NewsletterService {
     this.logger.log('Falling back to raw text dump processing...');
     return [{
       rawText: content,
+      title: 'Raw calendar text',
+      date: 'Unknown Date',
+      venue: 'Unknown Venue',
+      isTopPick: false,
+      topPickScore: 0,
+      isHighlightArtist: false,
+      isPartnerArtist: false,
       source: 'Calendar Text Dump',
     }];
   }
