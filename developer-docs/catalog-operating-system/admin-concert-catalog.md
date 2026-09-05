@@ -84,6 +84,18 @@ The response includes `data`, `total`, `page`, and `pageSize`. The Vue admin scr
 uses 25 rows per page and exposes Previous and Next controls whenever more results
 exist.
 
+### Genre metadata
+
+```http
+GET /concerts/meta/genres
+```
+
+Genre metadata is public and does not require Firebase authentication. Options are
+served from the controlled `genres` catalog table seeded by migration, not inferred
+from existing concert rows. The response keeps the legacy `genres: string[]` field
+for current selectors and adds stable `options: [{ slug, name }]` metadata for new
+clients, OCR hints, and future normalized references.
+
 ### Read one concert
 
 ```http

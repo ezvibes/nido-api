@@ -172,14 +172,17 @@ export class ConcertController {
 
   @Get('meta/genres')
   @ApiOperation({
-    summary: 'List distinct concert genre values',
+    summary: 'List controlled concert genre options',
     description:
-      'Returns configured genre options merged with distinct, trimmed, non-empty genre values currently present on active Concert records. Results are de-duplicated case-insensitively and sorted alphabetically. Public endpoint; does not require authentication and does not synchronize or look up a user. Example: GET /concerts/meta/genres.',
+      'Returns active controlled genre options for upload, admin, discovery, newsletter, and future OCR selectors. The legacy genres array is preserved for existing clients; options includes stable slugs for new clients. Public endpoint; does not require authentication and does not synchronize or look up a user. Example: GET /concerts/meta/genres.',
   })
   @ApiOkResponse({ type: ConcertGenresResponseDto })
   async getAvailableGenres() {
-    const genres = await this.concertService.findAvailableGenres();
-    return { genres };
+    const options = await this.concertService.findAvailableGenres();
+    return {
+      genres: options.map((genre) => genre.name),
+      options,
+    };
   }
 
   @Get(':id')
