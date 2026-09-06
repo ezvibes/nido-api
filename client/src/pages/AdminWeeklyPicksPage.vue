@@ -27,8 +27,12 @@ const form = reactive({
   featuredFestival: '',
   rawCalendarData: '',
   useDatabase: true,
+  featuredOnly: false,
+  topPicksOnly: false,
   augmentCalendar: false,
 });
+
+const excludedConcertIds = ref<string[]>([]);
 
 onMounted(() => {
   // Pre-fill date values to next week's Tuesday -> Sunday
@@ -71,11 +75,28 @@ function buildPayload(): GenerateNewsletterPayload {
       ? form.rawCalendarData
       : undefined,
     useDatabase: form.useDatabase,
+    featuredOnly: form.featuredOnly,
+    topPicksOnly: form.topPicksOnly,
+    excludeConcertIds: excludedConcertIds.value.length
+      ? [...excludedConcertIds.value]
+      : undefined,
   };
 }
 
 function sourceItemLabel(count: number) {
   return `source item${count === 1 ? '' : 's'} ready for generation`;
+}
+
+function isConcertExcluded(id?: string) {
+  return !!id && excludedConcertIds.value.includes(id);
+}
+
+function toggleConcertExclusion(id?: string) {
+  if (!id) return;
+
+  excludedConcertIds.value = excludedConcertIds.value.includes(id)
+    ? excludedConcertIds.value.filter((concertId) => concertId !== id)
+    : [...excludedConcertIds.value, id];
 }
 
 async function handlePreviewSources() {
@@ -244,6 +265,18 @@ function handleDownload() {
             </div>
             <div class="checkbox-group">
               <label class="checkbox-label">
+                <input type="checkbox" v-model="form.featuredOnly" />
+                <span>Only include Featured concerts</span>
+              </label>
+            </div>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="form.topPicksOnly" />
+                <span>Only include Top Picks</span>
+              </label>
+            </div>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
                 <input type="checkbox" v-model="form.augmentCalendar" />
                 <span>Augment/Input raw calendar data (ICS url or text)</span>
               </label>
@@ -340,7 +373,12 @@ function handleDownload() {
           <div class="meta-section">
             <h4 class="meta-title">Approved Nido Concerts ({{ sourcePreview.concertsCount }})</h4>
             <ul class="meta-concerts-list">
-              <li v-for="concert in sourcePreview.concerts" :key="concert.id || concert.title" class="meta-concert-item">
+              <li
+                v-for="concert in sourcePreview.concerts"
+                :key="concert.id || concert.title"
+                class="meta-concert-item"
+                :class="{ 'meta-concert-item--excluded': isConcertExcluded(concert.id) }"
+              >
                 <div class="concert-header-row">
                   <span class="concert-title-lbl">{{ concert.title || 'Untitled' }}</span>
                   <span class="concert-badge" :class="{'badge-partner': concert.isPartnerArtist}">
@@ -350,7 +388,17 @@ function handleDownload() {
                 <div class="concert-meta-details">
                   <span>{{ concert.date }}</span> • <span>{{ concert.venue }}</span>
                 </div>
-                <div class="concert-source-badge">{{ concert.source }}</div>
+                <div class="concert-item-footer">
+                  <div class="concert-source-badge">{{ concert.source }}</div>
+                  <button
+                    v-if="concert.id"
+                    type="button"
+                    class="exclude-toggle"
+                    @click="toggleConcertExclusion(concert.id)"
+                  >
+                    {{ isConcertExcluded(concert.id) ? 'Include in draft' : 'Exclude from draft' }}
+                  </button>
+                </div>
               </li>
             </ul>
             <p v-if="!sourcePreview.concerts.length" class="empty-inline">
@@ -771,6 +819,10 @@ textarea.form-control {
   position: relative;
 }
 
+.meta-concert-item--excluded {
+  opacity: 0.62;
+}
+
 .concert-header-row {
   display: flex;
   justify-content: space-between;
@@ -803,12 +855,36 @@ textarea.form-control {
   color: var(--text-muted);
 }
 
+.concert-item-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+}
+
 .concert-source-badge {
   font-size: 0.7rem;
   color: var(--text-muted);
   font-style: italic;
-  margin-top: 0.35rem;
-  text-align: right;
+}
+
+.exclude-toggle {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  white-space: nowrap;
+}
+
+.exclude-toggle:hover {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 /* Transition classes */

@@ -75,6 +75,8 @@ describe('AdminWeeklyPicksPage', () => {
         startDate: '2026-09-01T00:00:00.000Z',
         endDate: '2026-09-07T23:59:59.999Z',
         useDatabase: true,
+        featuredOnly: false,
+        topPicksOnly: false,
       }),
     );
     expect(api.generateNewsletter).not.toHaveBeenCalled();
@@ -105,6 +107,8 @@ describe('AdminWeeklyPicksPage', () => {
         startDate: '2026-09-01T00:00:00.000Z',
         endDate: '2026-09-07T23:59:59.999Z',
         useDatabase: true,
+        featuredOnly: false,
+        topPicksOnly: false,
       }),
     );
     expect(wrapper.text()).toContain('Matches the latest source preview');
@@ -133,5 +137,56 @@ describe('AdminWeeklyPicksPage', () => {
     expect(api.generateNewsletter).not.toHaveBeenCalled();
     expect(wrapper.text()).toContain('No source concerts match these parameters');
     expect(wrapper.text()).toContain('No approved Nido concerts match this range.');
+  });
+
+  it('sends featured and top pick filters when selected', async () => {
+    const wrapper = mount(AdminWeeklyPicksPage);
+    await flushPromises();
+
+    const checkboxes = wrapper.findAll('input[type="checkbox"]');
+    expect(checkboxes).toHaveLength(4);
+    await checkboxes[1]!.setValue(true);
+    await checkboxes[2]!.setValue(true);
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Preview Source Concerts'))!
+      .trigger('click');
+    await flushPromises();
+
+    expect(api.previewNewsletterSources).toHaveBeenCalledWith(
+      'firebase-token',
+      expect.objectContaining({
+        featuredOnly: true,
+        topPicksOnly: true,
+      }),
+    );
+  });
+
+  it('can exclude a previewed concert from the next generation request', async () => {
+    const wrapper = mount(AdminWeeklyPicksPage);
+    await flushPromises();
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Preview Source Concerts'))!
+      .trigger('click');
+    await flushPromises();
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Exclude from draft'))!
+      .trigger('click');
+    expect(wrapper.text()).toContain('Include in draft');
+
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(api.generateNewsletter).toHaveBeenCalledWith(
+      'firebase-token',
+      expect.objectContaining({
+        excludeConcertIds: ['concert-1'],
+      }),
+    );
   });
 });

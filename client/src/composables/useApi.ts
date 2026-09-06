@@ -666,6 +666,9 @@ export interface GenerateNewsletterPayload {
   featuredFestival?: string;
   rawCalendarData?: string;
   useDatabase?: boolean;
+  featuredOnly?: boolean;
+  topPicksOnly?: boolean;
+  excludeConcertIds?: string[];
 }
 
 export interface GenerateNewsletterResponse {
