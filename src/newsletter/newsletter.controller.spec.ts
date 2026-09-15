@@ -122,4 +122,31 @@ describe('NewsletterController', () => {
       expect(result).toEqual(mockBeehiivResult);
     });
   });
+
+  describe('previewSources', () => {
+    it('should call service previewNewsletterSources method', async () => {
+      const dto = {
+        startDate: '2026-08-11T00:00:00Z',
+        endDate: '2026-08-16T23:59:59Z',
+      };
+
+      const expectedResponse = {
+        dateRangeLabel: 'Tuesday, Aug 11 - Sunday, Aug 16, 2026',
+        concerts: [],
+        calendarEvents: [],
+        concertsCount: 0,
+        calendarEventsCount: 0,
+        totalCount: 0,
+      };
+
+      mockNewsletterService.previewNewsletterSources.mockResolvedValue(
+        expectedResponse,
+      );
+
+      const result = await controller.previewSources(dto);
+
+      expect(mockNewsletterService.previewNewsletterSources).toHaveBeenCalledWith(dto);
+      expect(result).toEqual(expectedResponse);
+    });
+  });
 });

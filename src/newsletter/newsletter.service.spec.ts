@@ -127,6 +127,8 @@ describe('NewsletterService', () => {
         startsAt: new Date('2026-09-11T20:00:00Z'),
         genre: 'Funk-Rock',
         catalogStatus: ConcertCatalogStatus.ACTIVE,
+        isFeatured: true,
+        isTopPick: true,
         venue: {
           name: 'Lincoln Theatre',
           city: 'Raleigh',
@@ -162,6 +164,46 @@ describe('NewsletterService', () => {
       expect(result.beehiivDraft).toBeDefined();
       expect(result.beehiivDraft?.id).toBe('post_beehiiv_123');
       expect(mockBeehiivService.createDraftFromHtml).toHaveBeenCalled();
+    });
+  });
+
+  describe('parseCalendarData', () => {
+    it('should preview parsed calendar events and align with generation count', async () => {
+      const jsonData = JSON.stringify([
+        {
+          title: 'Preview Show',
+          date: '2026-08-12T20:00:00Z',
+          venue: 'The Pour House',
+        },
+      ]);
+
+      mockGenerateContent.mockResolvedValue({
+        response: {
+          text: () => 'Weekly picks draft',
+        },
+      });
+
+      const preview = await service.previewNewsletterSources({
+        startDate: '2026-08-11T00:00:00Z',
+        endDate: '2026-08-16T23:59:59Z',
+        rawCalendarData: jsonData,
+        useDatabase: false,
+      });
+      const generated = await service.generateNewsletter({
+        startDate: '2026-08-11T00:00:00Z',
+        endDate: '2026-08-16T23:59:59Z',
+        rawCalendarData: jsonData,
+        useDatabase: false,
+      });
+
+      expect(preview.calendarEvents).toEqual([
+        expect.objectContaining({
+          title: 'Preview Show',
+          source: 'Calendar Feed (JSON)',
+        }),
+      ]);
+      expect(preview.totalCount).toBe(1);
+      expect(generated.concertsCount).toBe(preview.totalCount);
     });
   });
 });

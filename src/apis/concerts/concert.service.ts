@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import { Concert, ConcertCatalogStatus } from './entities/concert.entity';
 import { ConcertUpvote } from './entities/concert-upvote.entity';
+import { Genre } from './entities/genre.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateConcertDto } from './dto/create-concert.dto';
 import { UpdateConcertDto } from './dto/update-concert.dto';
@@ -40,6 +41,11 @@ export interface ConcertSyncSource {
   needsGuidance?: boolean;
 }
 
+export interface GenreOption {
+  slug: string;
+  name: string;
+}
+
 @Injectable()
 export class ConcertService {
   constructor(
@@ -47,6 +53,8 @@ export class ConcertService {
     private readonly concertRepository: Repository<Concert>,
     @InjectRepository(ConcertUpvote)
     private readonly concertUpvoteRepository: Repository<ConcertUpvote>,
+    @InjectRepository(Genre)
+    private readonly genreRepository: Repository<Genre>,
     private readonly configService: ConfigService,
   ) {}
 
@@ -87,37 +95,19 @@ export class ConcertService {
     return this.findWithQuery(qb, query, undefined, true);
   }
 
-  async findAvailableGenres(): Promise<string[]> {
-    const rows = await this.concertRepository
-      .createQueryBuilder('concert')
-      .select('DISTINCT TRIM(concert.genre)', 'genre')
-      .where('concert.catalogStatus = :activeCatalogStatus', {
-        activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
-      })
-      .andWhere('concert.genre IS NOT NULL')
-      .andWhere("TRIM(concert.genre) <> ''")
-      .getRawMany<{ genre: string | null }>();
+  async findAvailableGenres(): Promise<GenreOption[]> {
+    const genres = await this.genreRepository.find({
+      where: { isActive: true },
+      order: {
+        sortOrder: 'ASC',
+        name: 'ASC',
+      },
+    });
 
-    const genres = new Map<string, string>();
-    const configuredGenres =
-      this.configService.get<string>('CONCERT_GENRE_OPTIONS') ?? '';
-
-    for (const configuredGenre of configuredGenres.split(',')) {
-      const genre = configuredGenre.trim();
-      if (genre) {
-        genres.set(genre.toLowerCase(), genre);
-      }
-    }
-
-    for (const row of rows) {
-      const genre = row.genre?.trim();
-      const key = genre?.toLowerCase();
-      if (genre && key && !genres.has(key)) {
-        genres.set(key, genre);
-      }
-    }
-
-    return Array.from(genres.values()).sort((a, b) => a.localeCompare(b));
+    return genres.map((genre) => ({
+      slug: genre.slug,
+      name: genre.name,
+    }));
   }
 
   private async findWithQuery(

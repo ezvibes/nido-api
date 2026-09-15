@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Concert } from './entities/concert.entity';
 import { ConcertUpvote } from './entities/concert-upvote.entity';
+import { Genre } from './entities/genre.entity';
 import { ConcertService } from './concert.service';
 import { ConcertController } from './concert.controller';
 import { AdminConcertController } from './admin-concert.controller';
@@ -14,7 +15,13 @@ import { IngestionModule } from '../../ingestion/ingestion.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Concert, ConcertUpvote, ConcertBandLineup, ConcertSet]),
+    TypeOrmModule.forFeature([
+      Concert,
+      ConcertUpvote,
+      ConcertBandLineup,
+      ConcertSet,
+      Genre,
+    ]),
     AuthModule,
     UserModule,
     IngestionModule,

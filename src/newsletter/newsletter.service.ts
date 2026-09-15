@@ -59,6 +59,14 @@ export interface NewsletterRequestParams {
   postTemplateId?: string;
 }
 
+interface GoogleCalendarEvent {
+  summary?: string;
+  start?: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
+  location?: string;
+  description?: string;
+}
+
 @Injectable()
 export class NewsletterService {
   private readonly logger = new Logger(NewsletterService.name);
@@ -80,22 +88,25 @@ export class NewsletterService {
   }> {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY')?.trim();
     if (!apiKey) {
-      throw new InternalServerErrorException('GEMINI_API_KEY is not configured in the application environment.');
+      throw new InternalServerErrorException(
+        'GEMINI_API_KEY is not configured in the application environment.',
+      );
     }
 
-    const modelName = this.configService.get<string>('GEMINI_MODEL')?.trim() || DEFAULT_GEMINI_MODEL;
+    const modelName =
+      this.configService.get<string>('GEMINI_MODEL')?.trim() || DEFAULT_GEMINI_MODEL;
 
     const preview = await this.previewNewsletterSources(params);
     const combinedConcerts = [...preview.concerts, ...preview.calendarEvents];
 
     if (combinedConcerts.length === 0) {
-      this.logger.warn(`No verified concerts or calendar events found for range ${preview.dateRangeLabel}`);
+      this.logger.warn(
+        `No verified concerts or calendar events found for range ${preview.dateRangeLabel}`,
+      );
     }
 
-    // 4. Serialize raw calendar dump for prompt context
     const rawCalendarDump = JSON.stringify(combinedConcerts, null, 2);
 
-    // 5. Build full prompt
     const prompt = await this.buildPrompt({
       dateRange: preview.dateRangeLabel,
       editionType: params.editionType || 'weekly',
@@ -105,20 +116,19 @@ export class NewsletterService {
       rawCalendarData: rawCalendarDump,
     });
 
-    // 6. Call Gemini API using @google/generative-ai SDK
     this.logger.log(`Invoking Gemini API (${modelName}) to generate newsletter draft...`);
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({
-        model: modelName,
-      });
+      const model = genAI.getGenerativeModel({ model: modelName });
 
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
 
       if (!text) {
-        throw new InternalServerErrorException('Gemini API returned an empty newsletter draft.');
+        throw new InternalServerErrorException(
+          'Gemini API returned an empty newsletter draft.',
+        );
       }
 
       let beehiivDraft: BeehiivDraftResponse | undefined;
@@ -156,58 +166,39 @@ export class NewsletterService {
       params.dateRangeLabel,
     );
 
-    this.logger.log(
-      `Fetching active concerts between ${start.toISOString()} and ${end.toISOString()} for newsletter preview (${params.editionType || 'weekly'})...`,
-    );
+    let concerts: NewsletterSourceConcert[] = [];
+    if (params.useDatabase !== false) {
+      concerts = await this.fetchNCConcerts(
+        start.toISOString(),
+        end.toISOString(),
+        {
+          cities: params.cities,
+          genres: params.genres,
+          venues: params.venues,
+          region: params.region,
+          strictFiltering: params.strictFiltering,
+          featuredOnly: params.featuredOnly,
+          topPicksOnly: params.topPicksOnly,
+          excludeConcertIds: params.excludeConcertIds,
+        },
+      );
+    }
 
-    const activeConcerts = await this.concertRepository.find({
-      where: {
-        startsAt: Between(start, end),
-        catalogStatus: ConcertCatalogStatus.ACTIVE,
-      },
-      relations: ['venue', 'lineup', 'lineup.band'],
-      order: {
-        startsAt: 'ASC',
-      },
-    });
-
-    this.logger.log(`Found ${activeConcerts.length} active concerts for ${label}.`);
-
-    const formattedConcerts: NewsletterSourceConcert[] = activeConcerts.map(
-      (c) => {
-        const venueName = c.venue
-          ? `${c.venue.name}${c.venue.city ? ' - ' + c.venue.city : ''}${c.venue.region ? ', ' + c.venue.region : ''}`
-          : 'Unknown Venue';
-
-        const artistNames = c.lineup
-          ?.map((l) => l.band?.name)
-          .filter(Boolean)
-          .join(', ');
-
-        return {
-          id: c.id,
-          title: c.title,
-          date: c.startsAt ? new Date(c.startsAt).toISOString() : '',
-          venue: venueName,
-          artists: artistNames || undefined,
-          genre: c.genre || undefined,
-          description: c.description || undefined,
-          isTopPick: c.isTopPick ?? false,
-          topPickScore: c.topPickScore ?? 0.5,
-          isHighlightArtist: (c as any).isHighlightArtist ?? false,
-          isPartnerArtist: (c as any).isPartnerArtist ?? false,
-          source: 'database',
-        };
-      },
-    );
+    const calendarEvents = params.rawCalendarData
+      ? await this.parseCalendarData(
+          params.rawCalendarData,
+          start.toISOString(),
+          end.toISOString(),
+        )
+      : [];
 
     return {
       dateRangeLabel: label,
-      concerts: formattedConcerts,
-      calendarEvents: [],
-      concertsCount: formattedConcerts.length,
-      calendarEventsCount: 0,
-      totalCount: formattedConcerts.length,
+      concerts,
+      calendarEvents,
+      concertsCount: concerts.length,
+      calendarEventsCount: calendarEvents.length,
+      totalCount: concerts.length + calendarEvents.length,
     };
   }
 
@@ -219,25 +210,61 @@ export class NewsletterService {
     featuredFestival?: string;
     rawCalendarData: string;
   }): Promise<string> {
-    const templatePath = path.join(
+    const promptPath = path.join(
       process.cwd(),
-      'prompts',
-      'weekly_picks_system_prompt.txt',
+      '.gemini/prompts/weekly_top_picks.md',
     );
-
-    let templateContent = '';
+    let template = '';
     try {
-      templateContent = await fs.readFile(templatePath, 'utf8');
-    } catch {
-      templateContent = this.getDefaultPromptTemplate();
+      template = await fs.readFile(promptPath, 'utf-8');
+    } catch (err) {
+      template = this.getDefaultPromptTemplate();
     }
 
-    return templateContent
+    const editionType = params.editionType || 'weekly';
+    if (editionType === 'monthly') {
+      template = template.replace(
+        'draft the weekly "Top Picks" newsletter',
+        'draft the monthly "Top Picks" newsletter',
+      );
+      template = template.replace(
+        '# EZ Vibes Weekly Top Picks:',
+        '# EZ Vibes Monthly Top Picks:',
+      );
+    } else if (editionType === 'custom') {
+      template = template.replace(
+        '# EZ Vibes Weekly Top Picks:',
+        '# EZ Vibes Top Picks:',
+      );
+    }
+
+    return template
       .replace(/{{DATE_RANGE}}/g, params.dateRange)
+      .replace(/\[Date Range\]/g, params.dateRange)
+      .replace(
+        /\[e\.g\., Tuesday, Aug 11 - Sunday, Aug 16, 2026\]/g,
+        params.dateRange,
+      )
       .replace(/{{RECAP_NOTES}}/g, params.recapNotes || 'None provided.')
+      .replace(
+        /- \*\*Weekend Recap Notes:\*\* \[Provided by Evan\]/g,
+        `- **Weekend Recap Notes:** ${params.recapNotes || 'None'}`,
+      )
       .replace(/{{FEATURED_SHOW}}/g, params.featuredShow || 'None specified.')
+      .replace(
+        /- \*\*Featured Show Notes:\*\* \[Provided by Evan\]/g,
+        `- **Featured Show Notes:** ${params.featuredShow || 'None'}`,
+      )
       .replace(/{{FEATURED_FESTIVAL}}/g, params.featuredFestival || 'None specified.')
-      .replace(/{{RAW_CALENDAR_DATA}}/g, params.rawCalendarData);
+      .replace(
+        /- \*\*Featured Festival Notes:\*\* \[Provided by Evan\]/g,
+        `- **Featured Festival Notes:** ${params.featuredFestival || 'None'}`,
+      )
+      .replace(/{{RAW_CALENDAR_DATA}}/g, params.rawCalendarData)
+      .replace(
+        /\[Injected programmatically or pasted here\]/g,
+        params.rawCalendarData,
+      );
   }
 
   public convertMarkdownToHtml(markdown: string): string {
@@ -293,6 +320,248 @@ export class NewsletterService {
     const label = customLabel || `${startFmt} - ${endFmt}`;
 
     return { start, end, label };
+  }
+
+  private async fetchNCConcerts(
+    startDateStr: string,
+    endDateStr: string,
+    options?: {
+      cities?: string[];
+      genres?: string[];
+      venues?: string[];
+      region?: string;
+      strictFiltering?: boolean;
+      featuredOnly?: boolean;
+      topPicksOnly?: boolean;
+      excludeConcertIds?: string[];
+    },
+  ): Promise<NewsletterSourceConcert[]> {
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+
+    this.logger.log(
+      `Fetching active approved concerts from DB between ${start.toISOString()} and ${end.toISOString()}...`,
+    );
+
+    const dbConcerts = await this.concertRepository.find({
+      where: {
+        startsAt: Between(start, end),
+        catalogStatus: ConcertCatalogStatus.ACTIVE,
+      },
+      relations: ['venue', 'lineup', 'lineup.band'],
+      order: {
+        startsAt: 'ASC',
+      },
+    });
+
+    const highlightArtists = [
+      'dr bacon', 'dr. bacon', 'big fur', 'larry keel', 'sam fribush', 'treehouse', 'treehouse!',
+      'julia', 'africa unplugged', 'nth power', 'the nth power', 'chill paxton', 'toubab krewe',
+      'tand', 'badfish', 'sons of paradise', 'eggy', 'daniel donato', 'dogs in a pile', 'billy strings',
+    ];
+
+    const targetCities = ['raleigh', 'durham', 'chapel hill', 'carrboro', 'greensboro', 'winston-salem', 'charlotte', 'asheville', 'wilmington'];
+    const targetGenres = ['funk', 'bluegrass', 'jam', 'reggae', 'hip-hop', 'hip hop', 'salsa', 'rock', 'electronic', 'folk', 'latin'];
+
+    const filtered = dbConcerts.filter((concert) => {
+      if (options?.excludeConcertIds?.includes(concert.id)) return false;
+      if (options?.featuredOnly && !concert.isFeatured) return false;
+      if (options?.topPicksOnly && !concert.isTopPick) return false;
+
+      if (options?.strictFiltering) {
+        const region = (concert.venue?.region || '').toLowerCase().trim();
+        const isNC = region === 'nc' || region === 'north carolina';
+        if (!isNC) return false;
+
+        const city = (concert.venue?.city || '').toLowerCase().trim();
+        const matchesCity = targetCities.some((c) => city.includes(c));
+        if (!matchesCity) return false;
+
+        const genre = (concert.genre || '').toLowerCase().trim();
+        return targetGenres.some((g) => genre.includes(g));
+      }
+
+      if (options?.region) {
+        const concertRegion = (concert.venue?.region || '').toLowerCase().trim();
+        const targetRegion = options.region.toLowerCase().trim();
+        if (
+          concertRegion !== targetRegion &&
+          !(targetRegion === 'nc' && concertRegion === 'north carolina')
+        ) {
+          return false;
+        }
+      }
+
+      if (options?.cities && options.cities.length > 0) {
+        const concertCity = (concert.venue?.city || '').toLowerCase().trim();
+        if (!options.cities.some((c) => concertCity.includes(c.toLowerCase().trim()))) {
+          return false;
+        }
+      }
+
+      if (options?.genres && options.genres.length > 0) {
+        const concertGenre = (concert.genre || '').toLowerCase().trim();
+        if (!options.genres.some((g) => concertGenre.includes(g.toLowerCase().trim()))) {
+          return false;
+        }
+      }
+
+      if (options?.venues && options.venues.length > 0) {
+        const concertVenue = (concert.venue?.name || '').toLowerCase().trim();
+        if (!options.venues.some((v) => concertVenue.includes(v.toLowerCase().trim()))) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    return filtered.map((concert) => {
+      const dateStr = concert.startsAt
+        ? concert.startsAt.toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            timeZone: 'America/New_York',
+          })
+        : 'Unknown Date';
+
+      const lineupBands =
+        concert.lineup?.map((l) => l.band?.name).filter((b): b is string => Boolean(b)) || [];
+
+      const hasHighlightArtist =
+        lineupBands.some((bName) =>
+          highlightArtists.some((pa) => bName.toLowerCase().includes(pa)),
+        ) || highlightArtists.some((pa) => concert.title.toLowerCase().includes(pa));
+
+      return {
+        id: concert.id,
+        title: concert.title,
+        date: dateStr,
+        venue: concert.venue
+          ? `${concert.venue.name} (${concert.venue.city}, ${concert.venue.region})`
+          : 'Unknown Venue',
+        artists: lineupBands.join(', '),
+        genre: concert.genre,
+        description: concert.description || '',
+        isTopPick: Boolean(concert.isTopPick),
+        topPickScore: concert.topPickScore || 0,
+        isHighlightArtist: hasHighlightArtist,
+        isPartnerArtist: hasHighlightArtist,
+        source: 'Nido Concert Database',
+      };
+    });
+  }
+
+  private async parseCalendarData(
+    rawInput: string,
+    timeMin?: string,
+    timeMax?: string,
+  ): Promise<NewsletterSourceConcert[]> {
+    let content = rawInput.trim();
+
+    if (content.startsWith('http://') || content.startsWith('https://')) {
+      try {
+        const response = await fetch(content, {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Mozilla/5.0',
+            Accept: 'text/calendar,text/plain,application/ics,*/*',
+          },
+        });
+        if (!response.ok) return [];
+        content = (await response.text()).trim();
+      } catch {
+        return [];
+      }
+    }
+
+    if (content.includes('BEGIN:VCALENDAR')) {
+      try {
+        const events = this.parseIcalEvents(content).filter((event) =>
+          this.isWithinRange(event, timeMin, timeMax),
+        );
+
+        return events.map((event) => ({
+          title: event.summary || 'Untitled show',
+          date: event.start?.dateTime || event.start?.date || 'Unknown Date',
+          venue: event.location || 'Unknown Venue',
+          description: event.description || '',
+          isTopPick: false,
+          topPickScore: 0,
+          isHighlightArtist: false,
+          isPartnerArtist: false,
+          source: 'Calendar Feed (ICS)',
+        }));
+      } catch {
+        // Fall back
+      }
+    }
+
+    if (content.startsWith('[') || content.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(content);
+        const array = Array.isArray(parsed) ? parsed : [parsed];
+        return array.map((item) => ({
+          title: item.title || item.summary || item.name || 'Untitled show',
+          date: item.date || item.start || item.dateTime || 'Unknown Date',
+          venue: item.venue || item.location || 'Unknown Venue',
+          description: item.description || item.desc || '',
+          isTopPick: false,
+          topPickScore: 0,
+          isHighlightArtist: false,
+          isPartnerArtist: false,
+          source: 'Calendar Feed (JSON)',
+        }));
+      } catch {
+        // Fall back
+      }
+    }
+
+    return [
+      {
+        rawText: content,
+        title: 'Raw calendar text',
+        date: 'Unknown Date',
+        venue: 'Unknown Venue',
+        isTopPick: false,
+        topPickScore: 0,
+        isHighlightArtist: false,
+        isPartnerArtist: false,
+        source: 'Calendar Text Dump',
+      },
+    ];
+  }
+
+  private parseIcalEvents(text: string): GoogleCalendarEvent[] {
+    const lines = text.split(/\r?\n/);
+    const events: GoogleCalendarEvent[] = [];
+    let current: GoogleCalendarEvent | null = null;
+
+    for (const line of lines) {
+      if (line === 'BEGIN:VEVENT') {
+        current = {};
+      } else if (line === 'END:VEVENT') {
+        if (current) events.push(current);
+        current = null;
+      } else if (current) {
+        if (line.startsWith('SUMMARY:')) current.summary = line.replace('SUMMARY:', '');
+        if (line.startsWith('LOCATION:')) current.location = line.replace('LOCATION:', '');
+        if (line.startsWith('DESCRIPTION:')) current.description = line.replace('DESCRIPTION:', '');
+        if (line.startsWith('DTSTART:')) current.start = { dateTime: line.replace('DTSTART:', '') };
+      }
+    }
+
+    return events;
+  }
+
+  private isWithinRange(event: GoogleCalendarEvent, min?: string, max?: string): boolean {
+    if (!min || !max) return true;
+    const startStr = event.start?.dateTime || event.start?.date;
+    if (!startStr) return true;
+    const date = new Date(startStr);
+    return date >= new Date(min) && date <= new Date(max);
   }
 
   private getDefaultPromptTemplate(): string {

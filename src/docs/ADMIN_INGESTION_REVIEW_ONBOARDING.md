@@ -119,9 +119,11 @@ DB_NAME=nido
 DB_SYNCHRONIZE=true
 AUTH_DEV_BYPASS=true
 ADMIN_EMAILS=admin@example.com
-CONCERT_GENRE_OPTIONS=Jazz,Bluegrass,Funk,Jam,Reggae,Hip-Hop,Rock,Folk,Salsa,Electronic
 CONCERT_SYNC_MAX_EVENTS_PER_JOB=25
 ```
+
+Genre selector options are seeded by the `genres` database table migration. They
+are no longer configured through `CONCERT_GENRE_OPTIONS`.
 
 Only copy optional integration keys from `.env.integrations.example` when testing
 real Firebase Admin verification, GCS image uploads, Gemini, or Google Calendar

@@ -1,9 +1,10 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsISO8601,
   IsOptional,
   IsString,
 } from 'class-validator';
@@ -72,6 +73,94 @@ export class GenerateNewsletterDto {
   @IsOptional()
   @IsString()
   featuredFestival?: string;
+
+  @ApiPropertyOptional({
+    description: 'Raw calendar feed data (can be an ICS URL, raw ICS string, or text/JSON dump)',
+    example: 'https://calendar.google.com/calendar/ical/.../basic.ics',
+  })
+  @IsOptional()
+  @IsString()
+  rawCalendarData?: string;
+
+  @ApiPropertyOptional({
+    description: 'Whether to fetch and merge active, admin-approved concerts from the Nido database',
+    default: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  useDatabase?: boolean = true;
+
+  @ApiPropertyOptional({
+    description: 'Restrict database concert inclusion to admin Featured concerts.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  featuredOnly?: boolean = false;
+
+  @ApiPropertyOptional({
+    description: 'Restrict database concert inclusion to calculated Top Pick concerts.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  topPicksOnly?: boolean = false;
+
+  @ApiPropertyOptional({
+    description:
+      'Approved Nido concert ids to exclude from this newsletter run without changing catalog data.',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  excludeConcertIds?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Optional list of cities to restrict database concert inclusion to',
+    example: ['Raleigh', 'Durham'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  cities?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Optional list of genres to restrict database concert inclusion to',
+    example: ['funk', 'bluegrass'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  genres?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Optional list of venue names to restrict database concert inclusion to',
+    example: ['The Pour House Music Hall'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  venues?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Optional region/state filter (e.g. "NC")',
+    example: 'NC',
+  })
+  @IsOptional()
+  @IsString()
+  region?: string;
+
+  @ApiPropertyOptional({
+    description: 'Whether to enforce legacy strict genre & NC city filtering. Defaults to false so all active, approved DB concerts in range are included.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  strictFiltering?: boolean = false;
 
   @ApiPropertyOptional({
     description:
