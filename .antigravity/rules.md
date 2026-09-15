@@ -50,3 +50,8 @@
    - Focus NestJS development on high-performance REST endpoints, TypeORM data integrity, role-based auth (JWT/API Keys), and webhooks.
    - Ensure `/v1/events/published` is optimized for fast, CORS-enabled fetching by client-side widgets embedded in beehiiv.
    - Maintain entities for `Event`, `Venue`, `Campaign` (handling Venue Sprints, Festival Packages, Artist EPKs), and `VibesSquadMember`.
+
+4. **Git Auth & Merge Conflict Directives:**
+   - **Identity Verification:** Always check `gh auth status` prior to remote git actions to confirm `ezvibes` is the active account.
+   - **Local Branch Merging:** Always execute `git merge origin/<target>` directly inside the local workspace repository rather than using file-by-file REST API pushes, ensuring full git graph ancestry and clean 1-pass conflict resolution.
+
