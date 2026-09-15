@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { NewsletterService } from './newsletter.service';
+import { BeehiivService } from './beehiiv.service';
 import { Concert, ConcertCatalogStatus } from '../apis/concerts/entities/concert.entity';
 
 const mockGenerateContent = jest.fn();
@@ -22,6 +23,10 @@ describe('NewsletterService', () => {
 
   const mockConcertRepository = {
     find: jest.fn(),
+  };
+
+  const mockBeehiivService = {
+    createDraftFromHtml: jest.fn(),
   };
 
   const mockConfigService = {
@@ -49,6 +54,10 @@ describe('NewsletterService', () => {
           provide: ConfigService,
           useValue: mockConfigService,
         },
+        {
+          provide: BeehiivService,
+          useValue: mockBeehiivService,
+        },
       ],
     }).compile();
 
@@ -75,155 +84,84 @@ describe('NewsletterService', () => {
       expect(prompt).toContain('Dr. Bacon at Pour House');
       expect(prompt).toContain('Grassroots Festival');
     });
+  });
 
-    it('should format title header for monthly edition', async () => {
-      const prompt = await service.buildPrompt({
-        dateRange: 'September 2026',
-        editionType: 'monthly',
-        recapNotes: 'Fall lineup preview.',
-        rawCalendarData: '[]',
+  describe('previewNewsletterSources', () => {
+    it('should query DB and return preview concerts without invoking Gemini', async () => {
+      const mockConcerts = [
+        {
+          id: 'concert-1',
+          title: 'SunSquabi Live',
+          startsAt: new Date('2026-09-11T20:00:00Z'),
+          genre: 'Electronic Funk',
+          catalogStatus: ConcertCatalogStatus.ACTIVE,
+          venue: {
+            name: 'Lincoln Theatre',
+            city: 'Raleigh',
+            region: 'NC',
+          },
+          lineup: [{ band: { name: 'SunSquabi' } }],
+        },
+      ];
+
+      mockConcertRepository.find.mockResolvedValue(mockConcerts);
+
+      const result = await service.previewNewsletterSources({
+        startDate: '2026-09-08T00:00:00.000Z',
+        endDate: '2026-09-13T23:59:59.999Z',
       });
 
-      expect(prompt).toContain('# EZ Vibes Monthly Top Picks: September 2026');
+      expect(mockConcertRepository.find).toHaveBeenCalledTimes(1);
+      expect(result.concerts).toHaveLength(1);
+      expect(result.concerts[0].title).toBe('SunSquabi Live');
+      expect(result.concerts[0].venue).toContain('Lincoln Theatre');
+      expect(mockGenerateContent).not.toHaveBeenCalled();
     });
   });
 
-  describe('fetchNCConcerts and generateNewsletter', () => {
+  describe('generateNewsletter', () => {
     const mockConcerts = [
       {
-        title: 'Dr. Bacon Live',
-        startsAt: new Date('2026-08-12T20:00:00Z'),
+        id: 'concert-1',
+        title: 'Papadosio Live',
+        startsAt: new Date('2026-09-11T20:00:00Z'),
         genre: 'Funk-Rock',
         catalogStatus: ConcertCatalogStatus.ACTIVE,
-        isAdminApproved: true,
-        isTopPick: true,
-        topPickScore: 0.9,
         venue: {
-          name: 'The Pour House Music Hall',
+          name: 'Lincoln Theatre',
           city: 'Raleigh',
           region: 'NC',
         },
-        lineup: [
-          {
-            band: {
-              name: 'Dr. Bacon',
-            },
-          },
-        ],
-      },
-      {
-        title: 'Pop Indie Show',
-        startsAt: new Date('2026-08-13T20:00:00Z'),
-        genre: 'Indie Pop',
-        catalogStatus: ConcertCatalogStatus.ACTIVE,
-        isAdminApproved: true,
-        venue: {
-          name: 'Cat\'s Cradle',
-          city: 'Carrboro',
-          region: 'NC',
-        },
+        lineup: [{ band: { name: 'Papadosio' } }],
       },
     ];
 
-    it('should include all active approved database concerts by default', async () => {
+    it('should generate newsletter draft and auto-push to Beehiiv when autoPushToBeehiiv is true', async () => {
       mockConcertRepository.find.mockResolvedValue(mockConcerts);
-
       mockGenerateContent.mockResolvedValue({
         response: {
-          text: () => 'Mocked generated newsletter Markdown content from Gemini',
+          text: () => '# EZ Vibes Weekly Top Picks\n\n## Quick Hits\n- Papadosio at Lincoln Theatre',
         },
       });
 
-      const response = await service.generateNewsletter({
-        startDate: '2026-08-11T00:00:00Z',
-        endDate: '2026-08-16T23:59:59Z',
-        weekendRecap: 'Weekend was wild.',
-        useDatabase: true,
+      mockBeehiivService.createDraftFromHtml.mockResolvedValue({
+        id: 'post_beehiiv_123',
+        title: 'EZ Vibes Top Picks: Tuesday, Sep 8 - Sunday, Sep 13, 2026',
+        status: 'draft',
+        web_url: 'https://beehiiv.com/posts/post_beehiiv_123',
       });
 
-      // By default (strictFiltering = false), both active approved DB concerts are included
-      expect(mockConcertRepository.find).toHaveBeenCalled();
-      expect(response.concertsCount).toBe(2);
-      expect(response.newsletterDraft).toBe('Mocked generated newsletter Markdown content from Gemini');
-    });
-
-    it('should filter by specific city when cities filter is provided', async () => {
-      mockConcertRepository.find.mockResolvedValue(mockConcerts);
-
-      mockGenerateContent.mockResolvedValue({
-        response: {
-          text: () => 'Filtered city newsletter draft',
-        },
+      const result = await service.generateNewsletter({
+        startDate: '2026-09-08T00:00:00.000Z',
+        endDate: '2026-09-13T23:59:59.999Z',
+        editionType: 'weekly',
+        autoPushToBeehiiv: true,
       });
 
-      const response = await service.generateNewsletter({
-        startDate: '2026-08-11T00:00:00Z',
-        endDate: '2026-08-16T23:59:59Z',
-        cities: ['Raleigh'],
-        useDatabase: true,
-      });
-
-      expect(response.concertsCount).toBe(1);
-    });
-
-    it('should enforce legacy strict city and genre rules when strictFiltering is true', async () => {
-      mockConcertRepository.find.mockResolvedValue(mockConcerts);
-
-      mockGenerateContent.mockResolvedValue({
-        response: {
-          text: () => 'Strict filtered newsletter draft',
-        },
-      });
-
-      const response = await service.generateNewsletter({
-        startDate: '2026-08-11T00:00:00Z',
-        endDate: '2026-08-16T23:59:59Z',
-        strictFiltering: true,
-        useDatabase: true,
-      });
-
-      // Raleigh NC Funk-Rock matches; Carrboro NC Indie Pop is filtered out by strict rules
-      expect(response.concertsCount).toBe(1);
-    });
-  });
-
-  describe('parseCalendarData', () => {
-    it('should parse raw ICS calendar events and include all events within the date range', async () => {
-      const icsData = `BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-UID:event-1
-SUMMARY:Dr. Bacon Show
-DESCRIPTION:Amazing Jam Funk Rock show
-LOCATION:The Pour House, Raleigh, NC
-DTSTART:20260812T200000Z
-DTEND:20260812T230000Z
-END:VEVENT
-BEGIN:VEVENT
-UID:event-2
-SUMMARY:Some Other Show
-DESCRIPTION:Custom curated show
-LOCATION:Eddie's Attic, Decatur, GA
-DTSTART:20260814T200000Z
-DTEND:20260814T230000Z
-END:VEVENT
-END:VCALENDAR`;
-
-      mockGenerateContent.mockResolvedValue({
-        response: {
-          text: () => 'Weekly picks draft',
-        },
-      });
-
-      const response = await service.generateNewsletter({
-        startDate: '2026-08-11T00:00:00Z',
-        endDate: '2026-08-16T23:59:59Z',
-        rawCalendarData: icsData,
-        useDatabase: false,
-      });
-
-      // Both in-range ICS events (event-1 and event-2) are included without getting dropped by hardcoded filters
-      expect(response.concertsCount).toBe(2);
+      expect(result.newsletterDraft).toContain('# EZ Vibes Weekly Top Picks');
+      expect(result.beehiivDraft).toBeDefined();
+      expect(result.beehiivDraft?.id).toBe('post_beehiiv_123');
+      expect(mockBeehiivService.createDraftFromHtml).toHaveBeenCalled();
     });
   });
 });

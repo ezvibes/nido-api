@@ -1,25 +1,20 @@
-import {
-  Injectable,
-  Logger,
-  InternalServerErrorException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-export interface CreateBeehiivDraftParams {
+export interface BeehiivDraftParams {
   title: string;
   htmlContent: string;
   postTemplateId?: string;
   publicationId?: string;
-  status?: 'draft' | 'confirmed' | 'scheduled';
 }
 
 export interface BeehiivDraftResponse {
   id: string;
   title: string;
+  subtitle?: string;
   status: string;
-  webUrl?: string;
-  rawResponse?: any;
+  web_url?: string;
+  created_at?: number;
 }
 
 @Injectable()
@@ -29,48 +24,34 @@ export class BeehiivService {
   constructor(private readonly configService: ConfigService) {}
 
   /**
-   * Pushes generated HTML content to Beehiiv API v2 as a draft post utilizing a specific template & blocks structure.
-   * Endpoint: POST https://api.beehiiv.com/v2/publications/{publicationId}/posts
+   * Pushes generated HTML newsletter content to Beehiiv API v2 as a template-based draft.
    */
-  async createDraftFromHtml(
-    params: CreateBeehiivDraftParams,
-  ): Promise<BeehiivDraftResponse> {
+  async createDraftFromHtml(params: BeehiivDraftParams): Promise<BeehiivDraftResponse> {
     const apiKey = this.configService.get<string>('BEEHIIV_API_KEY')?.trim();
-    const defaultPubId = this.configService
-      .get<string>('BEEHIIV_PUBLICATION_ID')
-      ?.trim();
-    const defaultTemplateId = this.configService
-      .get<string>('BEEHIIV_POST_TEMPLATE_ID')
-      ?.trim();
-
     if (!apiKey) {
       throw new InternalServerErrorException(
-        'BEEHIIV_API_KEY is not configured in environment variables.',
+        'BEEHIIV_API_KEY is not configured in the application environment.',
       );
     }
 
-    const publicationId = params.publicationId || defaultPubId;
+    const publicationId =
+      params.publicationId ||
+      this.configService.get<string>('BEEHIIV_PUBLICATION_ID')?.trim();
     if (!publicationId) {
       throw new InternalServerErrorException(
-        'BEEHIIV_PUBLICATION_ID is missing from environment and parameters.',
+        'BEEHIIV_PUBLICATION_ID is not configured in environment or params.',
       );
     }
 
-    const postTemplateId = params.postTemplateId || defaultTemplateId;
-
-    if (!params.title || !params.title.trim()) {
-      throw new UnprocessableEntityException('Title is required for Beehiiv draft post.');
-    }
-
-    if (!params.htmlContent || !params.htmlContent.trim()) {
-      throw new UnprocessableEntityException('HTML content is required for Beehiiv draft post.');
-    }
+    const postTemplateId =
+      params.postTemplateId ||
+      this.configService.get<string>('BEEHIIV_POST_TEMPLATE_ID')?.trim();
 
     const endpoint = `https://api.beehiiv.com/v2/publications/${publicationId}/posts`;
 
     const payload: Record<string, any> = {
-      title: params.title.trim(),
-      status: params.status || 'draft',
+      title: params.title,
+      status: 'draft',
       blocks: [
         {
           type: 'html',
@@ -84,68 +65,48 @@ export class BeehiivService {
     }
 
     this.logger.log(
-      `Pushing draft post to Beehiiv API: "${payload.title}" (Pub ID: ${publicationId}, Template ID: ${
-        postTemplateId || 'None'
-      })`,
+      `Pushing newsletter draft "${params.title}" to Beehiiv publication ${publicationId}...`,
     );
 
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json().catch(() => null);
-
-      if (!response.ok && response.status !== 201 && response.status !== 202) {
+      if (!response.ok) {
+        const errorText = await response.text();
         this.logger.error(
-          `Beehiiv API error (${response.status}): ${JSON.stringify(data)}`,
+          `Beehiiv API returned error status ${response.status}: ${errorText}`,
         );
-
-        const errorMessage =
-          data?.errors?.[0]?.message ||
-          data?.message ||
-          `Beehiiv API request failed with status ${response.status}`;
-
-        if (response.status === 422) {
-          throw new UnprocessableEntityException(`Beehiiv validation failed: ${errorMessage}`);
-        }
-
-        throw new InternalServerErrorException(`Beehiiv API Error: ${errorMessage}`);
+        throw new InternalServerErrorException(
+          `Beehiiv API error (${response.status}): ${errorText}`,
+        );
       }
 
-      const createdPost = data?.data || data;
+      const responseData = await response.json();
+      const draftData = responseData.data || responseData;
 
-      this.logger.log(
-        `Successfully created Beehiiv draft post ID: ${createdPost?.id || 'Created'}`,
-      );
+      this.logger.log(`Successfully created Beehiiv draft post ID: ${draftData.id}`);
 
       return {
-        id: createdPost?.id || 'unknown',
-        title: createdPost?.title || payload.title,
-        status: createdPost?.status || payload.status,
-        webUrl: createdPost?.web_url,
-        rawResponse: data,
+        id: draftData.id,
+        title: draftData.title,
+        subtitle: draftData.subtitle,
+        status: draftData.status,
+        web_url: draftData.web_url,
+        created_at: draftData.created_at,
       };
-    } catch (error) {
-      if (
-        error instanceof UnprocessableEntityException ||
-        error instanceof InternalServerErrorException
-      ) {
-        throw error;
+    } catch (err) {
+      if (err instanceof InternalServerErrorException) {
+        throw err;
       }
-
-      this.logger.error(
-        `Failed to connect to Beehiiv API: ${error?.message || error}`,
-        error?.stack,
-      );
-      throw new InternalServerErrorException(
-        `Network error communicating with Beehiiv API: ${error?.message || error}`,
-      );
+      this.logger.error(`Failed to push draft to Beehiiv: ${err.message}`, err.stack);
+      throw new InternalServerErrorException(`Beehiiv draft creation failed: ${err.message}`);
     }
   }
 }

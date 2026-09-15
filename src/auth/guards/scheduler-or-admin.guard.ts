@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth.service';
 import { AdminEmailGuard } from './admin-email.guard';
+import type { DecodedIdToken } from 'firebase-admin/auth';
 
 @Injectable()
 export class SchedulerOrAdminGuard implements CanActivate {
@@ -57,18 +58,17 @@ export class SchedulerOrAdminGuard implements CanActivate {
 
       const isAdmin = this.adminEmailGuard.canActivate(context);
       if (!isAdmin) {
-        throw new ForbiddenException('Admin access denied for this email.');
+        throw new ForbiddenException(
+          'User is authenticated but not authorized as an admin.',
+        );
       }
 
       return true;
-    } catch (error) {
-      if (
-        error instanceof UnauthorizedException ||
-        error instanceof ForbiddenException
-      ) {
-        throw error;
+    } catch (err) {
+      if (err instanceof ForbiddenException || err instanceof UnauthorizedException) {
+        throw err;
       }
-      throw new UnauthorizedException(`Invalid or expired token: ${error?.message || error}`);
+      throw new UnauthorizedException(`Authentication failed: ${err.message}`);
     }
   }
 }

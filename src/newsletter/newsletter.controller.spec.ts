@@ -1,26 +1,33 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NewsletterController } from './newsletter.controller';
 import { NewsletterService } from './newsletter.service';
-import { FirebaseAuthGuard } from '../auth/firebase-auth/firebase-auth.guard';
-import { AdminEmailGuard } from '../auth/guards/admin-email.guard';
+import { BeehiivService } from './beehiiv.service';
+import { ConfigService } from '@nestjs/config';
+import { AuthService } from '../auth/auth.service';
 
 describe('NewsletterController', () => {
   let controller: NewsletterController;
-  let service: NewsletterService;
 
   const mockNewsletterService = {
     generateNewsletter: jest.fn(),
+    previewNewsletterSources: jest.fn(),
   };
 
-  const mockAuthGuard = {
-    canActivate: jest.fn(() => true),
+  const mockBeehiivService = {
+    createDraftFromHtml: jest.fn(),
   };
 
-  const mockAdminGuard = {
-    canActivate: jest.fn(() => true),
+  const mockAuthService = {
+    verifyIdToken: jest.fn(),
+  };
+
+  const mockConfigService = {
+    get: jest.fn(),
   };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [NewsletterController],
       providers: [
@@ -28,16 +35,22 @@ describe('NewsletterController', () => {
           provide: NewsletterService,
           useValue: mockNewsletterService,
         },
+        {
+          provide: BeehiivService,
+          useValue: mockBeehiivService,
+        },
+        {
+          provide: AuthService,
+          useValue: mockAuthService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
       ],
-    })
-      .overrideGuard(FirebaseAuthGuard)
-      .useValue(mockAuthGuard)
-      .overrideGuard(AdminEmailGuard)
-      .useValue(mockAdminGuard)
-      .compile();
+    }).compile();
 
     controller = module.get<NewsletterController>(NewsletterController);
-    service = module.get<NewsletterService>(NewsletterService);
   });
 
   it('should be defined', () => {
@@ -45,25 +58,68 @@ describe('NewsletterController', () => {
   });
 
   describe('generateWeekly', () => {
-    it('should call service generateNewsletter method', async () => {
-      const dto = {
-        startDate: '2026-08-11T00:00:00Z',
-        endDate: '2026-08-16T23:59:59Z',
-        weekendRecap: 'Recap notes.',
+    it('should delegate generation to NewsletterService', async () => {
+      const dto = { editionType: 'weekly' as any };
+      const mockResult = {
+        newsletterDraft: '# Draft',
+        concertsCount: 5,
       };
 
-      const expectedResponse = {
-        newsletterDraft: 'Markdown output',
-        concertsCount: 0,
-        concerts: [],
-      };
-
-      mockNewsletterService.generateNewsletter.mockResolvedValue(expectedResponse);
+      mockNewsletterService.generateNewsletter.mockResolvedValue(mockResult);
 
       const result = await controller.generateWeekly(dto);
 
-      expect(service.generateNewsletter).toHaveBeenCalledWith(dto);
-      expect(result).toEqual(expectedResponse);
+      expect(mockNewsletterService.generateNewsletter).toHaveBeenCalledWith(dto);
+      expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('previewSources', () => {
+    it('should delegate source preview to NewsletterService', async () => {
+      const dto = { editionType: 'weekly' as any };
+      const mockResult = {
+        dateRangeLabel: 'Tuesday, Sep 8 - Sunday, Sep 13, 2026',
+        concerts: [],
+        calendarEvents: [],
+        concertsCount: 0,
+        calendarEventsCount: 0,
+        totalCount: 0,
+      };
+
+      mockNewsletterService.previewNewsletterSources.mockResolvedValue(mockResult);
+
+      const result = await controller.previewSources(dto);
+
+      expect(mockNewsletterService.previewNewsletterSources).toHaveBeenCalledWith(dto);
+      expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('pushBeehiivDraft', () => {
+    it('should delegate draft creation to BeehiivService', async () => {
+      const dto = {
+        title: 'EZ Vibes Top Picks',
+        htmlContent: '<p>HTML content</p>',
+        postTemplateId: 'tpl_123',
+      };
+
+      const mockBeehiivResult = {
+        id: 'post_123',
+        title: 'EZ Vibes Top Picks',
+        status: 'draft',
+      };
+
+      mockBeehiivService.createDraftFromHtml.mockResolvedValue(mockBeehiivResult);
+
+      const result = await controller.pushBeehiivDraft(dto);
+
+      expect(mockBeehiivService.createDraftFromHtml).toHaveBeenCalledWith({
+        title: dto.title,
+        htmlContent: dto.htmlContent,
+        postTemplateId: dto.postTemplateId,
+        publicationId: undefined,
+      });
+      expect(result).toEqual(mockBeehiivResult);
     });
   });
 });
