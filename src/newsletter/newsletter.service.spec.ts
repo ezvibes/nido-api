@@ -91,12 +91,14 @@ describe('NewsletterService', () => {
   describe('fetchNCConcerts and generateNewsletter', () => {
     const mockConcerts = [
       {
+        id: 'concert-1',
         title: 'Dr. Bacon Live',
         startsAt: new Date('2026-08-12T20:00:00Z'),
         genre: 'Funk-Rock',
         catalogStatus: ConcertCatalogStatus.ACTIVE,
         isAdminApproved: true,
         isTopPick: true,
+        isFeatured: true,
         topPickScore: 0.9,
         venue: {
           name: 'The Pour House Music Hall',
@@ -112,11 +114,14 @@ describe('NewsletterService', () => {
         ],
       },
       {
+        id: 'concert-2',
         title: 'Pop Indie Show',
         startsAt: new Date('2026-08-13T20:00:00Z'),
         genre: 'Indie Pop',
         catalogStatus: ConcertCatalogStatus.ACTIVE,
         isAdminApproved: true,
+        isTopPick: false,
+        isFeatured: false,
         venue: {
           name: 'Cat\'s Cradle',
           city: 'Carrboro',
@@ -147,6 +152,35 @@ describe('NewsletterService', () => {
       expect(response.newsletterDraft).toBe('Mocked generated newsletter Markdown content from Gemini');
     });
 
+    it('should preview the same database concerts without calling Gemini', async () => {
+      mockConcertRepository.find.mockResolvedValue(mockConcerts);
+
+      const response = await service.previewNewsletterSources({
+        startDate: '2026-08-11T00:00:00Z',
+        endDate: '2026-08-16T23:59:59Z',
+        dateRangeLabel: 'Aug 11-16',
+        useDatabase: true,
+      });
+
+      expect(response).toMatchObject({
+        dateRangeLabel: 'Aug 11-16',
+        concertsCount: 2,
+        calendarEventsCount: 0,
+        totalCount: 2,
+      });
+      expect(response.concerts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'concert-1',
+            title: 'Dr. Bacon Live',
+            source: 'Nido Concert Database',
+          }),
+        ]),
+      );
+      expect(mockGetGenerativeModel).not.toHaveBeenCalled();
+      expect(mockGenerateContent).not.toHaveBeenCalled();
+    });
+
     it('should filter by specific city when cities filter is provided', async () => {
       mockConcertRepository.find.mockResolvedValue(mockConcerts);
 
@@ -164,6 +198,73 @@ describe('NewsletterService', () => {
       });
 
       expect(response.concertsCount).toBe(1);
+    });
+
+    it('should preview only Featured database concerts when requested', async () => {
+      mockConcertRepository.find.mockResolvedValue(mockConcerts);
+
+      const response = await service.previewNewsletterSources({
+        startDate: '2026-08-11T00:00:00Z',
+        endDate: '2026-08-16T23:59:59Z',
+        featuredOnly: true,
+        useDatabase: true,
+      });
+
+      expect(response.concerts).toEqual([
+        expect.objectContaining({
+          id: 'concert-1',
+          title: 'Dr. Bacon Live',
+        }),
+      ]);
+      expect(response.totalCount).toBe(1);
+      expect(mockGenerateContent).not.toHaveBeenCalled();
+    });
+
+    it('should preview only Top Pick database concerts when requested', async () => {
+      mockConcertRepository.find.mockResolvedValue(mockConcerts);
+
+      const response = await service.previewNewsletterSources({
+        startDate: '2026-08-11T00:00:00Z',
+        endDate: '2026-08-16T23:59:59Z',
+        topPicksOnly: true,
+        useDatabase: true,
+      });
+
+      expect(response.concerts).toEqual([
+        expect.objectContaining({
+          id: 'concert-1',
+          title: 'Dr. Bacon Live',
+        }),
+      ]);
+      expect(response.totalCount).toBe(1);
+      expect(mockGenerateContent).not.toHaveBeenCalled();
+    });
+
+    it('should exclude selected database concerts from preview and generation', async () => {
+      mockConcertRepository.find.mockResolvedValue(mockConcerts);
+      mockGenerateContent.mockResolvedValue({
+        response: {
+          text: () => 'Curated newsletter draft',
+        },
+      });
+
+      const params = {
+        startDate: '2026-08-11T00:00:00Z',
+        endDate: '2026-08-16T23:59:59Z',
+        excludeConcertIds: ['concert-2'],
+        useDatabase: true,
+      };
+      const preview = await service.previewNewsletterSources(params);
+      const generated = await service.generateNewsletter(params);
+
+      expect(preview.concerts).toEqual([
+        expect.objectContaining({
+          id: 'concert-1',
+          title: 'Dr. Bacon Live',
+        }),
+      ]);
+      expect(preview.totalCount).toBe(1);
+      expect(generated.concertsCount).toBe(preview.totalCount);
     });
 
     it('should enforce legacy strict city and genre rules when strictFiltering is true', async () => {
@@ -224,6 +325,44 @@ END:VCALENDAR`;
 
       // Both in-range ICS events (event-1 and event-2) are included without getting dropped by hardcoded filters
       expect(response.concertsCount).toBe(2);
+    });
+
+    it('should preview parsed calendar events and align with generation count', async () => {
+      const jsonData = JSON.stringify([
+        {
+          title: 'Preview Show',
+          date: '2026-08-12T20:00:00Z',
+          venue: 'The Pour House',
+        },
+      ]);
+
+      mockGenerateContent.mockResolvedValue({
+        response: {
+          text: () => 'Weekly picks draft',
+        },
+      });
+
+      const preview = await service.previewNewsletterSources({
+        startDate: '2026-08-11T00:00:00Z',
+        endDate: '2026-08-16T23:59:59Z',
+        rawCalendarData: jsonData,
+        useDatabase: false,
+      });
+      const generated = await service.generateNewsletter({
+        startDate: '2026-08-11T00:00:00Z',
+        endDate: '2026-08-16T23:59:59Z',
+        rawCalendarData: jsonData,
+        useDatabase: false,
+      });
+
+      expect(preview.calendarEvents).toEqual([
+        expect.objectContaining({
+          title: 'Preview Show',
+          source: 'Calendar Feed (JSON)',
+        }),
+      ]);
+      expect(preview.totalCount).toBe(1);
+      expect(generated.concertsCount).toBe(preview.totalCount);
     });
   });
 });
