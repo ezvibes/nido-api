@@ -85,15 +85,20 @@ describe('ConcertController HTTP contract', () => {
 
   it('serves GET /concerts/meta/genres without a bearer token or user lookup', async () => {
     concertService.findAvailableGenres.mockResolvedValue([
-      'Electronic',
-      'Indie Rock',
-      'Rock',
+      { slug: 'electronic', name: 'Electronic' },
+      { slug: 'rock', name: 'Rock' },
     ]);
 
     await request(app.getHttpServer())
       .get('/concerts/meta/genres')
       .expect(200)
-      .expect({ genres: ['Electronic', 'Indie Rock', 'Rock'] });
+      .expect({
+        genres: ['Electronic', 'Rock'],
+        options: [
+          { slug: 'electronic', name: 'Electronic' },
+          { slug: 'rock', name: 'Rock' },
+        ],
+      });
 
     expect(userService.findExistingFromToken).not.toHaveBeenCalled();
     expect(userService.syncFromToken).not.toHaveBeenCalled();
