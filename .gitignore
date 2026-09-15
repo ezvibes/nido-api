@@ -75,3 +75,8 @@ nido-api-08fa5f15fac1.json
 .agents/skills/*
 !.agents/skills/nido-feature-flywheel/
 !.agents/skills/nido-feature-flywheel/**
+
+# Antigravity agent skills and private DevOps tactics
+.antigravity/skills/
+.antigravity/skills/**
+
