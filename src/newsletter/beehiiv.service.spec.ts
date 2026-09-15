@@ -19,6 +19,12 @@ describe('BeehiivService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockConfigService.get.mockImplementation((key: string) => {
+      if (key === 'BEEHIIV_API_KEY') return 'test-beehiiv-key';
+      if (key === 'BEEHIIV_PUBLICATION_ID') return 'pub_12345';
+      if (key === 'BEEHIIV_POST_TEMPLATE_ID') return 'tpl_67890';
+      return null;
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -75,19 +81,22 @@ describe('BeehiivService', () => {
             'Content-Type': 'application/json',
             Authorization: 'Bearer test-beehiiv-key',
           },
-          body: JSON.stringify({
-            title: 'EZ Vibes Top Picks: Sep 10 - Sep 15, 2026',
-            post_template_id: 'tpl_67890',
-            status: 'draft',
-            blocks: [
-              {
-                type: 'html',
-                html: '<h1>Weekly Top Picks</h1><p>Check out Papadosio live!</p>',
-              },
-            ],
-          }),
         }),
       );
+
+      const fetchCallArgs = mockFetch.mock.calls[0][1];
+      const parsedBody = JSON.parse(fetchCallArgs.body);
+      expect(parsedBody).toEqual({
+        title: 'EZ Vibes Top Picks: Sep 10 - Sep 15, 2026',
+        post_template_id: 'tpl_67890',
+        status: 'draft',
+        blocks: [
+          {
+            type: 'html',
+            html: '<h1>Weekly Top Picks</h1><p>Check out Papadosio live!</p>',
+          },
+        ],
+      });
 
       expect(result.id).toBe('post_beehiiv_abc123');
       expect(result.status).toBe('draft');
