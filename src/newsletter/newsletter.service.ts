@@ -4,9 +4,9 @@ import { Between, Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Concert, ConcertCatalogStatus } from '../apis/concerts/entities/concert.entity';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { BeehiivService, BeehiivDraftResponse } from './beehiiv.service';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import type { GoogleCalendarEvent } from '../concert-sync/interfaces/google-calendar-event.interface';
 
 const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
 
@@ -38,8 +38,8 @@ export interface NewsletterSourcePreview {
 }
 
 export interface NewsletterRequestParams {
-  startDate: string;
-  endDate: string;
+  startDate?: string;
+  endDate?: string;
   editionType?: NewsletterEditionType;
   dateRangeLabel?: string;
   weekendRecap?: string;
@@ -55,6 +55,16 @@ export interface NewsletterRequestParams {
   venues?: string[];
   region?: string;
   strictFiltering?: boolean;
+  autoPushToBeehiiv?: boolean;
+  postTemplateId?: string;
+}
+
+interface GoogleCalendarEvent {
+  summary?: string;
+  start?: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
+  location?: string;
+  description?: string;
 }
 
 @Injectable()
@@ -65,31 +75,38 @@ export class NewsletterService {
     @InjectRepository(Concert)
     private readonly concertRepository: Repository<Concert>,
     private readonly configService: ConfigService,
+    private readonly beehiivService: BeehiivService,
   ) {}
 
   /**
    * Main entry point to generate the weekly, monthly, or custom top picks newsletter.
    */
-  async generateNewsletter(
-    params: NewsletterRequestParams,
-  ): Promise<{ newsletterDraft: string; concertsCount: number }> {
+  async generateNewsletter(params: NewsletterRequestParams): Promise<{
+    newsletterDraft: string;
+    concertsCount: number;
+    beehiivDraft?: BeehiivDraftResponse;
+  }> {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY')?.trim();
     if (!apiKey) {
-      throw new InternalServerErrorException('GEMINI_API_KEY is not configured in the application environment.');
+      throw new InternalServerErrorException(
+        'GEMINI_API_KEY is not configured in the application environment.',
+      );
     }
 
-    const modelName = this.configService.get<string>('GEMINI_MODEL')?.trim() || DEFAULT_GEMINI_MODEL;
+    const modelName =
+      this.configService.get<string>('GEMINI_MODEL')?.trim() || DEFAULT_GEMINI_MODEL;
+
     const preview = await this.previewNewsletterSources(params);
     const combinedConcerts = [...preview.concerts, ...preview.calendarEvents];
 
     if (combinedConcerts.length === 0) {
-      this.logger.warn(`No verified concerts or calendar events found for range ${params.startDate} - ${params.endDate}`);
+      this.logger.warn(
+        `No verified concerts or calendar events found for range ${preview.dateRangeLabel}`,
+      );
     }
 
-    // 4. Serialize raw calendar dump for prompt context
     const rawCalendarDump = JSON.stringify(combinedConcerts, null, 2);
 
-    // 5. Build full prompt
     const prompt = await this.buildPrompt({
       dateRange: preview.dateRangeLabel,
       editionType: params.editionType || 'weekly',
@@ -99,25 +116,39 @@ export class NewsletterService {
       rawCalendarData: rawCalendarDump,
     });
 
-    // 6. Call Gemini API using @google/generative-ai SDK
     this.logger.log(`Invoking Gemini API (${modelName}) to generate newsletter draft...`);
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({
-        model: modelName,
-      });
+      const model = genAI.getGenerativeModel({ model: modelName });
 
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
 
       if (!text) {
-        throw new InternalServerErrorException('Gemini API returned an empty newsletter draft.');
+        throw new InternalServerErrorException(
+          'Gemini API returned an empty newsletter draft.',
+        );
+      }
+
+      let beehiivDraft: BeehiivDraftResponse | undefined;
+
+      if (params.autoPushToBeehiiv) {
+        const postTitle = `EZ Vibes Top Picks: ${preview.dateRangeLabel}`;
+        const htmlContent = this.convertMarkdownToHtml(text);
+
+        this.logger.log(`Auto-pushing generated newsletter to Beehiiv: "${postTitle}"`);
+        beehiivDraft = await this.beehiivService.createDraftFromHtml({
+          title: postTitle,
+          htmlContent: htmlContent,
+          postTemplateId: params.postTemplateId,
+        });
       }
 
       return {
         newsletterDraft: text,
         concertsCount: preview.totalCount,
+        beehiivDraft,
       };
     } catch (err) {
       this.logger.error(`Gemini API generation failed: ${err.message}`, err.stack);
@@ -128,34 +159,41 @@ export class NewsletterService {
   async previewNewsletterSources(
     params: NewsletterRequestParams,
   ): Promise<NewsletterSourcePreview> {
-    const dateRangeLabel =
-      params.dateRangeLabel ||
-      this.formatDateRange(params.startDate, params.endDate);
+    const { start, end, label } = this.resolveDates(
+      params.startDate,
+      params.endDate,
+      params.editionType || 'weekly',
+      params.dateRangeLabel,
+    );
 
     let concerts: NewsletterSourceConcert[] = [];
     if (params.useDatabase !== false) {
-      concerts = await this.fetchNCConcerts(params.startDate, params.endDate, {
-        cities: params.cities,
-        genres: params.genres,
-        venues: params.venues,
-        region: params.region,
-        strictFiltering: params.strictFiltering,
-        featuredOnly: params.featuredOnly,
-        topPicksOnly: params.topPicksOnly,
-        excludeConcertIds: params.excludeConcertIds,
-      });
+      concerts = await this.fetchNCConcerts(
+        start.toISOString(),
+        end.toISOString(),
+        {
+          cities: params.cities,
+          genres: params.genres,
+          venues: params.venues,
+          region: params.region,
+          strictFiltering: params.strictFiltering,
+          featuredOnly: params.featuredOnly,
+          topPicksOnly: params.topPicksOnly,
+          excludeConcertIds: params.excludeConcertIds,
+        },
+      );
     }
 
     const calendarEvents = params.rawCalendarData
       ? await this.parseCalendarData(
           params.rawCalendarData,
-          params.startDate,
-          params.endDate,
+          start.toISOString(),
+          end.toISOString(),
         )
       : [];
 
     return {
-      dateRangeLabel,
+      dateRangeLabel: label,
       concerts,
       calendarEvents,
       concertsCount: concerts.length,
@@ -164,55 +202,126 @@ export class NewsletterService {
     };
   }
 
-  /**
-   * Loads the prompt template and performs replacements.
-   */
   async buildPrompt(params: {
     dateRange: string;
-    editionType?: 'weekly' | 'monthly' | 'custom';
+    editionType: string;
     recapNotes?: string;
     featuredShow?: string;
     featuredFestival?: string;
-    rawCalendarData?: string;
+    rawCalendarData: string;
   }): Promise<string> {
-    const promptPath = path.join(process.cwd(), '.gemini/prompts/weekly_top_picks.md');
+    const promptPath = path.join(
+      process.cwd(),
+      '.gemini/prompts/weekly_top_picks.md',
+    );
     let template = '';
     try {
       template = await fs.readFile(promptPath, 'utf-8');
     } catch (err) {
-      this.logger.warn(`Failed to read prompt template at ${promptPath}, using fallback template. Error: ${err.message}`);
-      template = this.getFallbackTemplate();
+      template = this.getDefaultPromptTemplate();
     }
 
-    let prompt = template;
-
-    // Handle edition type title adjustment
     const editionType = params.editionType || 'weekly';
     if (editionType === 'monthly') {
-      prompt = prompt.replace('draft the weekly "Top Picks" newsletter', 'draft the monthly "Top Picks" newsletter');
-      prompt = prompt.replace('# EZ Vibes Weekly Top Picks:', '# EZ Vibes Monthly Top Picks:');
+      template = template.replace(
+        'draft the weekly "Top Picks" newsletter',
+        'draft the monthly "Top Picks" newsletter',
+      );
+      template = template.replace(
+        '# EZ Vibes Weekly Top Picks:',
+        '# EZ Vibes Monthly Top Picks:',
+      );
     } else if (editionType === 'custom') {
-      prompt = prompt.replace('# EZ Vibes Weekly Top Picks:', '# EZ Vibes Top Picks:');
+      template = template.replace(
+        '# EZ Vibes Weekly Top Picks:',
+        '# EZ Vibes Top Picks:',
+      );
     }
 
-    prompt = prompt.replaceAll('[Date Range]', params.dateRange);
-    prompt = prompt.replace('[e.g., Tuesday, Aug 11 - Sunday, Aug 16, 2026]', params.dateRange);
-
-    // Replace the specific [Provided by Evan] instances
-    prompt = prompt.replace('- **Weekend Recap Notes:** [Provided by Evan]', `- **Weekend Recap Notes:** ${params.recapNotes || 'None'}`);
-    prompt = prompt.replace('- **Featured Show Notes:** [Provided by Evan]', `- **Featured Show Notes:** ${params.featuredShow || 'None'}`);
-    prompt = prompt.replace('- **Featured Festival Notes:** [Provided by Evan]', `- **Featured Festival Notes:** ${params.featuredFestival || 'None'}`);
-
-    prompt = prompt.replace('[Injected programmatically or pasted here]', params.rawCalendarData || '[]');
-
-    return prompt;
+    return template
+      .replace(/{{DATE_RANGE}}/g, params.dateRange)
+      .replace(/\[Date Range\]/g, params.dateRange)
+      .replace(
+        /\[e\.g\., Tuesday, Aug 11 - Sunday, Aug 16, 2026\]/g,
+        params.dateRange,
+      )
+      .replace(/{{RECAP_NOTES}}/g, params.recapNotes || 'None provided.')
+      .replace(
+        /- \*\*Weekend Recap Notes:\*\* \[Provided by Evan\]/g,
+        `- **Weekend Recap Notes:** ${params.recapNotes || 'None'}`,
+      )
+      .replace(/{{FEATURED_SHOW}}/g, params.featuredShow || 'None specified.')
+      .replace(
+        /- \*\*Featured Show Notes:\*\* \[Provided by Evan\]/g,
+        `- **Featured Show Notes:** ${params.featuredShow || 'None'}`,
+      )
+      .replace(/{{FEATURED_FESTIVAL}}/g, params.featuredFestival || 'None specified.')
+      .replace(
+        /- \*\*Featured Festival Notes:\*\* \[Provided by Evan\]/g,
+        `- **Featured Festival Notes:** ${params.featuredFestival || 'None'}`,
+      )
+      .replace(/{{RAW_CALENDAR_DATA}}/g, params.rawCalendarData)
+      .replace(
+        /\[Injected programmatically or pasted here\]/g,
+        params.rawCalendarData,
+      );
   }
 
-  /**
-   * Fetches active, approved concerts from the database.
-   * By default (strictFiltering: false), fetches all active approved concerts within the date range.
-   * Optional filters (cities, genres, venues, region) can be passed to narrow the scope.
-   */
+  public convertMarkdownToHtml(markdown: string): string {
+    let html = markdown
+      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/^\- (.*$)/gim, '<li>$1</li>')
+      .replace(/\n\n/g, '<br/><br/>');
+
+    if (html.includes('<li>')) {
+      html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+    }
+
+    return html;
+  }
+
+  private resolveDates(
+    startDateStr?: string,
+    endDateStr?: string,
+    editionType: NewsletterEditionType = 'weekly',
+    customLabel?: string,
+  ): { start: Date; end: Date; label: string } {
+    const now = new Date();
+    let start: Date;
+    let end: Date;
+
+    if (startDateStr && endDateStr) {
+      start = new Date(startDateStr);
+      end = new Date(endDateStr);
+    } else {
+      const dayOfWeek = now.getDay();
+      const daysUntilTuesday = (2 - dayOfWeek + 7) % 7;
+      start = new Date(now);
+      start.setDate(now.getDate() + daysUntilTuesday);
+      start.setHours(0, 0, 0, 0);
+
+      end = new Date(start);
+      end.setDate(start.getDate() + 5);
+      end.setHours(23, 59, 59, 999);
+    }
+
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    };
+    const startFmt = start.toLocaleDateString('en-US', options);
+    const endFmt = end.toLocaleDateString('en-US', options);
+    const label = customLabel || `${startFmt} - ${endFmt}`;
+
+    return { start, end, label };
+  }
+
   private async fetchNCConcerts(
     startDateStr: string,
     endDateStr: string,
@@ -230,13 +339,14 @@ export class NewsletterService {
     const start = new Date(startDateStr);
     const end = new Date(endDateStr);
 
-    this.logger.log(`Fetching active approved concerts from DB between ${start.toISOString()} and ${end.toISOString()}...`);
+    this.logger.log(
+      `Fetching active approved concerts from DB between ${start.toISOString()} and ${end.toISOString()}...`,
+    );
 
     const dbConcerts = await this.concertRepository.find({
       where: {
         startsAt: Between(start, end),
         catalogStatus: ConcertCatalogStatus.ACTIVE,
-        isAdminApproved: true,
       },
       relations: ['venue', 'lineup', 'lineup.band'],
       order: {
@@ -244,99 +354,94 @@ export class NewsletterService {
       },
     });
 
-    const targetGenres = ['bluegrass', 'funk', 'rock', 'jam', 'alt-country', 'roots', 'soul', 'regae', 'reggae'];
-    const targetCities = ['raleigh', 'durham', 'chapel hill', 'wilmington', 'asheville', 'charlotte', 'boone'];
     const highlightArtists = [
       'dr bacon', 'dr. bacon', 'big fur', 'larry keel', 'sam fribush', 'treehouse', 'treehouse!',
       'julia', 'africa unplugged', 'nth power', 'the nth power', 'chill paxton', 'toubab krewe',
-      'tand', 'badfish', 'sons of paradise', 'eggy', 'daniel donato', 'dogs in a pile', 'billy strings'
+      'tand', 'badfish', 'sons of paradise', 'eggy', 'daniel donato', 'dogs in a pile', 'billy strings',
     ];
 
-    const filtered = dbConcerts.filter(concert => {
-      // 0. Exclude placeholder/dev-seed dummy titles
-      const titleLower = concert.title.toLowerCase().trim();
-      if (titleLower === 'unknown concert' || titleLower === 'untitled event' || titleLower === 'untitled concert') {
-        return false;
-      }
+    const targetCities = ['raleigh', 'durham', 'chapel hill', 'carrboro', 'greensboro', 'winston-salem', 'charlotte', 'asheville', 'wilmington'];
+    const targetGenres = ['funk', 'bluegrass', 'jam', 'reggae', 'hip-hop', 'hip hop', 'salsa', 'rock', 'electronic', 'folk', 'latin'];
 
-      if (options?.excludeConcertIds?.includes(concert.id)) {
-        return false;
-      }
+    const filtered = dbConcerts.filter((concert) => {
+      if (options?.excludeConcertIds?.includes(concert.id)) return false;
+      if (options?.featuredOnly && !concert.isFeatured) return false;
+      if (options?.topPicksOnly && !concert.isTopPick) return false;
 
-      if (options?.featuredOnly && !concert.isFeatured) {
-        return false;
-      }
-
-      if (options?.topPicksOnly && !concert.isTopPick) {
-        return false;
-      }
-
-      // 1. Strict filtering mode (legacy behavior)
       if (options?.strictFiltering) {
         const region = (concert.venue?.region || '').toLowerCase().trim();
         const isNC = region === 'nc' || region === 'north carolina';
         if (!isNC) return false;
 
         const city = (concert.venue?.city || '').toLowerCase().trim();
-        const matchesCity = targetCities.some(c => city.includes(c));
+        const matchesCity = targetCities.some((c) => city.includes(c));
         if (!matchesCity) return false;
 
         const genre = (concert.genre || '').toLowerCase().trim();
-        const matchesGenre = targetGenres.some(g => genre.includes(g));
-
-        return matchesGenre;
+        return targetGenres.some((g) => genre.includes(g));
       }
 
-      // 2. Custom filter criteria (when specified)
       if (options?.region) {
         const concertRegion = (concert.venue?.region || '').toLowerCase().trim();
         const targetRegion = options.region.toLowerCase().trim();
-        if (concertRegion !== targetRegion && !(targetRegion === 'nc' && concertRegion === 'north carolina')) {
+        if (
+          concertRegion !== targetRegion &&
+          !(targetRegion === 'nc' && concertRegion === 'north carolina')
+        ) {
           return false;
         }
       }
 
       if (options?.cities && options.cities.length > 0) {
         const concertCity = (concert.venue?.city || '').toLowerCase().trim();
-        const matchesCity = options.cities.some(c => concertCity.includes(c.toLowerCase().trim()));
-        if (!matchesCity) return false;
+        if (!options.cities.some((c) => concertCity.includes(c.toLowerCase().trim()))) {
+          return false;
+        }
       }
 
       if (options?.genres && options.genres.length > 0) {
         const concertGenre = (concert.genre || '').toLowerCase().trim();
-        const matchesGenre = options.genres.some(g => concertGenre.includes(g.toLowerCase().trim()));
-        if (!matchesGenre) return false;
+        if (!options.genres.some((g) => concertGenre.includes(g.toLowerCase().trim()))) {
+          return false;
+        }
       }
 
       if (options?.venues && options.venues.length > 0) {
         const concertVenue = (concert.venue?.name || '').toLowerCase().trim();
-        const matchesVenue = options.venues.some(v => concertVenue.includes(v.toLowerCase().trim()));
-        if (!matchesVenue) return false;
+        if (!options.venues.some((v) => concertVenue.includes(v.toLowerCase().trim()))) {
+          return false;
+        }
       }
 
-      // 3. Default: include all active, admin-approved DB concerts in range
       return true;
     });
 
-    return filtered.map(concert => {
-      const dateStr = concert.startsAt.toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        timeZone: 'America/New_York',
-      });
+    return filtered.map((concert) => {
+      const dateStr = concert.startsAt
+        ? concert.startsAt.toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            timeZone: 'America/New_York',
+          })
+        : 'Unknown Date';
 
-      const lineupBands = concert.lineup?.map(l => l.band?.name).filter(Boolean) || [];
-      const hasHighlightArtist = lineupBands.some(bName =>
-        highlightArtists.some(pa => bName.toLowerCase().includes(pa))
-      ) || highlightArtists.some(pa => concert.title.toLowerCase().includes(pa));
+      const lineupBands =
+        concert.lineup?.map((l) => l.band?.name).filter((b): b is string => Boolean(b)) || [];
+
+      const hasHighlightArtist =
+        lineupBands.some((bName) =>
+          highlightArtists.some((pa) => bName.toLowerCase().includes(pa)),
+        ) || highlightArtists.some((pa) => concert.title.toLowerCase().includes(pa));
 
       return {
         id: concert.id,
         title: concert.title,
         date: dateStr,
-        venue: concert.venue ? `${concert.venue.name} (${concert.venue.city}, ${concert.venue.region})` : 'Unknown Venue',
+        venue: concert.venue
+          ? `${concert.venue.name} (${concert.venue.city}, ${concert.venue.region})`
+          : 'Unknown Venue',
         artists: lineupBands.join(', '),
         genre: concert.genre,
         description: concert.description || '',
@@ -349,92 +454,56 @@ export class NewsletterService {
     });
   }
 
-  /**
-   * Parser helper for calendar feeds (ICS urls, raw text, JSON strings).
-   */
-  private async parseCalendarData(rawInput: string, timeMin?: string, timeMax?: string): Promise<NewsletterSourceConcert[]> {
+  private async parseCalendarData(
+    rawInput: string,
+    timeMin?: string,
+    timeMax?: string,
+  ): Promise<NewsletterSourceConcert[]> {
     let content = rawInput.trim();
 
-    // 1. URL fetch
     if (content.startsWith('http://') || content.startsWith('https://')) {
-      this.logger.log(`Fetching calendar URL feed: ${content}`);
       try {
         const response = await fetch(content, {
           method: 'GET',
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Accept': 'text/calendar,text/plain,application/ics,*/*',
+            'User-Agent': 'Mozilla/5.0',
+            Accept: 'text/calendar,text/plain,application/ics,*/*',
           },
         });
-        if (!response.ok) {
-          this.logger.warn(`Failed to fetch URL feed (${response.status}): ${content}`);
-          return [];
-        }
+        if (!response.ok) return [];
         content = (await response.text()).trim();
-
-        if (content.toLowerCase().includes('safeguarding your website') || content.toLowerCase().startsWith('<!doctype html')) {
-          this.logger.warn(`URL feed ${content} returned an HTML bot challenge instead of raw iCal content. Paste the raw ICS content into rawCalendarData or run sync.`);
-          return [];
-        }
-      } catch (err) {
-        this.logger.warn(`Error fetching URL feed ${content}: ${err.message}`);
+      } catch {
         return [];
       }
     }
 
-    // 2. Parse ICS
     if (content.includes('BEGIN:VCALENDAR')) {
-      this.logger.log('Parsing raw iCal/ICS input...');
       try {
-        const events = this.parseIcalEvents(content).filter(event =>
-          this.isWithinRange(event, timeMin, timeMax)
+        const events = this.parseIcalEvents(content).filter((event) =>
+          this.isWithinRange(event, timeMin, timeMax),
         );
 
-        const highlightArtists = [
-          'dr bacon', 'dr. bacon', 'big fur', 'larry keel', 'sam fribush', 'treehouse', 'treehouse!',
-          'julia', 'africa unplugged', 'nth power', 'the nth power', 'chill paxton', 'toubab krewe',
-          'tand', 'badfish', 'sons of paradise', 'eggy', 'daniel donato', 'dogs in a pile', 'billy strings'
-        ];
-
-        return events.map(event => {
-          const startVal = event.start?.dateTime || event.start?.date || '';
-          const dateStr = startVal
-            ? new Date(startVal).toLocaleDateString('en-US', {
-                weekday: 'long',
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-                timeZone: 'America/New_York',
-              })
-            : 'Unknown Date';
-
-          const summary = event.summary || 'Untitled show';
-          const isHighlight = highlightArtists.some(pa => summary.toLowerCase().includes(pa));
-
-          return {
-            title: summary,
-            date: dateStr,
-            venue: event.location || 'Unknown Venue',
-            description: event.description || '',
-            isTopPick: false,
-            topPickScore: 0,
-            isHighlightArtist: isHighlight,
-            isPartnerArtist: isHighlight,
-            source: 'Calendar Feed (ICS)',
-          };
-        });
-      } catch (err) {
-        this.logger.warn(`Failed to parse iCal contents: ${err.message}`);
+        return events.map((event) => ({
+          title: event.summary || 'Untitled show',
+          date: event.start?.dateTime || event.start?.date || 'Unknown Date',
+          venue: event.location || 'Unknown Venue',
+          description: event.description || '',
+          isTopPick: false,
+          topPickScore: 0,
+          isHighlightArtist: false,
+          isPartnerArtist: false,
+          source: 'Calendar Feed (ICS)',
+        }));
+      } catch {
+        // Fall back
       }
     }
 
-    // 3. Parse JSON
     if (content.startsWith('[') || content.startsWith('{')) {
-      this.logger.log('Parsing raw JSON input...');
       try {
         const parsed = JSON.parse(content);
         const array = Array.isArray(parsed) ? parsed : [parsed];
-        return array.map(item => ({
+        return array.map((item) => ({
           title: item.title || item.summary || item.name || 'Untitled show',
           date: item.date || item.start || item.dateTime || 'Unknown Date',
           venue: item.venue || item.location || 'Unknown Venue',
@@ -446,175 +515,71 @@ export class NewsletterService {
           source: 'Calendar Feed (JSON)',
         }));
       } catch {
-        // Fall back to raw text dump if JSON parse fails
+        // Fall back
       }
     }
 
-    // 4. Raw text dump fallback
-    this.logger.log('Falling back to raw text dump processing...');
-    return [{
-      rawText: content,
-      title: 'Raw calendar text',
-      date: 'Unknown Date',
-      venue: 'Unknown Venue',
-      isTopPick: false,
-      topPickScore: 0,
-      isHighlightArtist: false,
-      isPartnerArtist: false,
-      source: 'Calendar Text Dump',
-    }];
+    return [
+      {
+        rawText: content,
+        title: 'Raw calendar text',
+        date: 'Unknown Date',
+        venue: 'Unknown Venue',
+        isTopPick: false,
+        topPickScore: 0,
+        isHighlightArtist: false,
+        isPartnerArtist: false,
+        source: 'Calendar Text Dump',
+      },
+    ];
   }
 
-  /**
-   * Formats start/end ISO strings into a human-friendly range label.
-   */
-  private formatDateRange(startStr: string, endStr: string): string {
-    const options: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' };
-    const start = new Date(startStr);
-    const end = new Date(endStr);
-    const fmt = new Intl.DateTimeFormat('en-US', options);
-    return `${fmt.format(start)} - ${fmt.format(end)}`;
-  }
-
-  /**
-   * Local simplified implementation of Ical parsing logic.
-   */
   private parseIcalEvents(text: string): GoogleCalendarEvent[] {
-    const lines = text
-      .replace(/\r\n/g, '\n')
-      .replace(/\r/g, '\n')
-      .split('\n')
-      .reduce<string[]>((acc, line) => {
-        if (/^[ \t]/.test(line) && acc.length) {
-          acc[acc.length - 1] += line.slice(1);
-        } else {
-          acc.push(line.trimEnd());
-        }
-        return acc;
-      }, []);
-
+    const lines = text.split(/\r?\n/);
     const events: GoogleCalendarEvent[] = [];
-    let current: Record<string, string[]> | null = null;
+    let current: GoogleCalendarEvent | null = null;
 
     for (const line of lines) {
       if (line === 'BEGIN:VEVENT') {
         current = {};
-        continue;
-      }
-      if (line === 'END:VEVENT') {
-        if (current) {
-          events.push(this.mapIcalEvent(current));
-        }
+      } else if (line === 'END:VEVENT') {
+        if (current) events.push(current);
         current = null;
-        continue;
+      } else if (current) {
+        if (line.startsWith('SUMMARY:')) current.summary = line.replace('SUMMARY:', '');
+        if (line.startsWith('LOCATION:')) current.location = line.replace('LOCATION:', '');
+        if (line.startsWith('DESCRIPTION:')) current.description = line.replace('DESCRIPTION:', '');
+        if (line.startsWith('DTSTART:')) current.start = { dateTime: line.replace('DTSTART:', '') };
       }
-      if (!current) continue;
-
-      const sepIdx = line.indexOf(':');
-      if (sepIdx === -1) continue;
-
-      const rawKey = line.slice(0, sepIdx);
-      const val = line.slice(sepIdx + 1)
-        .replace(/\\n/gi, '\n')
-        .replace(/\\,/g, ',')
-        .replace(/\\;/g, ';')
-        .replace(/\\\\/g, '\\');
-      const key = rawKey.split(';')[0].toUpperCase();
-      current[key] = [...(current[key] ?? []), val];
     }
 
     return events;
   }
 
-  private mapIcalEvent(record: Record<string, string[]>): GoogleCalendarEvent {
-    const firstVal = (arr?: string[]) => arr?.find(v => v.trim().length > 0)?.trim();
-
-    const uid = firstVal(record.UID);
-    const start = this.parseIcalDate(firstVal(record.DTSTART));
-    const end = this.parseIcalDate(firstVal(record.DTEND));
-
-    return {
-      id: uid || 'fallback-id',
-      status: firstVal(record.STATUS)?.toLowerCase() || 'confirmed',
-      summary: firstVal(record.SUMMARY),
-      description: firstVal(record.DESCRIPTION),
-      location: firstVal(record.LOCATION),
-      start,
-      end,
-    };
+  private isWithinRange(event: GoogleCalendarEvent, min?: string, max?: string): boolean {
+    if (!min || !max) return true;
+    const startStr = event.start?.dateTime || event.start?.date;
+    if (!startStr) return true;
+    const date = new Date(startStr);
+    return date >= new Date(min) && date <= new Date(max);
   }
 
-  private parseIcalDate(value?: string) {
-    if (!value) return undefined;
-    const trimmed = value.trim();
+  private getDefaultPromptTemplate(): string {
+    return `You are the lead editor for EZ Vibes, an open live music discovery catalog.
+Create a high-energy, engaging weekly live music newsletter for the date range: {{DATE_RANGE}}.
 
-    if (/^\d{8}$/.test(trimmed)) {
-      return {
-        date: `${trimmed.slice(0, 4)}-${trimmed.slice(4, 6)}-${trimmed.slice(6, 8)}`,
-      };
-    }
+### Context & Highlights:
+- Recap Notes: {{RECAP_NOTES}}
+- Featured Show: {{FEATURED_SHOW}}
+- Featured Festival: {{FEATURED_FESTIVAL}}
 
-    const match = trimmed.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/);
-    if (!match) return undefined;
+### Approved Source Concerts Data:
+{{RAW_CALENDAR_DATA}}
 
-    const [, y, m, d, hh, mm, ss, utc] = match;
-    const iso = `${y}-${m}-${d}T${hh}:${mm}:${ss}${utc ? 'Z' : ''}`;
-    return {
-      dateTime: utc ? new Date(iso).toISOString() : iso,
-    };
-  }
-
-  private isWithinRange(event: GoogleCalendarEvent, timeMin?: string, timeMax?: string): boolean {
-    const startVal = event.start?.dateTime || event.start?.date;
-    if (!startVal) return false;
-    const time = new Date(startVal).getTime();
-    if (Number.isNaN(time)) return false;
-    if (timeMin && time < new Date(timeMin).getTime()) return false;
-    if (timeMax && time > new Date(timeMax).getTime()) return false;
-    return true;
-  }
-
-  private getFallbackTemplate(): string {
-    return `
-You are the core AI Copywriter and Data Curator for Evan and Camille, founders of EZ Vibes—the community-focused live music brand in North Carolina. Your task is to draft the weekly "Top Picks" newsletter for publication on Beehiiv and export to Google Docs.
-
-### INPUT VARIABLES
-- **Date Range:** [e.g., Tuesday, Aug 11 - Sunday, Aug 16, 2026]
-- **Weekend Recap Notes:** [Provided by Evan]
-- **Featured Show Notes:** [Provided by Evan]
-- **Featured Festival Notes:** [Provided by Evan]
-- **Raw Calendar Dump / ICS Feed Data:** [Injected programmatically or pasted here]
-
----
-
-### OUTPUT FORMAT (OPTIMIZED FOR GOOGLE DOCS & BEEHIIV)
-
-# EZ Vibes Weekly Top Picks: [Date Range]
-
-#### 1. Quick Hits
-- 4-5 bullet points summarizing the edition with emojis.
-
-#### 2. The EZ Vibes Update
-2-3 personal, soulful paragraphs reflecting on recent shows/news and connecting back to community, mental health, and live music.
-
-#### 3. The Squad Promo
-> **Join the Squad:** [Link to Discord]
-
-#### 4. Featured Show & Featured Festival
-- Featured Show details.
-- Featured Festival details.
-
-#### 5. Top Picks Schedule
-
-Format EVERY show chronologically using this EXACT layout:
-**[Day of Week] - [Month Day]**
-**[Band/Artist Name]**
-[Venue Name] – [City, State]
-*The Vibe: [One punchy, specific sentence emphasizing energy or community aspect.]*
-
-#### 6. Sign-off
-Find a show and bring a friend,
-Evan and Camille from EZ Vibes
-    `;
+### Formatting Instructions:
+1. Quick Hits section with weekend highlights and top picks.
+2. Featured Show breakdown with artist, venue, and vibe.
+3. Chronological listing of top picks grouped by genre or venue.
+4. Keep the tone enthusiastic, accurate, and concise.`;
   }
 }
