@@ -70,7 +70,7 @@ export interface ConcertApiResponse {
 }
 
 export interface ConcertListItem extends ConcertApiItem {
-  posterUrl: string;
+  posterUrl: string | null;
   sourceLabel: string;
   displayTags: string[];
   demoRank: number;
@@ -110,7 +110,7 @@ export function mapConcertToListItem(
   const rawPosterUrl = overrides?.posterUrl ?? concert.posterUrl;
   const resolvedPosterUrl = rawPosterUrl
     ? resolvePosterUrl(rawPosterUrl)
-    : 'https://placehold.co/720x900?text=Live+Music';
+    : null;
 
   return {
     ...concert,
