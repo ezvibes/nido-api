@@ -74,6 +74,40 @@ describe('ConcertCard', () => {
     expect(wrapper.find('.concert-card__description').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('Special outdoor headline performance');
   });
+
+  it('renders a genre-aware fallback visual when posterUrl is null', () => {
+    const wrapper = mount(ConcertCard, {
+      props: {
+        concert: buildConcert({
+          posterUrl: null,
+          genre: 'Electronic',
+        }),
+      },
+    });
+
+    expect(wrapper.find('.concert-card__poster img').exists()).toBe(false);
+    const fallback = wrapper.get('.concert-card__fallback');
+    expect(fallback.classes()).toContain('concert-card__fallback--electronic');
+    expect(fallback.get('.concert-card__fallback-badge').text()).toBe('Electronic');
+    expect(fallback.get('.concert-card__fallback-initials').text()).toBe('TF');
+  });
+
+  it('switches to fallback visual if poster image fails to load', async () => {
+    const wrapper = mount(ConcertCard, {
+      props: {
+        concert: buildConcert({
+          posterUrl: 'https://example.com/broken-poster.jpg',
+        }),
+      },
+    });
+
+    expect(wrapper.find('.concert-card__poster img').exists()).toBe(true);
+
+    await wrapper.get('.concert-card__poster img').trigger('error');
+
+    expect(wrapper.find('.concert-card__poster img').exists()).toBe(false);
+    expect(wrapper.find('.concert-card__fallback').exists()).toBe(true);
+  });
 });
 
 function buildConcert(
