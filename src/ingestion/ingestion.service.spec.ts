@@ -45,9 +45,26 @@ describe('IngestionService', () => {
       save: jest.fn(),
     },
   };
+  const venueService = {
+    findOrCreateByName: jest
+      .fn()
+      .mockResolvedValue({ id: 'venue-uuid', name: 'Mock Venue' }),
+  };
+  const bandService = {
+    findOrCreateManyByName: jest
+      .fn()
+      .mockResolvedValue([{ id: 'band-uuid', name: 'Mock Band' }]),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    venueService.findOrCreateByName.mockResolvedValue({
+      id: 'venue-uuid',
+      name: 'Mock Venue',
+    });
+    bandService.findOrCreateManyByName.mockResolvedValue([
+      { id: 'band-uuid', name: 'Mock Band' },
+    ]);
     concertUploadRepository.manager.transaction.mockImplementation(
       async (callback) =>
         callback({
@@ -86,19 +103,11 @@ describe('IngestionService', () => {
         },
         {
           provide: VenueService,
-          useValue: {
-            findOrCreateByName: jest
-              .fn()
-              .mockResolvedValue({ id: 'venue-uuid', name: 'Mock Venue' }),
-          },
+          useValue: venueService,
         },
         {
           provide: BandService,
-          useValue: {
-            findOrCreateManyByName: jest
-              .fn()
-              .mockResolvedValue([{ id: 'band-uuid', name: 'Mock Band' }]),
-          },
+          useValue: bandService,
         },
       ],
     }).compile();
@@ -202,6 +211,57 @@ describe('IngestionService', () => {
       expect(result.genre).toBeUndefined();
     },
   );
+
+  it('should accept and persist optional concertDate, venueId, and bandId hints', async () => {
+    const file = {
+      originalname: 'poster.jpg',
+      mimetype: 'image/jpeg',
+      buffer: Buffer.from('image'),
+      size: 5,
+    } as UploadableFile;
+    const objectSave = jest.fn().mockResolvedValue(undefined);
+
+    concertUploadRepository.create.mockImplementation((value) => value);
+    concertUploadRepository.save.mockImplementation(async (value) => ({
+      id: 'asset-hints',
+      ...value,
+    }));
+    Object.defineProperty(service as object, 'storage', {
+      value: {
+        bucket: jest.fn().mockReturnValue({
+          file: jest.fn().mockReturnValue({ save: objectSave }),
+        }),
+      },
+    });
+
+    const result = await service.uploadImage(
+      file,
+      {
+        city: 'Durham',
+        state: 'NC',
+        genre: 'Indie Rock',
+        concertDate: '2026-06-15T20:00:00.000Z',
+        venueId: 'venue-uuid-1',
+        bandId: 'band-uuid-1',
+      },
+      'uid-1',
+      5,
+    );
+
+    expect(concertUploadRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        city: 'Durham',
+        state: 'NC',
+        genre: 'Indie Rock',
+        venueId: 'venue-uuid-1',
+        bandId: 'band-uuid-1',
+        concertDate: expect.any(Date),
+      }),
+    );
+    expect(result.concertDate).toBe('2026-06-15T20:00:00.000Z');
+    expect(result.venueId).toBe('venue-uuid-1');
+    expect(result.bandId).toBe('band-uuid-1');
+  });
 
   it('should create a queued job for an owned concert upload', async () => {
     const concertUpload = {
@@ -365,6 +425,69 @@ describe('IngestionService', () => {
       }
     },
   );
+
+  it('reuses existing hinted venue and band when approval names match', async () => {
+    const createdAt = new Date('2026-06-07T17:30:54.784Z');
+    const existingVenue = {
+      id: 'venue-123',
+      name: 'The Pour House',
+      city: 'Raleigh',
+      citySlug: 'raleigh',
+      region: 'NC',
+      regionSlug: 'nc',
+    };
+    const existingBand = {
+      id: 'band-456',
+      name: 'Doctor S',
+    };
+    const upload = {
+      id: 'asset-1',
+      storageUri: 'gs://bucket/path/file.jpg',
+      objectName: 'path/file.jpg',
+      bucket: 'test-bucket',
+      mimeType: 'image/jpeg',
+      originalFilename: 'poster.jpg',
+      source: 'flyer_upload',
+      size: 12,
+      uploadedByUid: 'uid-1',
+      createdAt,
+      reviewStatus: 'submitted',
+      venueId: 'venue-123',
+      venue: existingVenue,
+      bandId: 'band-456',
+      band: existingBand,
+    };
+
+    concertUploadRepository.findOne.mockResolvedValue(upload);
+    concertUploadRepository.save.mockImplementation(async (value) => value);
+    concertUploadRepository.findOneOrFail.mockResolvedValue({
+      ...upload,
+      reviewStatus: 'approved',
+      reviewedAt: new Date('2026-06-07T17:40:00.000Z'),
+      reviewedByUserId: 7,
+      concertId: 'new-concert-id',
+    });
+
+    await service.adminReviewConcertUpload(
+      'asset-1',
+      {
+        status: 'approved',
+        concertTitle: 'Doctor S Live',
+        concertStartsAt: '2026-07-10T23:00:00.000Z',
+        concertVenueName: 'The Pour House',
+        concertBandName: 'Doctor S',
+      },
+      7,
+    );
+
+    expect(venueService.findOrCreateByName).not.toHaveBeenCalled();
+    expect(bandService.findOrCreateManyByName).not.toHaveBeenCalled();
+    expect(concertRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        venue: expect.objectContaining({ id: 'venue-123' }),
+      }),
+    );
+  });
 
   it('preserves a newer admin edit when linked ingestion approval is stale', async () => {
     const upload = {

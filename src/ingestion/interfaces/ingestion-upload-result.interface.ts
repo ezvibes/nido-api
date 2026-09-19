@@ -9,6 +9,9 @@ export interface IngestionUploadResult {
   city?: string;
   state?: string;
   genre?: string;
+  concertDate?: string;
+  venueId?: string;
+  bandId?: string;
   source: string;
   uploadedByUserId?: number;
   uploadedAt: string;

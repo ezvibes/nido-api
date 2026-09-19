@@ -288,6 +288,9 @@ export interface IngestionUploadResult {
   city?: string;
   state?: string;
   genre?: string;
+  concertDate?: string;
+  venueId?: string;
+  bandId?: string;
   source: string;
   uploadedByUserId?: number;
   uploadedAt: string;
@@ -351,6 +354,9 @@ export async function uploadIngestionImage(
     state?: string;
     genre?: string;
     source?: string;
+    concertDate?: string;
+    venueId?: string;
+    bandId?: string;
   },
 ) {
   try {
@@ -368,6 +374,15 @@ export async function uploadIngestionImage(
     }
     if (payload.source) {
       formData.append('source', payload.source);
+    }
+    if (payload.concertDate) {
+      formData.append('concertDate', payload.concertDate);
+    }
+    if (payload.venueId) {
+      formData.append('venueId', payload.venueId);
+    }
+    if (payload.bandId) {
+      formData.append('bandId', payload.bandId);
     }
 
     const response = await apiClient.post<IngestionUploadResult>(
@@ -524,6 +539,11 @@ export interface AdminConcertUploadListItem {
   city?: string;
   state?: string;
   genre?: string;
+  concertDate?: string;
+  venueId?: string;
+  venueName?: string;
+  bandId?: string;
+  bandName?: string;
   source: string;
   uploadedByUid: string;
   uploadedByUserId?: number;
@@ -611,11 +631,11 @@ export interface VenueListItem {
 }
 
 export async function fetchVenues(
-  token: string,
+  token?: string,
   params?: { citySlug?: string },
 ) {
   const response = await apiClient.get<VenueListItem[]>('/venues', {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     params,
   });
   return response.data;

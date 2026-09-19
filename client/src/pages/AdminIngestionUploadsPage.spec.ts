@@ -138,6 +138,44 @@ describe('AdminIngestionUploadsPage', () => {
       }),
     );
   });
+
+  it('prefills date, venue, and band drafts from upload hints', async () => {
+    const upload = buildUpload({
+      concertDate: '2026-10-15T00:00:00.000Z',
+      venueName: "The Cat's Cradle",
+      bandName: 'Archers of Loaf',
+      genre: 'Indie Rock',
+    });
+    api.reviewAdminIngestionUpload.mockResolvedValue({
+      ...upload,
+      reviewStatus: 'approved',
+    });
+    const wrapper = await mountWithUpload(upload);
+
+    await openApprovalForm(wrapper);
+
+    expect(getPublishInput(wrapper, 'Date').element.value).toBe('2026-10-15');
+    expect(getPublishInput(wrapper, 'Venue').element.value).toBe(
+      "The Cat's Cradle",
+    );
+    expect(getPublishInput(wrapper, 'Band / lineup').element.value).toBe(
+      'Archers of Loaf',
+    );
+
+    await wrapper.get('.admin-uploads__primary').trigger('click');
+    await flushPromises();
+
+    expect(api.reviewAdminIngestionUpload).toHaveBeenCalledWith(
+      'firebase-token',
+      'upload-1',
+      expect.objectContaining({
+        status: 'approved',
+        concertVenueName: "The Cat's Cradle",
+        concertBandName: 'Archers of Loaf',
+        concertStartsAt: expect.stringContaining('2026-10-15'),
+      }),
+    );
+  });
 });
 
 async function mountWithUpload(upload: ReturnType<typeof buildUpload>) {
@@ -195,7 +233,7 @@ async function selectGenre(
   await option.trigger('click');
 }
 
-function buildUpload(overrides: { genre?: string } = {}) {
+function buildUpload(overrides: Record<string, unknown> = {}) {
   return {
     id: 'upload-1',
     storageUri: 'gs://test-bucket/poster.jpg',
