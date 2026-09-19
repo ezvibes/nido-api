@@ -497,7 +497,7 @@ const handleSubmit = async () => {
       state: state.value.trim().toUpperCase() || undefined,
       ...(genre.value ? { genre: genre.value } : {}),
       concertDate: concertDate.value
-        ? new Date(concertDate.value).toISOString()
+        ? new Date(`${concertDate.value}T00:00:00Z`).toISOString()
         : undefined,
       venueId: venueId.value || undefined,
       bandId: bandId.value || undefined,
