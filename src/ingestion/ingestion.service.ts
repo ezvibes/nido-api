@@ -521,15 +521,25 @@ export class IngestionService {
       : null;
     const genre = dto.concertGenre?.trim() || 'Live Music';
 
-    const resolvedVenue = await this.venueService.findOrCreateByName(
-      dto.concertVenueName?.trim() || 'Venue TBD',
-      upload.city || undefined,
-      upload.state || undefined,
-    );
+    const resolvedVenue =
+      upload.venue &&
+      upload.venueId &&
+      dto.concertVenueName?.trim() === upload.venue.name?.trim()
+        ? upload.venue
+        : await this.venueService.findOrCreateByName(
+            dto.concertVenueName?.trim() || 'Venue TBD',
+            upload.city || undefined,
+            upload.state || undefined,
+          );
 
-    const resolvedBands = await this.bandService.findOrCreateManyByName([
-      dto.concertBandName?.trim() || dto.concertArtistName?.trim() || title,
-    ]);
+    const primaryBandName =
+      dto.concertBandName?.trim() || dto.concertArtistName?.trim() || title;
+    const resolvedBands =
+      upload.band &&
+      upload.bandId &&
+      primaryBandName === upload.band.name?.trim()
+        ? [upload.band]
+        : await this.bandService.findOrCreateManyByName([primaryBandName]);
 
     const lineup = resolvedBands.map((band, index) => {
       const cbl = new ConcertBandLineup();
