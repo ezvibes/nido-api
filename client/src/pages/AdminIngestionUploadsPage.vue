@@ -100,7 +100,7 @@
               </div>
               <div class="admin-uploads__detail">
                 <span class="admin-uploads__detail-label">Date hint</span>
-                <strong>{{ previewUpload?.concertDate ? formatDate(previewUpload.concertDate) : '—' }}</strong>
+                <strong>{{ previewUpload?.concertDate ? formatDateHint(previewUpload.concertDate) : '—' }}</strong>
               </div>
               <div class="admin-uploads__detail">
                 <span class="admin-uploads__detail-label">Venue hint</span>
@@ -335,6 +335,25 @@ const loadGenres = async () => {
 const formatDate = (iso: string) => {
   const date = new Date(iso);
   return date.toLocaleString();
+};
+
+const formatDateHint = (value?: string) => {
+  if (!value) return '—';
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, y, m, d] = match;
+    const date = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
+    return date.toLocaleDateString(undefined, {
+      timeZone: 'UTC',
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString();
 };
 
 const formatBytes = (bytes: number) => {
