@@ -11,6 +11,11 @@ export interface AdminConcertUploadListItem {
   city?: string;
   state?: string;
   genre?: string;
+  concertDate?: string;
+  venueId?: string;
+  venueName?: string;
+  bandId?: string;
+  bandName?: string;
   source: string;
   uploadedByUid: string;
   uploadedByUserId?: number;

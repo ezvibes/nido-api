@@ -99,6 +99,22 @@
                 <strong>{{ previewUpload ? formatLocation(previewUpload.city, previewUpload.state) : '—' }}</strong>
               </div>
               <div class="admin-uploads__detail">
+                <span class="admin-uploads__detail-label">Date hint</span>
+                <strong>{{ previewUpload?.concertDate ? formatDate(previewUpload.concertDate) : '—' }}</strong>
+              </div>
+              <div class="admin-uploads__detail">
+                <span class="admin-uploads__detail-label">Venue hint</span>
+                <strong>{{ previewUpload?.venueName ?? previewUpload?.venueId ?? '—' }}</strong>
+              </div>
+              <div class="admin-uploads__detail">
+                <span class="admin-uploads__detail-label">Genre hint</span>
+                <strong>{{ previewUpload?.genre ?? '—' }}</strong>
+              </div>
+              <div class="admin-uploads__detail">
+                <span class="admin-uploads__detail-label">Band hint</span>
+                <strong>{{ previewUpload?.bandName ?? previewUpload?.bandId ?? '—' }}</strong>
+              </div>
+              <div class="admin-uploads__detail">
                 <span class="admin-uploads__detail-label">File size</span>
                 <strong>{{ previewUpload ? formatBytes(previewUpload.size) : '—' }}</strong>
               </div>
@@ -376,10 +392,10 @@ const openPreview = async (upload: AdminConcertUploadListItem) => {
   reviewNotesDraft.value = upload.reviewNotes ?? '';
   concertTitleDraft.value = defaultTitleFromFilename(upload.originalFilename);
   concertGenreDraft.value = upload.genre?.trim() || '';
-  concertDateDraft.value = '';
+  concertDateDraft.value = upload.concertDate ? upload.concertDate.slice(0, 10) : '';
   concertTimeDraft.value = '19:00';
-  concertVenueNameDraft.value = '';
-  concertBandNameDraft.value = concertTitleDraft.value;
+  concertVenueNameDraft.value = upload.venueName ?? '';
+  concertBandNameDraft.value = upload.bandName ?? concertTitleDraft.value;
   concertDescriptionDraft.value = '';
 
   try {

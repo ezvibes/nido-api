@@ -19,6 +19,9 @@ export interface IngestionJobResponse {
     city?: string;
     state?: string;
     genre?: string;
+    concertDate?: string;
+    venueId?: string;
+    bandId?: string;
     source: string;
     size: number;
     uploadedByUid: string;

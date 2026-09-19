@@ -48,33 +48,72 @@
         </div>
       </div>
 
-      <label>
-        <span>City</span>
-        <input v-model="city" type="text" placeholder="Raleigh" />
-      </label>
+      <div class="ingestion-panel__hints">
+        <div class="ingestion-panel__hints-header">
+          <p class="ingestion-panel__hints-title">Event Details (Optional hints)</p>
+          <p class="ingestion-panel__hints-subtitle">Provide known details to help our team match and publish the show faster.</p>
+        </div>
 
-      <label>
-        <span>State</span>
-        <input v-model="state" type="text" maxlength="2" placeholder="NC" />
-      </label>
+        <div class="ingestion-panel__fields-grid">
+          <label class="ingestion-panel__field">
+            <span>Date</span>
+            <input
+              v-model="concertDate"
+              type="date"
+              aria-label="Concert date"
+            />
+          </label>
 
-      <div class="ingestion-panel__genre-field">
-        <GenreCombobox
-          v-model="genre"
-          :options="userGenreOptions"
-          placeholder="Select a genre"
-          :loading="genreLoadState === 'loading'"
-          :allow-custom="false"
-          :max-visible-options="25"
-          :described-by="genreHelpMessage ? 'genre-help' : undefined"
-        />
-        <small
-          v-if="genreHelpMessage"
-          id="genre-help"
-          class="ingestion-panel__field-help"
-        >
-          {{ genreHelpMessage }}
-        </small>
+          <label class="ingestion-panel__field">
+            <span>Venue</span>
+            <select v-model="venueId" aria-label="Venue" @change="onVenueChange">
+              <option value="">Select a venue (optional)</option>
+              <option v-for="v in venues" :key="v.id" :value="v.id">
+                {{ v.name }} ({{ v.city }}, {{ v.region || v.city }})
+              </option>
+            </select>
+          </label>
+
+          <div class="ingestion-panel__field ingestion-panel__genre-field">
+            <span>Genre</span>
+            <GenreCombobox
+              v-model="genre"
+              :options="userGenreOptions"
+              placeholder="Select a genre"
+              :loading="genreLoadState === 'loading'"
+              :allow-custom="false"
+              :max-visible-options="25"
+              :described-by="genreHelpMessage ? 'genre-help' : undefined"
+            />
+            <small
+              v-if="genreHelpMessage"
+              id="genre-help"
+              class="ingestion-panel__field-help"
+            >
+              {{ genreHelpMessage }}
+            </small>
+          </div>
+
+          <label class="ingestion-panel__field">
+            <span>Band / Artist</span>
+            <select v-model="bandId" aria-label="Band or artist">
+              <option value="">Select an artist (optional)</option>
+              <option v-for="b in bands" :key="b.id" :value="b.id">
+                {{ b.name }}
+              </option>
+            </select>
+          </label>
+
+          <label class="ingestion-panel__field">
+            <span>City</span>
+            <input v-model="city" type="text" placeholder="Raleigh" />
+          </label>
+
+          <label class="ingestion-panel__field">
+            <span>State</span>
+            <input v-model="state" type="text" maxlength="2" placeholder="NC" />
+          </label>
+        </div>
       </div>
 
       <p v-if="message" :class="messageClass">{{ message }}</p>
@@ -106,12 +145,24 @@
           <dd>{{ uploadResult.originalFilename }}</dd>
         </div>
         <div>
-          <dt>Location</dt>
-          <dd>{{ uploadLocation }}</dd>
+          <dt>Date hint</dt>
+          <dd>{{ formatSummaryDate(uploadResult.concertDate) }}</dd>
+        </div>
+        <div>
+          <dt>Venue hint</dt>
+          <dd>{{ selectedVenueName || uploadResult.venueId || 'Not provided' }}</dd>
         </div>
         <div>
           <dt>Genre</dt>
           <dd>{{ uploadResult.genre ?? 'Not provided' }}</dd>
+        </div>
+        <div>
+          <dt>Band hint</dt>
+          <dd>{{ selectedBandName || uploadResult.bandId || 'Not provided' }}</dd>
+        </div>
+        <div>
+          <dt>Location</dt>
+          <dd>{{ uploadLocation }}</dd>
         </div>
         <div>
           <dt>Status</dt>
@@ -135,10 +186,14 @@ import { computed, onMounted, ref } from 'vue';
 import { AxiosError } from 'axios';
 import {
   createIngestionJob,
+  fetchBands,
   fetchConcertGenres,
   fetchIngestionJob,
+  fetchVenues,
+  type BandListItem,
   type IngestionJobResponse,
   type IngestionUploadResult,
+  type VenueListItem,
   uploadIngestionImage,
 } from '../../composables/useApi';
 import { useAuth } from '../../composables/useAuth';
@@ -162,10 +217,15 @@ const acceptedMimeTypes = [
 const selectedFile = ref<File | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 const isDragActive = ref(false);
+const concertDate = ref('');
+const venueId = ref('');
+const bandId = ref('');
 const city = ref('');
 const state = ref('NC');
 const genre = ref('');
 const genres = ref<string[]>([]);
+const venues = ref<VenueListItem[]>([]);
+const bands = ref<BandListItem[]>([]);
 const genreLoadState = ref<'loading' | 'loaded' | 'empty' | 'failed'>('loading');
 const message = ref('');
 const messageType = ref<'success' | 'error'>('success');
@@ -249,8 +309,68 @@ const loadGenres = async () => {
   }
 };
 
+const loadVenues = async () => {
+  if (typeof fetchVenues !== 'function') return;
+  try {
+    const response = await fetchVenues();
+    venues.value = Array.isArray(response) ? response : [];
+  } catch {
+    venues.value = [];
+  }
+};
+
+const loadBands = async () => {
+  if (typeof fetchBands !== 'function') return;
+  try {
+    const response = await fetchBands();
+    bands.value = Array.isArray(response) ? response : [];
+  } catch {
+    bands.value = [];
+  }
+};
+
+const onVenueChange = () => {
+  const matched = venues.value.find((v) => v.id === venueId.value);
+  if (matched) {
+    if (!city.value.trim() && matched.city) {
+      city.value = matched.city;
+    }
+    if (matched.region) {
+      state.value = matched.region;
+    }
+  }
+};
+
+const formatSummaryDate = (value?: string) => {
+  if (!value) return 'Not provided';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+const selectedVenueName = computed(() => {
+  const currentVenueId = uploadResult.value?.venueId || venueId.value;
+  if (!currentVenueId) return '';
+  const v = venues.value.find((item) => item.id === currentVenueId);
+  return v ? `${v.name} (${v.city}, ${v.region || v.city})` : (uploadResult.value?.venueId ? 'Selected venue' : '');
+});
+
+const selectedBandName = computed(() => {
+  const currentBandId = uploadResult.value?.bandId || bandId.value;
+  if (!currentBandId) return '';
+  const b = bands.value.find((item) => item.id === currentBandId);
+  return b ? b.name : (uploadResult.value?.bandId ? 'Selected band' : '');
+});
+
 onMounted(() => {
   void loadGenres();
+  void loadVenues();
+  void loadBands();
 });
 
 const resetFileInput = () => {
@@ -364,6 +484,11 @@ const handleSubmit = async () => {
       city: city.value.trim() || undefined,
       state: state.value.trim().toUpperCase() || undefined,
       ...(genre.value ? { genre: genre.value } : {}),
+      concertDate: concertDate.value
+        ? new Date(concertDate.value).toISOString()
+        : undefined,
+      venueId: venueId.value || undefined,
+      bandId: bandId.value || undefined,
       source: 'flyer_upload',
     });
     job.value = await createIngestionJob(token, uploadResult.value.concertUploadId);
@@ -415,15 +540,63 @@ const handleSubmit = async () => {
   justify-items: center;
 }
 
-.ingestion-panel__form label {
+.ingestion-panel__hints {
+  width: min(100%, 34rem);
+  box-sizing: border-box;
+  padding: 1.15rem;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  background: var(--background);
+  display: grid;
+  gap: 0.85rem;
+  text-align: left;
+}
+
+.ingestion-panel__hints-header {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.ingestion-panel__hints-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-dark);
+  margin: 0;
+}
+
+.ingestion-panel__hints-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-light);
+  margin: 0;
+}
+
+.ingestion-panel__fields-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 600px) {
+  .ingestion-panel__fields-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.ingestion-panel__field {
   display: grid;
   gap: 0.35rem;
-  text-align: center;
-  width: min(100%, 34rem);
+  text-align: left !important;
+  width: 100% !important;
+}
+
+.ingestion-panel__field span {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-dark);
 }
 
 .ingestion-panel__genre-field {
-  width: min(100%, 34rem);
+  width: 100% !important;
 }
 
 .ingestion-panel__dropzone {

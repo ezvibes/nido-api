@@ -203,6 +203,57 @@ describe('IngestionService', () => {
     },
   );
 
+  it('should accept and persist optional concertDate, venueId, and bandId hints', async () => {
+    const file = {
+      originalname: 'poster.jpg',
+      mimetype: 'image/jpeg',
+      buffer: Buffer.from('image'),
+      size: 5,
+    } as UploadableFile;
+    const objectSave = jest.fn().mockResolvedValue(undefined);
+
+    concertUploadRepository.create.mockImplementation((value) => value);
+    concertUploadRepository.save.mockImplementation(async (value) => ({
+      id: 'asset-hints',
+      ...value,
+    }));
+    Object.defineProperty(service as object, 'storage', {
+      value: {
+        bucket: jest.fn().mockReturnValue({
+          file: jest.fn().mockReturnValue({ save: objectSave }),
+        }),
+      },
+    });
+
+    const result = await service.uploadImage(
+      file,
+      {
+        city: 'Durham',
+        state: 'NC',
+        genre: 'Indie Rock',
+        concertDate: '2026-06-15T20:00:00.000Z',
+        venueId: 'venue-uuid-1',
+        bandId: 'band-uuid-1',
+      },
+      'uid-1',
+      5,
+    );
+
+    expect(concertUploadRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        city: 'Durham',
+        state: 'NC',
+        genre: 'Indie Rock',
+        venueId: 'venue-uuid-1',
+        bandId: 'band-uuid-1',
+        concertDate: expect.any(Date),
+      }),
+    );
+    expect(result.concertDate).toBe('2026-06-15T20:00:00.000Z');
+    expect(result.venueId).toBe('venue-uuid-1');
+    expect(result.bandId).toBe('band-uuid-1');
+  });
+
   it('should create a queued job for an owned concert upload', async () => {
     const concertUpload = {
       id: 'asset-1',

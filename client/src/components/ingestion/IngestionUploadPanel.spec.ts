@@ -9,8 +9,10 @@ import IngestionUploadPanel from './IngestionUploadPanel.vue';
 
 const api = vi.hoisted(() => ({
   createIngestionJob: vi.fn(),
+  fetchBands: vi.fn(),
   fetchConcertGenres: vi.fn(),
   fetchIngestionJob: vi.fn(),
+  fetchVenues: vi.fn(),
   uploadIngestionImage: vi.fn(),
 }));
 
@@ -40,14 +42,18 @@ enableAutoUnmount(afterEach);
 describe('IngestionUploadPanel', () => {
   beforeEach(() => {
     api.createIngestionJob.mockReset();
+    api.fetchBands.mockReset();
     api.fetchConcertGenres.mockReset();
     api.fetchIngestionJob.mockReset();
+    api.fetchVenues.mockReset();
     api.uploadIngestionImage.mockReset();
 
     auth.user!.value = {
       getIdToken: vi.fn().mockResolvedValue('firebase-token'),
     };
     api.fetchConcertGenres.mockResolvedValue({ genres: ['Electronic'] });
+    api.fetchVenues.mockResolvedValue([]);
+    api.fetchBands.mockResolvedValue([]);
     api.uploadIngestionImage.mockResolvedValue(buildUploadResult());
     api.createIngestionJob.mockResolvedValue(buildJobResponse());
     api.fetchIngestionJob.mockResolvedValue(buildJobResponse());
@@ -123,6 +129,45 @@ describe('IngestionUploadPanel', () => {
 
     expect(api.uploadIngestionImage.mock.calls[0]?.[1]).not.toHaveProperty(
       'genre',
+    );
+  });
+
+  it('submits optional date, venue, and band hints when provided', async () => {
+    api.fetchVenues.mockResolvedValue([
+      {
+        id: 'venue-1',
+        name: "The Cat's Cradle",
+        city: 'Carrboro',
+        region: 'NC',
+      },
+    ]);
+    api.fetchBands.mockResolvedValue([
+      {
+        id: 'band-1',
+        name: 'Archers of Loaf',
+        slug: 'archers-of-loaf',
+        genres: ['indie rock'],
+      },
+    ]);
+
+    const wrapper = mount(IngestionUploadPanel);
+    await flushPromises();
+
+    await wrapper.get('input[aria-label="Concert date"]').setValue('2026-10-15');
+    await wrapper.get('select[aria-label="Venue"]').setValue('venue-1');
+    await wrapper.get('select[aria-label="Band or artist"]').setValue('band-1');
+    await selectValidFile(wrapper);
+
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(api.uploadIngestionImage).toHaveBeenCalledWith(
+      'firebase-token',
+      expect.objectContaining({
+        concertDate: new Date('2026-10-15').toISOString(),
+        venueId: 'venue-1',
+        bandId: 'band-1',
+      }),
     );
   });
 
