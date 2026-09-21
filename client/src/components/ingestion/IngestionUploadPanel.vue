@@ -1,8 +1,9 @@
 <template>
   <section class="ingestion-panel">
     <div class="ingestion-panel__header">
-      <p class="ingestion-panel__intro">
-        Upload a show poster
+      <h2 class="ingestion-panel__title">Upload a concert poster</h2>
+      <p class="ingestion-panel__subtitle">
+        Drop your flyer below to add it to the local live music calendar
       </p>
     </div>
 
@@ -50,7 +51,7 @@
 
       <div class="ingestion-panel__hints">
         <div class="ingestion-panel__hints-header">
-          <p class="ingestion-panel__hints-title">Event Details (Optional hints)</p>
+          <p class="ingestion-panel__hints-title">Event Details</p>
           <p class="ingestion-panel__hints-subtitle">Provide known details to help our team match and publish the show faster.</p>
         </div>
 
@@ -635,14 +636,27 @@ const handleSubmit = async () => {
 
 .ingestion-panel__header {
   display: grid;
-  gap: 0.9rem;
+  gap: 0.35rem;
   justify-items: center;
   text-align: center;
+  padding: 0.25rem 0 0.25rem;
 }
 
-.ingestion-panel__intro {
-  max-width: 36rem;
-  color: var(--text-light);
+.ingestion-panel__title {
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--text-dark, #1e293b);
+  margin: 0;
+  line-height: 1.25;
+}
+
+.ingestion-panel__subtitle {
+  font-size: 0.92rem;
+  color: var(--text-light, #64748b);
+  max-width: 32rem;
+  margin: 0;
+  line-height: 1.45;
 }
 
 .ingestion-panel__form {
@@ -655,7 +669,7 @@ const handleSubmit = async () => {
   width: min(100%, 34rem);
   box-sizing: border-box;
   padding: 1.15rem;
-  border-radius: 1rem;
+  border-radius: 1.25rem;
   border: 1px solid var(--border);
   background: var(--background);
   display: grid;
@@ -710,6 +724,7 @@ const handleSubmit = async () => {
   grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   width: min(100%, 34rem);
+  box-sizing: border-box;
   padding: 1.15rem;
   border: 1px dashed rgba(240, 85, 55, 0.28);
   border-radius: 1.25rem;
