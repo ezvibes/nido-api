@@ -58,6 +58,9 @@ export class IngestionController {
         city: { type: 'string', example: 'Charlotte' },
         state: { type: 'string', example: 'NC' },
         genre: { type: 'string', maxLength: 120, example: 'Electronic' },
+        concertDate: { type: 'string', example: '2026-05-28T20:00:00.000Z' },
+        venueId: { type: 'string', example: '87c28620-0a38-4187-89c8-c83a0246e828' },
+        bandId: { type: 'string', example: '87c28620-0a38-4187-89c8-c83a0246e828' },
         source: {
           type: 'string',
           enum: ['flyer_upload', 'manual_upload', 'partner_upload'],

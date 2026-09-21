@@ -1,4 +1,12 @@
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsDateString,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateIngestionUploadDto {
@@ -42,4 +50,37 @@ export class CreateIngestionUploadDto {
   @IsIn(['flyer_upload', 'manual_upload', 'partner_upload'])
   @MaxLength(60)
   source?: string;
+
+  @ApiPropertyOptional({
+    description: 'User-selected concert date hint (ISO string or date string).',
+    example: '2026-05-28T20:00:00.000Z',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() ? value.trim() : undefined,
+  )
+  @IsDateString()
+  concertDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'User-selected venue hint ID.',
+    example: '87c28620-0a38-4187-89c8-c83a0246e828',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() ? value.trim() : undefined,
+  )
+  @IsUUID()
+  venueId?: string;
+
+  @ApiPropertyOptional({
+    description: 'User-selected band hint ID.',
+    example: '87c28620-0a38-4187-89c8-c83a0246e828',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() ? value.trim() : undefined,
+  )
+  @IsUUID()
+  bandId?: string;
 }

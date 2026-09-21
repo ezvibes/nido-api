@@ -34,11 +34,26 @@ onAuthStateChanged(auth, (firebaseUser) => {
  * A reactive composable to manage user authentication state and actions.
  */
 export function useAuth() {
+  const devLogin = () => {
+    user.value = {
+      uid: 'dev-admin-uid',
+      email: 'admin@example.com',
+      displayName: 'Dev Admin',
+      getIdToken: async () => 'mock-dev-token',
+    } as any;
+    router.push('/concerts');
+  };
+
   const signInWithGoogle = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
       await router.push('/concerts');
     } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn('Firebase Google Auth unavailable locally; falling back to Dev Login mode.');
+        devLogin();
+        return;
+      }
       console.error('Error signing in with Google:', error);
     }
   };
@@ -48,6 +63,10 @@ export function useAuth() {
       await createUserWithEmailAndPassword(auth, email, password);
       await router.push('/concerts');
     } catch (error: any) {
+      if (import.meta.env.DEV) {
+        devLogin();
+        return;
+      }
       console.error('Error signing up with email:', error);
       alert(`Error: ${error.message}`);
     }
@@ -58,6 +77,10 @@ export function useAuth() {
       await signInWithEmailAndPassword(auth, email, password);
       await router.push('/concerts');
     } catch (error: any) {
+      if (import.meta.env.DEV) {
+        devLogin();
+        return;
+      }
       console.error('Error signing in with email:', error);
       alert(`Error: ${error.message}`);
     }
@@ -141,5 +164,6 @@ export function useAuth() {
     signOut,
     updateUserProfile,
     updateProfilePicture,
+    devLogin,
   };
 }

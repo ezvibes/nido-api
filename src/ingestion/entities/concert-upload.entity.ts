@@ -9,6 +9,8 @@ import {
 } from 'typeorm';
 import { User } from '../../apis/users/entities/user.entity';
 import { Concert } from '../../apis/concerts/entities/concert.entity';
+import { Venue } from '../../apis/venues/entities/venue.entity';
+import { Band } from '../../apis/bands/entities/band.entity';
 import { IngestionJob } from './ingestion-job.entity';
 
 export type UploadReviewStatus = 'submitted' | 'approved' | 'rejected' | 'past';
@@ -41,6 +43,31 @@ export class ConcertUpload {
 
   @Column({ type: 'varchar', length: 120, nullable: true })
   genre?: string | null;
+
+  @Column({ name: 'concert_date', type: 'timestamptz', nullable: true })
+  concertDate?: Date | null;
+
+  @Column({ name: 'venue_id', type: 'uuid', nullable: true })
+  venueId?: string | null;
+
+  @ManyToOne(() => Venue, {
+    eager: false,
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'venue_id' })
+  venue?: Venue | null;
+
+  @Column({ name: 'band_id', type: 'uuid', nullable: true })
+  bandId?: string | null;
+
+  @ManyToOne(() => Band, {
+    eager: false,
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'band_id' })
+  band?: Band | null;
 
   @Column({ default: 'flyer_upload' })
   source: string;

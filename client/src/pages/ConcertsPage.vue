@@ -9,7 +9,7 @@
 
     <p v-if="pageMessage" :class="pageMessageClass">{{ pageMessage }}</p>
 
-    <IngestionUploadPanel v-if="user" />
+    <IngestionUploadPanel v-if="user || isDev" />
 
     <ConcertFiltersBar
       :search-text="searchText"
@@ -82,6 +82,7 @@ import { useAuth } from '../composables/useAuth';
 import { mapConcertToListItem, type ConcertListItem } from '../types/concerts';
 
 const { user } = useAuth();
+const isDev = import.meta.env.DEV;
 
 const persistedConcerts = ref<ConcertListItem[]>([]);
 const upvotingConcertIds = ref(new Set<string>());

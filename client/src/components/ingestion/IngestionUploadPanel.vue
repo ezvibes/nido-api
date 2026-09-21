@@ -1,8 +1,9 @@
 <template>
   <section class="ingestion-panel">
     <div class="ingestion-panel__header">
-      <p class="ingestion-panel__intro">
-        Upload a show poster
+      <h2 class="ingestion-panel__title">Upload a concert poster</h2>
+      <p class="ingestion-panel__subtitle">
+        Drop your flyer below to add it to the local live music calendar
       </p>
     </div>
 
@@ -48,33 +49,71 @@
         </div>
       </div>
 
-      <label>
-        <span>City</span>
-        <input v-model="city" type="text" placeholder="Raleigh" />
-      </label>
+      <div class="ingestion-panel__hints">
+        <div class="ingestion-panel__hints-header">
+          <p class="ingestion-panel__hints-title">Event Details</p>
+          <p class="ingestion-panel__hints-subtitle">Provide known details to help our team match and publish the show faster.</p>
+        </div>
 
-      <label>
-        <span>State</span>
-        <input v-model="state" type="text" maxlength="2" placeholder="NC" />
-      </label>
+        <div class="ingestion-panel__fields-grid">
+          <label class="ingestion-panel__field">
+            <span>Date</span>
+            <input
+              v-model="concertDate"
+              type="date"
+              aria-label="Concert date"
+            />
+          </label>
 
-      <div class="ingestion-panel__genre-field">
-        <GenreCombobox
-          v-model="genre"
-          :options="userGenreOptions"
-          placeholder="Select a genre"
-          :loading="genreLoadState === 'loading'"
-          :allow-custom="false"
-          :max-visible-options="25"
-          :described-by="genreHelpMessage ? 'genre-help' : undefined"
-        />
-        <small
-          v-if="genreHelpMessage"
-          id="genre-help"
-          class="ingestion-panel__field-help"
-        >
-          {{ genreHelpMessage }}
-        </small>
+          <label class="ingestion-panel__field">
+            <span>Venue</span>
+            <select v-model="venueId" aria-label="Venue" @change="onVenueChange">
+              <option value="">Select a venue (optional)</option>
+              <option v-for="v in venues" :key="v.id" :value="v.id">
+                {{ v.name }} ({{ v.city }}, {{ v.region || v.city }})
+              </option>
+            </select>
+          </label>
+
+          <div class="ingestion-panel__field ingestion-panel__genre-field">
+            <GenreCombobox
+              v-model="genre"
+              :options="userGenreOptions"
+              placeholder="Select a genre"
+              :loading="genreLoadState === 'loading'"
+              :allow-custom="false"
+              :max-visible-options="25"
+              :described-by="genreHelpMessage ? 'genre-help' : undefined"
+            />
+            <small
+              v-if="genreHelpMessage"
+              id="genre-help"
+              class="ingestion-panel__field-help"
+            >
+              {{ genreHelpMessage }}
+            </small>
+          </div>
+
+          <label class="ingestion-panel__field">
+            <span>Band / Artist</span>
+            <select v-model="bandId" aria-label="Band or artist">
+              <option value="">Select an artist (optional)</option>
+              <option v-for="b in bands" :key="b.id" :value="b.id">
+                {{ b.name }}
+              </option>
+            </select>
+          </label>
+
+          <label class="ingestion-panel__field">
+            <span>City</span>
+            <input v-model="city" type="text" placeholder="Raleigh" />
+          </label>
+
+          <label class="ingestion-panel__field">
+            <span>State</span>
+            <input v-model="state" type="text" maxlength="2" placeholder="NC" />
+          </label>
+        </div>
       </div>
 
       <p v-if="message" :class="messageClass">{{ message }}</p>
@@ -106,12 +145,24 @@
           <dd>{{ uploadResult.originalFilename }}</dd>
         </div>
         <div>
-          <dt>Location</dt>
-          <dd>{{ uploadLocation }}</dd>
+          <dt>Date hint</dt>
+          <dd>{{ formatSummaryDate(uploadResult.concertDate) }}</dd>
+        </div>
+        <div>
+          <dt>Venue hint</dt>
+          <dd>{{ selectedVenueName || uploadResult.venueId || 'Not provided' }}</dd>
         </div>
         <div>
           <dt>Genre</dt>
           <dd>{{ uploadResult.genre ?? 'Not provided' }}</dd>
+        </div>
+        <div>
+          <dt>Band hint</dt>
+          <dd>{{ selectedBandName || uploadResult.bandId || 'Not provided' }}</dd>
+        </div>
+        <div>
+          <dt>Location</dt>
+          <dd>{{ uploadLocation }}</dd>
         </div>
         <div>
           <dt>Status</dt>
@@ -135,10 +186,14 @@ import { computed, onMounted, ref } from 'vue';
 import { AxiosError } from 'axios';
 import {
   createIngestionJob,
+  fetchBands,
   fetchConcertGenres,
   fetchIngestionJob,
+  fetchVenues,
+  type BandListItem,
   type IngestionJobResponse,
   type IngestionUploadResult,
+  type VenueListItem,
   uploadIngestionImage,
 } from '../../composables/useApi';
 import { useAuth } from '../../composables/useAuth';
@@ -162,10 +217,15 @@ const acceptedMimeTypes = [
 const selectedFile = ref<File | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 const isDragActive = ref(false);
+const concertDate = ref('');
+const venueId = ref('');
+const bandId = ref('');
 const city = ref('');
 const state = ref('NC');
 const genre = ref('');
 const genres = ref<string[]>([]);
+const venues = ref<VenueListItem[]>([]);
+const bands = ref<BandListItem[]>([]);
 const genreLoadState = ref<'loading' | 'loaded' | 'empty' | 'failed'>('loading');
 const message = ref('');
 const messageType = ref<'success' | 'error'>('success');
@@ -231,7 +291,10 @@ const formattedFileSize = computed(() => {
   const fileSizeMb = selectedFile.value.size / (1024 * 1024);
   return `${fileSizeMb.toFixed(fileSizeMb >= 10 ? 0 : 1)} MB`;
 });
-const isSubmitDisabled = computed(() => !user.value || !selectedFile.value || isSubmitting.value);
+const isDev = import.meta.env.DEV;
+const isSubmitDisabled = computed(
+  () => (!user.value && !isDev) || !selectedFile.value || isSubmitting.value,
+);
 const messageClass = computed(() =>
   messageType.value === 'success'
     ? 'ingestion-panel__message ingestion-panel__message--success'
@@ -244,13 +307,151 @@ const loadGenres = async () => {
     genres.value = response.genres;
     genreLoadState.value = genres.value.length ? 'loaded' : 'empty';
   } catch {
-    genres.value = [];
-    genreLoadState.value = 'failed';
+    if (isDev && import.meta.env.MODE !== 'test') {
+      genres.value = [
+        'Electronic',
+        'Rock',
+        'Indie Rock',
+        'Jazz',
+        'Hip-Hop',
+        'Folk',
+        'Metal',
+        'Soul',
+      ];
+      genreLoadState.value = 'loaded';
+    } else {
+      genres.value = [];
+      genreLoadState.value = 'failed';
+    }
   }
 };
 
+const loadVenues = async () => {
+  if (typeof fetchVenues !== 'function') return;
+  try {
+    const response = await fetchVenues();
+    venues.value = Array.isArray(response) ? response : [];
+  } catch {
+    venues.value = [];
+  }
+  if (isDev && import.meta.env.MODE !== 'test' && venues.value.length === 0) {
+    venues.value = [
+      {
+        id: 'v-1',
+        name: 'The Pour House Music Hall',
+        city: 'Raleigh',
+        citySlug: 'raleigh',
+        region: 'NC',
+        regionSlug: 'nc',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'v-2',
+        name: "Cat's Cradle",
+        city: 'Carrboro',
+        citySlug: 'carrboro',
+        region: 'NC',
+        regionSlug: 'nc',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'v-3',
+        name: 'Lincoln Theatre',
+        city: 'Raleigh',
+        citySlug: 'raleigh',
+        region: 'NC',
+        regionSlug: 'nc',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'v-4',
+        name: 'The Orange Peel',
+        city: 'Asheville',
+        citySlug: 'asheville',
+        region: 'NC',
+        regionSlug: 'nc',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    ];
+  }
+};
+
+const loadBands = async () => {
+  if (typeof fetchBands !== 'function') return;
+  try {
+    const response = await fetchBands();
+    bands.value = Array.isArray(response) ? response : [];
+  } catch {
+    bands.value = [];
+  }
+  if (isDev && import.meta.env.MODE !== 'test' && bands.value.length === 0) {
+    bands.value = [
+      { id: 'b-1', name: 'Doctor S', slug: 'doctor-s', genres: ['Rock'] },
+      { id: 'b-2', name: 'Archers of Loaf', slug: 'archers-of-loaf', genres: ['Indie Rock'] },
+      { id: 'b-3', name: 'Sylvan Esso', slug: 'sylvan-esso', genres: ['Electronic'] },
+      { id: 'b-4', name: 'Wednesday', slug: 'wednesday', genres: ['Indie Rock'] },
+    ];
+  }
+};
+
+const onVenueChange = () => {
+  const matched = venues.value.find((v) => v.id === venueId.value);
+  if (matched) {
+    if (!city.value.trim() && matched.city) {
+      city.value = matched.city;
+    }
+    if (matched.region) {
+      state.value = matched.region;
+    }
+  }
+};
+
+const formatSummaryDate = (value?: string) => {
+  if (!value) return 'Not provided';
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, y, m, d] = match;
+    const date = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
+    return date.toLocaleDateString(undefined, {
+      timeZone: 'UTC',
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+const selectedVenueName = computed(() => {
+  const currentVenueId = uploadResult.value?.venueId || venueId.value;
+  if (!currentVenueId) return '';
+  const v = venues.value.find((item) => item.id === currentVenueId);
+  return v ? `${v.name} (${v.city}, ${v.region || v.city})` : (uploadResult.value?.venueId ? 'Selected venue' : '');
+});
+
+const selectedBandName = computed(() => {
+  const currentBandId = uploadResult.value?.bandId || bandId.value;
+  if (!currentBandId) return '';
+  const b = bands.value.find((item) => item.id === currentBandId);
+  return b ? b.name : (uploadResult.value?.bandId ? 'Selected band' : '');
+});
+
 onMounted(() => {
   void loadGenres();
+  void loadVenues();
+  void loadBands();
 });
 
 const resetFileInput = () => {
@@ -349,7 +550,38 @@ const pollJobStatus = async () => {
 };
 
 const handleSubmit = async () => {
-  if (!user.value || !selectedFile.value || isSubmitDisabled.value) {
+  if (!selectedFile.value || isSubmitDisabled.value) {
+    return;
+  }
+
+  if (!user.value) {
+    if (isDev) {
+      isSubmitting.value = true;
+      window.setTimeout(() => {
+        uploadResult.value = {
+          concertUploadId: 'preview-upload-123',
+          bucket: 'preview-bucket',
+          objectName: selectedFile.value!.name,
+          storageUri: `gs://preview-bucket/${selectedFile.value!.name}`,
+          contentType: selectedFile.value!.type || 'image/jpeg',
+          size: selectedFile.value!.size,
+          originalFilename: selectedFile.value!.name,
+          city: city.value.trim() || undefined,
+          state: state.value.trim() || undefined,
+          genre: genre.value || undefined,
+          concertDate: concertDate.value
+            ? new Date(`${concertDate.value}T00:00:00Z`).toISOString()
+            : undefined,
+          venueId: venueId.value || undefined,
+          bandId: bandId.value || undefined,
+          source: 'flyer_upload',
+          uploadedAt: new Date().toISOString(),
+        };
+        messageType.value = 'success';
+        message.value = 'Local preview: Flyer simulated upload complete! See details below.';
+        isSubmitting.value = false;
+      }, 400);
+    }
     return;
   }
 
@@ -364,6 +596,11 @@ const handleSubmit = async () => {
       city: city.value.trim() || undefined,
       state: state.value.trim().toUpperCase() || undefined,
       ...(genre.value ? { genre: genre.value } : {}),
+      concertDate: concertDate.value
+        ? new Date(`${concertDate.value}T00:00:00Z`).toISOString()
+        : undefined,
+      venueId: venueId.value || undefined,
+      bandId: bandId.value || undefined,
       source: 'flyer_upload',
     });
     job.value = await createIngestionJob(token, uploadResult.value.concertUploadId);
@@ -399,14 +636,27 @@ const handleSubmit = async () => {
 
 .ingestion-panel__header {
   display: grid;
-  gap: 0.9rem;
+  gap: 0.35rem;
   justify-items: center;
   text-align: center;
+  padding: 0.25rem 0 0.25rem;
 }
 
-.ingestion-panel__intro {
-  max-width: 36rem;
-  color: var(--text-light);
+.ingestion-panel__title {
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--text-dark, #1e293b);
+  margin: 0;
+  line-height: 1.25;
+}
+
+.ingestion-panel__subtitle {
+  font-size: 0.92rem;
+  color: var(--text-light, #64748b);
+  max-width: 32rem;
+  margin: 0;
+  line-height: 1.45;
 }
 
 .ingestion-panel__form {
@@ -415,15 +665,58 @@ const handleSubmit = async () => {
   justify-items: center;
 }
 
-.ingestion-panel__form label {
+.ingestion-panel__hints {
+  width: min(100%, 34rem);
+  box-sizing: border-box;
+  padding: 1.15rem;
+  border-radius: 1.25rem;
+  border: 1px solid var(--border);
+  background: var(--background);
+  display: grid;
+  gap: 0.85rem;
+  text-align: left;
+}
+
+.ingestion-panel__hints-header {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.ingestion-panel__hints-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-dark);
+  margin: 0;
+}
+
+.ingestion-panel__hints-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-light);
+  margin: 0;
+}
+
+.ingestion-panel__fields-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: 1fr;
+}
+
+.ingestion-panel__field {
   display: grid;
   gap: 0.35rem;
-  text-align: center;
-  width: min(100%, 34rem);
+  text-align: left !important;
+  width: 100% !important;
+}
+
+.ingestion-panel__field span,
+.ingestion-panel__genre-field :deep(.genre-combobox__label) {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-dark);
 }
 
 .ingestion-panel__genre-field {
-  width: min(100%, 34rem);
+  width: 100% !important;
 }
 
 .ingestion-panel__dropzone {
@@ -431,6 +724,7 @@ const handleSubmit = async () => {
   grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   width: min(100%, 34rem);
+  box-sizing: border-box;
   padding: 1.15rem;
   border: 1px dashed rgba(240, 85, 55, 0.28);
   border-radius: 1.25rem;

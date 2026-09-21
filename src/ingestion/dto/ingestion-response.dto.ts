@@ -37,6 +37,15 @@ export class IngestionUploadResponseDto {
   @ApiPropertyOptional({ example: 'Electronic' })
   genre?: string;
 
+  @ApiPropertyOptional({ example: '2026-05-28T20:00:00.000Z' })
+  concertDate?: string;
+
+  @ApiPropertyOptional({ example: '87c28620-0a38-4187-89c8-c83a0246e828' })
+  venueId?: string;
+
+  @ApiPropertyOptional({ example: '87c28620-0a38-4187-89c8-c83a0246e828' })
+  bandId?: string;
+
   @ApiProperty({ example: 'flyer_upload' })
   source: string;
 
@@ -82,6 +91,21 @@ export class AdminConcertUploadResponseDto {
 
   @ApiPropertyOptional({ example: 'Electronic' })
   genre?: string;
+
+  @ApiPropertyOptional({ example: '2026-05-28T20:00:00.000Z' })
+  concertDate?: string;
+
+  @ApiPropertyOptional({ example: '87c28620-0a38-4187-89c8-c83a0246e828' })
+  venueId?: string;
+
+  @ApiPropertyOptional({ example: 'The Underground' })
+  venueName?: string;
+
+  @ApiPropertyOptional({ example: '87c28620-0a38-4187-89c8-c83a0246e828' })
+  bandId?: string;
+
+  @ApiPropertyOptional({ example: 'The Midnight' })
+  bandName?: string;
 
   @ApiProperty({ example: 'flyer_upload' })
   source: string;

@@ -221,6 +221,16 @@ export class IngestionService {
 
     console.log(`[DEBUG] Attempting to upload to bucket: "${this.bucketName}"`);
 
+    const parsedConcertDate = dto.concertDate
+      ? new Date(dto.concertDate)
+      : undefined;
+    const validConcertDate =
+      parsedConcertDate && !Number.isNaN(parsedConcertDate.getTime())
+        ? parsedConcertDate
+        : undefined;
+    const venueId = dto.venueId?.trim() || undefined;
+    const bandId = dto.bandId?.trim() || undefined;
+
     try {
       await object.save(file.buffer, {
         resumable: false,
@@ -231,6 +241,9 @@ export class IngestionService {
             city: dto.city ?? '',
             state: dto.state ?? '',
             ...(normalizedGenre ? { genre: normalizedGenre } : {}),
+            ...(validConcertDate ? { concertDate: validConcertDate.toISOString() } : {}),
+            ...(venueId ? { venueId } : {}),
+            ...(bandId ? { bandId } : {}),
             source: normalizedSource,
             uploadedByUserId: uploadedByUserId?.toString() ?? '',
             originalFilename: file.originalname,
@@ -255,6 +268,9 @@ export class IngestionService {
         city: dto.city,
         state: dto.state,
         genre: normalizedGenre,
+        concertDate: validConcertDate,
+        venueId,
+        bandId,
         source: normalizedSource,
         reviewStatus: 'submitted',
         uploadedByUid: uid,
@@ -274,6 +290,9 @@ export class IngestionService {
       city: dto.city,
       state: dto.state,
       genre: normalizedGenre,
+      concertDate: validConcertDate?.toISOString(),
+      venueId,
+      bandId,
       source: normalizedSource,
       uploadedByUserId,
       uploadedAt,
@@ -351,6 +370,8 @@ export class IngestionService {
       .createQueryBuilder('upload')
       .leftJoinAndSelect('upload.uploadedByUser', 'uploadedByUser')
       .leftJoinAndSelect('upload.reviewedByUser', 'reviewedByUser')
+      .leftJoinAndSelect('upload.venue', 'venue')
+      .leftJoinAndSelect('upload.band', 'band')
       .orderBy('upload.createdAt', 'DESC')
       .take(limit)
       .skip(offset);
@@ -382,6 +403,8 @@ export class IngestionService {
       relations: {
         uploadedByUser: true,
         reviewedByUser: true,
+        venue: true,
+        band: true,
       },
     });
 
@@ -427,6 +450,8 @@ export class IngestionService {
           relations: {
             uploadedByUser: true,
             reviewedByUser: true,
+            venue: true,
+            band: true,
           },
         });
       },
@@ -449,6 +474,13 @@ export class IngestionService {
       city: upload.city,
       state: upload.state,
       genre: upload.genre ?? undefined,
+      concertDate: upload.concertDate
+        ? upload.concertDate.toISOString()
+        : undefined,
+      venueId: upload.venueId ?? undefined,
+      venueName: upload.venue?.name ?? undefined,
+      bandId: upload.bandId ?? undefined,
+      bandName: upload.band?.name ?? undefined,
       source: upload.source,
       uploadedByUid: upload.uploadedByUid,
       uploadedByUserId: upload.uploadedByUserId,
@@ -489,15 +521,25 @@ export class IngestionService {
       : null;
     const genre = dto.concertGenre?.trim() || 'Live Music';
 
-    const resolvedVenue = await this.venueService.findOrCreateByName(
-      dto.concertVenueName?.trim() || 'Venue TBD',
-      upload.city || undefined,
-      upload.state || undefined,
-    );
+    const resolvedVenue =
+      upload.venue &&
+      upload.venueId &&
+      dto.concertVenueName?.trim() === upload.venue.name?.trim()
+        ? upload.venue
+        : await this.venueService.findOrCreateByName(
+            dto.concertVenueName?.trim() || 'Venue TBD',
+            upload.city || undefined,
+            upload.state || undefined,
+          );
 
-    const resolvedBands = await this.bandService.findOrCreateManyByName([
-      dto.concertBandName?.trim() || dto.concertArtistName?.trim() || title,
-    ]);
+    const primaryBandName =
+      dto.concertBandName?.trim() || dto.concertArtistName?.trim() || title;
+    const resolvedBands =
+      upload.band &&
+      upload.bandId &&
+      primaryBandName === upload.band.name?.trim()
+        ? [upload.band]
+        : await this.bandService.findOrCreateManyByName([primaryBandName]);
 
     const lineup = resolvedBands.map((band, index) => {
       const cbl = new ConcertBandLineup();
@@ -645,6 +687,11 @@ export class IngestionService {
         city: concertUpload.city,
         state: concertUpload.state,
         genre: concertUpload.genre ?? undefined,
+        concertDate: concertUpload.concertDate
+          ? concertUpload.concertDate.toISOString()
+          : undefined,
+        venueId: concertUpload.venueId ?? undefined,
+        bandId: concertUpload.bandId ?? undefined,
         source: concertUpload.source,
         size: Number(concertUpload.size),
         uploadedByUid: concertUpload.uploadedByUid,
@@ -668,6 +715,11 @@ export class IngestionService {
       city: concertUpload.city,
       state: concertUpload.state,
       genre: concertUpload.genre ?? undefined,
+      concertDate: concertUpload.concertDate
+        ? concertUpload.concertDate.toISOString()
+        : undefined,
+      venueId: concertUpload.venueId ?? undefined,
+      bandId: concertUpload.bandId ?? undefined,
       source: concertUpload.source,
       uploadedByUserId: concertUpload.uploadedByUserId,
       uploadedAt: concertUpload.createdAt.toISOString(),
