@@ -25,6 +25,16 @@
         <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google logo" />
         Sign in with Google
       </button>
+
+      <button
+        v-if="isDev"
+        type="button"
+        class="btn btn-secondary"
+        style="margin-top: 1rem; width: 100%; border: 1px dashed var(--accent); color: var(--accent);"
+        @click="devLogin"
+      >
+        ⚡ Dev Quick Login (Preview Mode)
+      </button>
     </form>
   </div>
 </template>
@@ -35,8 +45,9 @@ import { useAuth } from '../composables/useAuth';
 
 const email = ref('');
 const password = ref('');
+const isDev = import.meta.env.DEV;
 
-const { signUpWithEmail, signInWithEmail, signInWithGoogle } = useAuth();
+const { signUpWithEmail, signInWithEmail, signInWithGoogle, devLogin } = useAuth();
 
 const handleSignUp = () => {
   signUpWithEmail(email.value, password.value);

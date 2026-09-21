@@ -75,7 +75,6 @@
           </label>
 
           <div class="ingestion-panel__field ingestion-panel__genre-field">
-            <span>Genre</span>
             <GenreCombobox
               v-model="genre"
               :options="userGenreOptions"
@@ -291,7 +290,10 @@ const formattedFileSize = computed(() => {
   const fileSizeMb = selectedFile.value.size / (1024 * 1024);
   return `${fileSizeMb.toFixed(fileSizeMb >= 10 ? 0 : 1)} MB`;
 });
-const isSubmitDisabled = computed(() => !user.value || !selectedFile.value || isSubmitting.value);
+const isDev = import.meta.env.DEV;
+const isSubmitDisabled = computed(
+  () => (!user.value && !isDev) || !selectedFile.value || isSubmitting.value,
+);
 const messageClass = computed(() =>
   messageType.value === 'success'
     ? 'ingestion-panel__message ingestion-panel__message--success'
@@ -304,8 +306,22 @@ const loadGenres = async () => {
     genres.value = response.genres;
     genreLoadState.value = genres.value.length ? 'loaded' : 'empty';
   } catch {
-    genres.value = [];
-    genreLoadState.value = 'failed';
+    if (isDev && import.meta.env.MODE !== 'test') {
+      genres.value = [
+        'Electronic',
+        'Rock',
+        'Indie Rock',
+        'Jazz',
+        'Hip-Hop',
+        'Folk',
+        'Metal',
+        'Soul',
+      ];
+      genreLoadState.value = 'loaded';
+    } else {
+      genres.value = [];
+      genreLoadState.value = 'failed';
+    }
   }
 };
 
@@ -317,6 +333,50 @@ const loadVenues = async () => {
   } catch {
     venues.value = [];
   }
+  if (isDev && import.meta.env.MODE !== 'test' && venues.value.length === 0) {
+    venues.value = [
+      {
+        id: 'v-1',
+        name: 'The Pour House Music Hall',
+        city: 'Raleigh',
+        citySlug: 'raleigh',
+        region: 'NC',
+        regionSlug: 'nc',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'v-2',
+        name: "Cat's Cradle",
+        city: 'Carrboro',
+        citySlug: 'carrboro',
+        region: 'NC',
+        regionSlug: 'nc',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'v-3',
+        name: 'Lincoln Theatre',
+        city: 'Raleigh',
+        citySlug: 'raleigh',
+        region: 'NC',
+        regionSlug: 'nc',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'v-4',
+        name: 'The Orange Peel',
+        city: 'Asheville',
+        citySlug: 'asheville',
+        region: 'NC',
+        regionSlug: 'nc',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    ];
+  }
 };
 
 const loadBands = async () => {
@@ -326,6 +386,14 @@ const loadBands = async () => {
     bands.value = Array.isArray(response) ? response : [];
   } catch {
     bands.value = [];
+  }
+  if (isDev && import.meta.env.MODE !== 'test' && bands.value.length === 0) {
+    bands.value = [
+      { id: 'b-1', name: 'Doctor S', slug: 'doctor-s', genres: ['Rock'] },
+      { id: 'b-2', name: 'Archers of Loaf', slug: 'archers-of-loaf', genres: ['Indie Rock'] },
+      { id: 'b-3', name: 'Sylvan Esso', slug: 'sylvan-esso', genres: ['Electronic'] },
+      { id: 'b-4', name: 'Wednesday', slug: 'wednesday', genres: ['Indie Rock'] },
+    ];
   }
 };
 
@@ -481,7 +549,38 @@ const pollJobStatus = async () => {
 };
 
 const handleSubmit = async () => {
-  if (!user.value || !selectedFile.value || isSubmitDisabled.value) {
+  if (!selectedFile.value || isSubmitDisabled.value) {
+    return;
+  }
+
+  if (!user.value) {
+    if (isDev) {
+      isSubmitting.value = true;
+      window.setTimeout(() => {
+        uploadResult.value = {
+          concertUploadId: 'preview-upload-123',
+          bucket: 'preview-bucket',
+          objectName: selectedFile.value!.name,
+          storageUri: `gs://preview-bucket/${selectedFile.value!.name}`,
+          contentType: selectedFile.value!.type || 'image/jpeg',
+          size: selectedFile.value!.size,
+          originalFilename: selectedFile.value!.name,
+          city: city.value.trim() || undefined,
+          state: state.value.trim() || undefined,
+          genre: genre.value || undefined,
+          concertDate: concertDate.value
+            ? new Date(`${concertDate.value}T00:00:00Z`).toISOString()
+            : undefined,
+          venueId: venueId.value || undefined,
+          bandId: bandId.value || undefined,
+          source: 'flyer_upload',
+          uploadedAt: new Date().toISOString(),
+        };
+        messageType.value = 'success';
+        message.value = 'Local preview: Flyer simulated upload complete! See details below.';
+        isSubmitting.value = false;
+      }, 400);
+    }
     return;
   }
 
@@ -588,12 +687,6 @@ const handleSubmit = async () => {
   grid-template-columns: 1fr;
 }
 
-@media (min-width: 600px) {
-  .ingestion-panel__fields-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 .ingestion-panel__field {
   display: grid;
   gap: 0.35rem;
@@ -601,7 +694,8 @@ const handleSubmit = async () => {
   width: 100% !important;
 }
 
-.ingestion-panel__field span {
+.ingestion-panel__field span,
+.ingestion-panel__genre-field :deep(.genre-combobox__label) {
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--text-dark);
