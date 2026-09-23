@@ -29,6 +29,7 @@
     "migration:run:prod": "node dist/scripts/run-migrations.js",
     "migration:revert": "npm run typeorm -- -d src/data-source.ts migration:revert",
     "migration:show": "npm run typeorm -- -d src/data-source.ts migration:show",
+    "adk:venue-scout": "ts-node -r tsconfig-paths/register src/scripts/test-adk-venue-scout.ts",
     "seed:dev:concerts": "ts-node -r tsconfig-paths/register src/scripts/seed-dev-concerts.ts",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -38,7 +39,10 @@
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",
+    "@google/adk": "^2.1.0",
     "@google/generative-ai": "^0.24.1",
+    "@grpc/grpc-js": "^1.14.5",
+    "@grpc/proto-loader": "^0.8.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
