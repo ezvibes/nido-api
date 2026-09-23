@@ -52,6 +52,8 @@ If a doc helps operate a specific private environment, it belongs in `docs/`.
 ## Current Public Docs
 
 - `catalog-operating-system/`: public guidance for catalog architecture, GitHub issue dossiers, agent handoff structure, and canonical event publishing planning.
+- `catalog-operating-system/journey-log-gear-pca.md`: 8-Week GEAR 2 & Google Cloud Architect learning journey log, curriculum roadmap, daily ship-logs, and public broadcast notes.
+- `catalog-operating-system/gear-adk-agent-guide.md`: Google Agent Development Kit (ADK) architecture guide from GEAR Level 2, defining model parameters, `description` vs `instruction` routing, `root_agent` conventions, and Nido multi-agent designs.
 - `catalog-operating-system/admin-concert-catalog.md`: admin authority, optimistic versioning, visibility, validation, pagination, and verification contract for concert catalog operations.
 - `catalog-operating-system/admin-concert-testing-deployment-guide.md`: admin catalog local testing, deployment observation, dev smoke, evidence, and rollback checklist.
 - `future-vision/2026-platform-vision.md`: directional product and platform vision for the remainder of 2026, intentionally separated from active MVP commitments.
