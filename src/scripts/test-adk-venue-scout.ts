@@ -269,7 +269,9 @@ export const getUpcomingShowsAtVenueTool = new FunctionTool({
 
 export const ezVibesScoutAgent = new Agent({
   name: 'EZVibesSceneScout',
-  model: 'gemini-2.5-flash',
+  model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
+  description:
+    'North Carolina live music venue scout that verifies rooms against the Nido catalog, evaluates partner tiers, and retrieves scheduled concert lineups.',
   instruction: `
 You are EZ Vibes Venue Scout & Vibe Inspector for Nido - North Carolina's indie live music intelligence portal.
 
@@ -354,8 +356,19 @@ async function runAdkScoutWorkflow(venueQuery: string) {
           parts: [{ text: `Inspect and scout venue: "${venueQuery}"` }],
         },
       })) {
+        if ((event as any).errorCode || (event as any).errorMessage) {
+          console.log(`  ⚠️ ADK Event Error: [${(event as any).errorCode}] ${(event as any).errorMessage}`);
+        }
         if (event.content && event.content.parts) {
           for (const part of event.content.parts) {
+            if ((part as any).functionCall) {
+              const fc = (part as any).functionCall;
+              console.log(`  🤖 [Agent Reasoning] Executing tool: ${fc.name}(${JSON.stringify(fc.args)})`);
+            }
+            if ((part as any).functionResponse) {
+              const fr = (part as any).functionResponse;
+              console.log(`  📦 [Tool Result Received] ${fr.name}`);
+            }
             if (part.text) {
               lastAgentResponse += part.text;
             }
@@ -364,7 +377,7 @@ async function runAdkScoutWorkflow(venueQuery: string) {
       }
 
       if (lastAgentResponse) {
-        console.log('\n--- Agent Live Output Received ---');
+        console.log('\n--- 🔥 Agent Live Synthesis Received ---');
         console.log(lastAgentResponse);
         return;
       }
@@ -403,7 +416,9 @@ async function runAdkScoutWorkflow(venueQuery: string) {
   printFormattedSummary(venueQuery, venueRes, showsRes, synthesizedVibe);
 }
 
-const targetVenueArg = process.argv[2] || "Cat's Cradle";
+const cleanArgs = process.argv.slice(2).filter((arg) => !arg.startsWith('--'));
+const targetVenueArg = cleanArgs[0] || "Cat's Cradle";
+
 runAdkScoutWorkflow(targetVenueArg).catch((error) => {
   console.error('Fatal error during ADK Venue Scout execution:', error);
   process.exit(1);
