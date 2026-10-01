@@ -1,4 +1,8 @@
-# Nido Infrastructure Agent
+# Nido Infrastructure Agent Reference
+
+> Active routing now uses `.agents/skills/nido-deployment-manager/SKILL.md`.
+> Keep this file as historical strategy/background unless a future PR explicitly
+> promotes content back into the canonical deployment manager skill.
 
 This brief defines the infrastructure agent to use from VS Code, Codex, or any
 agentic workflow operating on `nido-api`.
@@ -121,9 +125,8 @@ Work through these in small PRs:
 ## Prompt To Use In VS Code Agent Chat
 
 ```text
-Use developer-docs/catalog-operating-system/nido-infrastructure-agent.md as your
-operating brief. Improve one small piece of Nido infrastructure production
-readiness. Inspect the repo first, keep the patch narrow, run the relevant VS Code
-task or npm command, and summarize changed files, verification, risk, and the next
-recommended slice.
+Use `.agents/skills/nido-deployment-manager/SKILL.md` as your operating brief.
+Improve one small piece of Nido infrastructure production readiness. Inspect the
+repo first, keep the patch narrow, run the relevant VS Code task or npm command,
+and summarize changed files, verification, risk, and the next recommended slice.
 ```

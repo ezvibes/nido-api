@@ -161,5 +161,5 @@ means:
   answered before activating a detailed public API or developer ecosystem epic.
 - `../catalog-operating-system/README.md` describes the current catalog planning
   and agent handoff model.
-- `../catalog-operating-system/nido-infrastructure-agent.md` defines the current
+- `.agents/skills/nido-deployment-manager/SKILL.md` defines the current
   infrastructure agent operating brief.

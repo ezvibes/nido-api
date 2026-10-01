@@ -24,8 +24,11 @@ preserving the longer-term ingestion, catalog, public API, and partner vision.
 
 - Feature work across NestJS, Vue, migrations, admin behavior, or public API
   behavior: use `.agents/skills/nido-feature-flywheel/SKILL.md`.
-- Infrastructure and production-readiness work: use
-  `developer-docs/catalog-operating-system/nido-infrastructure-agent.md`.
+- Deployment, GCP/Firebase operations, production-readiness, rollback, IAM,
+  secrets, cost, and observability work: use
+  `.agents/skills/nido-deployment-manager/SKILL.md`.
+- Agent instruction, skill, Codex, Claude, or Antigravity workflow maintenance:
+  use `.agents/skills/agent-infrastructure-maintainer/SKILL.md`.
 - Vue interaction and design work: use the local frontend specialist when
   available, while following existing Vue 3 patterns.
 - Catalog architecture and publishing work: read
