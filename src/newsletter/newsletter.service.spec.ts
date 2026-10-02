@@ -95,6 +95,7 @@ describe('NewsletterService', () => {
           startsAt: new Date('2026-09-11T20:00:00Z'),
           genre: 'Electronic Funk',
           catalogStatus: ConcertCatalogStatus.ACTIVE,
+          isAdminApproved: true,
           venue: {
             name: 'Lincoln Theatre',
             city: 'Raleigh',
@@ -112,6 +113,14 @@ describe('NewsletterService', () => {
       });
 
       expect(mockConcertRepository.find).toHaveBeenCalledTimes(1);
+      expect(mockConcertRepository.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            catalogStatus: ConcertCatalogStatus.ACTIVE,
+            isAdminApproved: true,
+          }),
+        }),
+      );
       expect(result.concerts).toHaveLength(1);
       expect(result.concerts[0].title).toBe('SunSquabi Live');
       expect(result.concerts[0].venue).toContain('Lincoln Theatre');
@@ -127,6 +136,7 @@ describe('NewsletterService', () => {
         startsAt: new Date('2026-09-11T20:00:00Z'),
         genre: 'Funk-Rock',
         catalogStatus: ConcertCatalogStatus.ACTIVE,
+        isAdminApproved: true,
         isFeatured: true,
         isTopPick: true,
         venue: {

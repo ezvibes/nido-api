@@ -1,0 +1,19 @@
+{
+  "id": "date-boundaries",
+  "description": "Inclusive UTC boundaries keep adjacent out-of-range shows out; display uses Eastern time.",
+  "catalogIds": [
+    "fixture-after",
+    "fixture-end",
+    "fixture-before",
+    "fixture-start"
+  ],
+  "request": {
+    "startDate": "2026-11-13T05:00:00.000Z",
+    "endDate": "2026-11-16T04:59:59.999Z",
+    "dateRangeLabel": "Fixture date boundaries"
+  },
+  "expectedConcertIds": ["fixture-start", "fixture-end"],
+  "expectedDisplayDates": ["Friday, Nov 13, 2026", "Sunday, Nov 15, 2026"],
+  "modelResponse": "# EZ Vibes Fixture Draft\n\nFixture Opening Boundary on Friday. Fixture Closing Boundary on Sunday.",
+  "expectedOutcome": "draft"
+}

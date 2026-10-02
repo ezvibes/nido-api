@@ -22,6 +22,14 @@ The generation pipeline operates as follows:
 
 ## API Documentation
 
+For repeatable checks without provider calls or credentials, run
+`npm run test:newsletter:harness`. See the
+[offline harness guide](../../test/agent-harness/README.md) for fixture coverage,
+report interpretation, and the distinction between workflow verification and
+live editorial quality. Database sources require both active catalog status and
+admin approval; optional raw calendar inputs remain a separate admin-supplied
+source contract.
+
 ### Preview Newsletter Sources
 - **Endpoint:** `POST /api/newsletter/preview-sources`
 - **Headers:** `Authorization: Bearer <Firebase_ID_Token>`
