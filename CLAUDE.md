@@ -1,9 +1,9 @@
-# Antigravity Adapter For Nido
+# Claude Adapter For Nido
 
 Root `AGENTS.md` is the canonical operating contract for this repository. Read it
 first and preserve its approval boundaries.
 
-Use the same Nido skills as Codex:
+Use the same Nido workflow skills as Codex:
 
 - Feature work: `.agents/skills/nido-feature-flywheel/SKILL.md`
 - Deployment and GCP/Firebase work:
@@ -13,11 +13,5 @@ Use the same Nido skills as Codex:
 - Weekly Top Picks curation:
   `.agents/skills/tps2-curator/SKILL.md`
 
-Antigravity-specific reminders:
-
-- Keep work in branch/worktree flows where possible.
-- Check `gh auth status` before remote GitHub write actions.
-- Prefer normal Git operations over file-by-file REST edits when resolving branch
-  conflicts.
-- Keep public website, beehiiv, and future platform strategy in durable
-  `developer-docs/` files instead of duplicating it here.
+Keep Claude-specific guidance here minimal. Do not duplicate the full project
+contract; update `AGENTS.md` or the relevant skill instead.

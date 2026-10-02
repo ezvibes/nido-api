@@ -51,6 +51,9 @@ If a doc helps operate a specific private environment, it belongs in `docs/`.
 
 ## Current Public Docs
 
+- `catalog-operating-system/agent-setup.md`: detailed overview of agent roles, repository skills, adapters, tools, and delivery boundaries.
+- `catalog-operating-system/agent-context-map.md`: task routing and implementation/evidence entry points, distinguishing current capabilities from proposals.
+- `catalog-operating-system/agent-learning-guide.md`: a lightweight process for turning observed findings into verified tests, runbooks, and instructions.
 - `catalog-operating-system/`: public guidance for catalog architecture, GitHub issue dossiers, agent handoff structure, and canonical event publishing planning.
 - `catalog-operating-system/journey-log-gear-pca.md`: 8-Week GEAR 2 & Google Cloud Architect learning journey log, curriculum roadmap, daily ship-logs, and public broadcast notes.
 - `catalog-operating-system/gear-adk-agent-guide.md`: Google Agent Development Kit (ADK) architecture guide from GEAR Level 2, defining model parameters, `description` vs `instruction` routing, `root_agent` conventions, and Nido multi-agent designs.

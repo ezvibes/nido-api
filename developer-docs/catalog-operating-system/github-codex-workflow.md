@@ -52,7 +52,7 @@ Agents should not start major implementation work until the issue is clear enoug
 For infrastructure and production-readiness work, use:
 
 ```text
-developer-docs/catalog-operating-system/nido-infrastructure-agent.md
+.agents/skills/nido-deployment-manager/SKILL.md
 ```
 
 In VS Code, run `Tasks: Run Task` -> `Nido: Agent Brief` to print the brief and

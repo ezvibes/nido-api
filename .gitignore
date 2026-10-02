@@ -69,14 +69,16 @@ nido-api-08fa5f15fac1.json
 /src/docs/*
 !/src/docs/ADMIN_INGESTION_REVIEW_ONBOARDING.md
 
-# Local agent briefs. Track only reviewed, project-wide skills.
+# Local agent scratch files. Track reviewed, project-wide instructions and skills.
 .agents/*
+!.agents/AGENTS.md
+!.agents/README.md
 !.agents/skills/
-.agents/skills/*
-!.agents/skills/nido-feature-flywheel/
-!.agents/skills/nido-feature-flywheel/**
+!.agents/skills/**
 
-# Antigravity agent skills and private DevOps tactics
+# Antigravity private scratch files. Track reviewed adapters.
 .antigravity/skills/
 .antigravity/skills/**
-
+!.antigravity/skills/
+!.antigravity/skills/gcp-deployment-manager/
+!.antigravity/skills/gcp-deployment-manager/**
