@@ -22,6 +22,9 @@ preserving the longer-term ingestion, catalog, public API, and partner vision.
 
 ## Agent Routing
 
+- For relevant code, decisions, and verification entry points, use
+  `developer-docs/catalog-operating-system/agent-context-map.md`. Recheck cited
+  sources; proposed designs and old evidence do not establish current readiness.
 - Feature work across NestJS, Vue, migrations, admin behavior, or public API
   behavior: use `.agents/skills/nido-feature-flywheel/SKILL.md`.
 - Deployment, GCP/Firebase operations, production-readiness, rollback, IAM,
@@ -56,6 +59,10 @@ preserving the longer-term ingestion, catalog, public API, and partner vision.
 9. Prepare a PR evidence table. Do not merge.
 10. After an approved merge, verify the dev deployment and record the revision,
     behavior, remaining risk, and rollback target.
+
+Capture reusable findings using
+`developer-docs/catalog-operating-system/agent-learning-guide.md`. Prefer a
+focused test, runbook, or canonical instruction change supported by evidence.
 
 ## Engineering Rules
 

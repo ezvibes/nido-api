@@ -20,6 +20,10 @@ Codex, Claude, Antigravity, GitHub, and local developer workflows.
 
 ## Responsibilities
 
+- Use `developer-docs/catalog-operating-system/agent-context-map.md` to locate
+  current routes and capability boundaries; recheck the cited implementation.
+- Use `developer-docs/catalog-operating-system/agent-learning-guide.md` to retain
+  useful findings without duplicating instructions or overstating verification.
 - Reduce duplicate or conflicting agent instructions.
 - Keep skill descriptions discriminating enough for correct routing.
 - Keep deployment, feature, curation, and infrastructure skills clearly separated.

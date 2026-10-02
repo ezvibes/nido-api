@@ -2,6 +2,10 @@
 
 This guide describes how Nido plans and reviews catalog work across product, architecture, implementation, and deployment.
 
+Start with the [agent setup](agent-setup.md) for roles and workflows, the
+[context map](agent-context-map.md) for implementation and evidence entry points,
+and the [learning guide](agent-learning-guide.md) for retaining useful findings.
+
 It is intentionally public-safe. It does not include private cloud resource names, credentials, internal URLs, or environment-specific runbooks.
 
 For the concise coordinator, verification, GitHub, and GCP operating model, see
