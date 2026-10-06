@@ -15,8 +15,9 @@ independent review, and deployment handoff.
 3. Inspect branch/status before editing. Preserve unrelated work.
 4. Read `references/execution-contract.md` and use it to structure the task plan;
    do not create a planning file unless it is durable project documentation.
-5. Identify deployment impact. For infrastructure changes, also read
-   `developer-docs/catalog-operating-system/nido-infrastructure-agent.md`.
+5. Identify deployment impact. For deployment, cloud, rollback, IAM, secrets, or
+   production-readiness changes, also read
+   `.agents/skills/nido-deployment-manager/SKILL.md`.
 
 ## Coordinate
 

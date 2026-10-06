@@ -71,7 +71,7 @@ export class ConcertSyncSchedulerService implements OnApplicationBootstrap, OnAp
     // 3. Define calendars to sync
     const calendars = [
       'ezvibesinc@gmail.com',
-      'http://www.jambase.com/calendar/8540E6A6-9ED5-43D6-A7C9-A442AF57E0F0/ical.ics',
+      'https://www.jambase.com/calendar/8540E6A6-9ED5-43D6-A7C9-A442AF57E0F0/ical.ics',
     ];
 
     for (const calendarId of calendars) {
