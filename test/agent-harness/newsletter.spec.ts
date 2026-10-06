@@ -12,6 +12,7 @@ import {
   NewsletterRequestParams,
   NewsletterService,
 } from '../../src/newsletter/newsletter.service';
+import { NewsletterCatalogService } from '../../src/newsletter/newsletter-catalog.service';
 import { BeehiivService } from '../../src/newsletter/beehiiv.service';
 import {
   createMockBeehiivTransport,
@@ -95,8 +96,11 @@ function setup(
   } as unknown as ConfigService;
   const transport = createMockBeehiivTransport();
   jest.spyOn(globalThis, 'fetch').mockImplementation(transport.fetchMock);
+  const catalogService = new NewsletterCatalogService({
+    find,
+  } as unknown as Repository<Concert>);
   const service = new NewsletterService(
-    { find } as unknown as Repository<Concert>,
+    catalogService,
     config,
     new BeehiivService(config),
   );

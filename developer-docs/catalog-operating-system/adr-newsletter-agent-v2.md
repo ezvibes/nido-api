@@ -39,7 +39,7 @@ A core architectural principle is maintaining a strict boundary between the **Ne
 │ • Cloud SQL connection pooling       │     │ • Decides WHICH tool to call & WHEN   │
 │ • Relational Co-Bill queries         │     │ • Synthesizes tone and editorial voice│
 │ • HTTP Ingress & Firebase Auth       │     │ • Enforces circuit breakers (max turns│
-│ • Raw Beehiiv v2 HTTP client calls   │     │ • Evaluates ticket link health        │
+│ • Provider clients & safe URL checks │     │ • Interprets ticket-link evidence     │
 └──────────────────────────────────────┘     └───────────────────────────────────────┘
 ```
 
@@ -56,11 +56,11 @@ To make recommendations that resonate deeply with fans and industry professional
 How human curators find new artists: they notice when an unknown band shares bills with bands they already love.
 
 * **Phase 1 (Today in Cloud SQL PostgreSQL):**
-  A pure relational self-join on `concert_band_lineup` querying bands that co-billed with our trusted scene favorites at reputable venues:
+  A pure relational self-join on `concert_band_lineups` querying bands that co-billed with our trusted scene favorites at reputable venues:
   ```sql
   SELECT DISTINCT candidate_band.name, candidate_band.id, venue.name as venue_name
-  FROM concert_band_lineup l1
-  JOIN concert_band_lineup l2 ON l1.concert_id = l2.concert_id AND l1.band_id != l2.band_id
+  FROM concert_band_lineups l1
+  JOIN concert_band_lineups l2 ON l1.concert_id = l2.concert_id AND l1.band_id != l2.band_id
   JOIN bands candidate_band ON l2.band_id = candidate_band.id
   JOIN concerts c ON l1.concert_id = c.id
   JOIN venues venue ON c.venue_id = venue.id
@@ -88,6 +88,10 @@ The agent is equipped with 4 isolated tools wrapping NestJS services using stric
 
 ### Tool 1: `fetchApprovedConcertsTool`
 - **Purpose:** On-demand retrieval of canonical concerts from Cloud SQL.
+- **Current foundation:** `NewsletterCatalogService.findApprovedConcerts()` is
+  the single NestJS/TypeORM boundary used by the existing admin preview and
+  generation flow. It enforces active + admin-approved visibility and a bounded
+  result set. The ADK wrapper remains part of Issue #102.
 - **Input (Zod):**
   ```typescript
   z.object({
@@ -96,22 +100,25 @@ The agent is equipped with 4 isolated tools wrapping NestJS services using stric
     region: z.string().default('nc'),
     cities: z.array(z.string()).optional(),
     genres: z.array(z.string()).optional(),
-    limit: z.number().default(20),
-  })
+    limit: z.number().int().min(1).max(100).default(20),
+  }).strict()
   ```
-- **Execution:** Calls `ConcertService.fetchNCConcerts`.
+- **Execution:** Calls
+  `NewsletterCatalogService.findApprovedConcerts`; ADK does not access TypeORM
+  repositories directly.
 
 ### Tool 2: `getCoBillRecommendationsTool` (The Graph Discovery Tool!)
 - **Purpose:** Traverses the relational co-billing graph to find artists connected to EZ Vibes favorites.
 - **Input (Zod):**
   ```typescript
   z.object({
-    anchorBandIds: z.array(z.number()).describe('IDs of core favorite artists'),
+    anchorBandIds: z.array(z.string().uuid()).describe('UUIDs of core favorite artists'),
     targetDateRange: z.object({ start: z.string(), end: z.string() }),
     preferredVenues: z.array(z.string()).optional(),
   })
   ```
-- **Execution:** Executes co-billing join query against `concert_band_lineup`.
+- **Execution:** Executes a co-billing join query against
+  `concert_band_lineups`.
 
 ### Tool 3: `verifyTicketUrlTool`
 - **Purpose:** Active link verification to prevent dead 404 links from reaching subscribers.
