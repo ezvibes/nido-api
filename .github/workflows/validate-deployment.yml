@@ -18,6 +18,9 @@ on:
       - 'tsconfig*.json'
       - 'src/**'
       - 'client/**'
+      - 'test/agent-harness/**'
+      - 'scripts/eval-newsletter-harness.mjs'
+      - '.gemini/prompts/**'
   workflow_dispatch:
 
 concurrency:
@@ -134,6 +137,9 @@ jobs:
 
       - name: Run API tests
         run: npm test -- --runInBand
+
+      - name: Run offline newsletter harness
+        run: npm run test:newsletter:harness
 
       - name: Run client tests
         run: npm test --prefix client

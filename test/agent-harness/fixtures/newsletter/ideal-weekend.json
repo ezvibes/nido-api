@@ -1,0 +1,16 @@
+{
+  "id": "ideal-weekend",
+  "description": "Three approved NC shows in chronological order; stages an HTML draft in memory.",
+  "catalogIds": ["fixture-folk", "fixture-funk", "fixture-jazz"],
+  "request": {
+    "startDate": "2026-11-13T05:00:00.000Z",
+    "endDate": "2026-11-16T04:59:59.999Z",
+    "dateRangeLabel": "Fixture weekend: November 13-15, 2026",
+    "region": "nc",
+    "autoPushToBeehiiv": true,
+    "weekendRecap": "Fixture notes: neighbors met for a community music night."
+  },
+  "expectedConcertIds": ["fixture-funk", "fixture-jazz", "fixture-folk"],
+  "modelResponse": "# EZ Vibes Fixture Draft\n\n## Quick Hits\n- Fixture Funk Night in Raleigh\n- Fixture Jazz Gathering in Durham\n- Fixture Folk Circle in Carrboro\n\nBring a friend and find your next local show.",
+  "expectedOutcome": "draft"
+}

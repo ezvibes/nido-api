@@ -347,6 +347,7 @@ export class NewsletterService {
       where: {
         startsAt: Between(start, end),
         catalogStatus: ConcertCatalogStatus.ACTIVE,
+        isAdminApproved: true,
       },
       relations: ['venue', 'lineup', 'lineup.band'],
       order: {

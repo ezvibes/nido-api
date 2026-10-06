@@ -2,6 +2,23 @@
 
 Status: Living Architecture Guide & Development Standard
 
+## Current Implementation (#106 MVP)
+
+The [newsletter offline harness](../../test/agent-harness/README.md) now runs six
+synthetic scenarios and three additional failure checks against the existing
+newsletter/Beehiiv services. Run `npm run test:newsletter:harness`; JSON and
+Markdown reports record test results, input hashes, and evidence limitations.
+The shared gate and existing PR/dev workflows run it without real credentials or
+provider calls. A [provisional voice rubric](../../test/agent-harness/brand-voice.md)
+captures the maintainer's NC community and mental-health mission for human review.
+
+The rest of this guide describes the broader target architecture, not delivered
+capabilities. There is no ADK newsletter loop, live URL verifier, LLM judge, token
+metering, or automated factual-quality score in this MVP. Numeric budgets, model
+examples, and scheduling phases below are proposals, not approved runtime limits.
+Record observable tool inputs/results and concise decision summaries in future
+traces; do not require or store private model chain-of-thought.
+
 Applies To:
 - Newsletter Curation & Editorial Automation (`src/newsletter/`, PR #98, #99)
 - Multimodal Poster Ingestion v2 (`src/ingestion/`, `adr-multimodal-agent-ingestion-v2.md`)

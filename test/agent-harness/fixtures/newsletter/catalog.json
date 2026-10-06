@@ -1,0 +1,151 @@
+[
+  {
+    "id": "fixture-funk",
+    "title": "Fixture Funk Night",
+    "genre": "Funk",
+    "startsAt": "2026-11-14T01:00:00.000Z",
+    "catalogStatus": "active",
+    "isAdminApproved": true,
+    "isFeatured": true,
+    "isTopPick": true,
+    "venue": {
+      "name": "Fixture Raleigh Room",
+      "city": "Raleigh",
+      "region": "NC"
+    },
+    "lineup": [{ "band": { "name": "Fixture Funk Band" } }],
+    "description": "Tickets: https://tickets.example.invalid/funk"
+  },
+  {
+    "id": "fixture-jazz",
+    "title": "Fixture Jazz Gathering",
+    "genre": "Jazz",
+    "startsAt": "2026-11-15T01:00:00.000Z",
+    "catalogStatus": "active",
+    "isAdminApproved": true,
+    "venue": {
+      "name": "Fixture Durham Room",
+      "city": "Durham",
+      "region": "NC"
+    },
+    "lineup": [{ "band": { "name": "Fixture Jazz Trio" } }]
+  },
+  {
+    "id": "fixture-folk",
+    "title": "Fixture Folk Circle",
+    "genre": "Folk",
+    "startsAt": "2026-11-16T01:00:00.000Z",
+    "catalogStatus": "active",
+    "isAdminApproved": true,
+    "venue": {
+      "name": "Fixture Carrboro Room",
+      "city": "Carrboro",
+      "region": "North Carolina"
+    },
+    "lineup": [{ "band": { "name": "Fixture Folk Duo" } }]
+  },
+  {
+    "id": "fixture-excluded",
+    "title": "Fixture Excluded Raleigh Show",
+    "genre": "Folk",
+    "startsAt": "2026-11-14T01:30:00.000Z",
+    "catalogStatus": "active",
+    "isAdminApproved": true,
+    "venue": {
+      "name": "Fixture Raleigh Room",
+      "city": "Raleigh",
+      "region": "NC"
+    }
+  },
+  {
+    "id": "fixture-unapproved",
+    "title": "UNAPPROVED PRIVATE FIXTURE",
+    "genre": "Funk",
+    "startsAt": "2026-11-14T02:00:00.000Z",
+    "catalogStatus": "active",
+    "isAdminApproved": false,
+    "venue": {
+      "name": "Fixture Raleigh Room",
+      "city": "Raleigh",
+      "region": "NC"
+    }
+  },
+  {
+    "id": "fixture-hidden",
+    "title": "HIDDEN PRIVATE FIXTURE",
+    "genre": "Rock",
+    "startsAt": "2026-11-14T02:30:00.000Z",
+    "catalogStatus": "hidden",
+    "isAdminApproved": true,
+    "venue": {
+      "name": "Fixture Raleigh Room",
+      "city": "Raleigh",
+      "region": "NC"
+    }
+  },
+  {
+    "id": "fixture-archived",
+    "title": "ARCHIVED PRIVATE FIXTURE",
+    "genre": "Rock",
+    "startsAt": "2026-11-14T03:00:00.000Z",
+    "catalogStatus": "archived",
+    "isAdminApproved": true,
+    "venue": {
+      "name": "Fixture Raleigh Room",
+      "city": "Raleigh",
+      "region": "NC"
+    }
+  },
+  {
+    "id": "fixture-before",
+    "title": "BEFORE RANGE FIXTURE",
+    "genre": "Folk",
+    "startsAt": "2026-11-13T04:59:59.999Z",
+    "catalogStatus": "active",
+    "isAdminApproved": true
+  },
+  {
+    "id": "fixture-after",
+    "title": "AFTER RANGE FIXTURE",
+    "genre": "Folk",
+    "startsAt": "2026-11-16T05:00:00.000Z",
+    "catalogStatus": "active",
+    "isAdminApproved": true
+  },
+  {
+    "id": "fixture-start",
+    "title": "Fixture Opening Boundary",
+    "genre": "Folk",
+    "startsAt": "2026-11-13T05:00:00.000Z",
+    "catalogStatus": "active",
+    "isAdminApproved": true,
+    "venue": {
+      "name": "Fixture Boundary Room",
+      "city": "Raleigh",
+      "region": "NC"
+    }
+  },
+  {
+    "id": "fixture-end",
+    "title": "Fixture Closing Boundary",
+    "genre": "Folk",
+    "startsAt": "2026-11-16T04:59:59.999Z",
+    "catalogStatus": "active",
+    "isAdminApproved": true,
+    "venue": {
+      "name": "Fixture Boundary Room",
+      "city": "Raleigh",
+      "region": "NC"
+    }
+  },
+  {
+    "id": "fixture-broken-link",
+    "title": "Fixture Broken Ticket Link",
+    "genre": "Reggae",
+    "startsAt": "2026-11-14T03:30:00.000Z",
+    "catalogStatus": "active",
+    "isAdminApproved": true,
+    "venue": { "name": "Fixture Link Room", "city": "Raleigh", "region": "NC" },
+    "description": "Tickets: https://tickets.example.invalid/missing"
+  }
+]
