@@ -6,17 +6,34 @@ import type {
 
 @Injectable()
 export class IcalCalendarClientService {
+  private static readonly DEFAULT_USER_AGENT =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 (compatible; NidoCalendarSync/1.0; +https://nido-api-9ed65.web.app)';
+
   async fetchAllEvents(params: {
     url: string;
     timeMin?: string;
     timeMax?: string;
   }): Promise<GoogleCalendarEventsPage> {
-    const response = await fetch(params.url, {
+    const targetUrl = params.url.startsWith('http://')
+      ? params.url.replace(/^http:\/\//i, 'https://')
+      : params.url;
+
+    const userAgent =
+      process.env.ICAL_USER_AGENT?.trim() ||
+      IcalCalendarClientService.DEFAULT_USER_AGENT;
+
+    const response = await fetch(targetUrl, {
       method: 'GET',
       headers: {
-        Accept: 'text/calendar,text/plain,*/*',
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': userAgent,
+        Accept:
+          'text/calendar, text/plain, application/xhtml+xml, application/xml;q=0.9, */*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'cross-site',
       },
     });
 
@@ -171,7 +188,24 @@ export class IcalCalendarClientService {
       .replace(/\\\\/g, '\\');
   }
 
-  private sanitizeError(raw: string) {
-    return raw.replace(/\s+/g, ' ').slice(0, 500);
+  private sanitizeError(raw: string): string {
+    if (!raw) return 'Unknown error';
+
+    if (/<html|<!DOCTYPE/i.test(raw)) {
+      const titleMatch = raw.match(/<title[^>]*>([^<]+)<\/title>/i);
+      const title = titleMatch ? titleMatch[1].replace(/\s+/g, ' ').trim() : '';
+      if (title) {
+        return `Remote host returned HTML error page: "${title}" (WAF / Anti-Bot protection challenge)`;
+      }
+      const stripped = raw
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return `Remote host returned HTML block: ${stripped.slice(0, 150)}`;
+    }
+
+    return raw.replace(/\s+/g, ' ').trim().slice(0, 500);
   }
 }
