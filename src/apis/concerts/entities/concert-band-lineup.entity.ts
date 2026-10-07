@@ -1,4 +1,11 @@
-import { Entity, Column, ManyToOne, JoinColumn, PrimaryColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  PrimaryColumn,
+  Index,
+} from 'typeorm';
 import { Concert } from './concert.entity';
 import { Band } from '../../bands/entities/band.entity';
 
@@ -10,6 +17,7 @@ export enum PerformanceRole {
 }
 
 @Entity({ name: 'concert_band_lineups' })
+@Index('IDX_concert_band_lineups_band_id_concert_id', ['bandId', 'concertId'])
 export class ConcertBandLineup {
   @PrimaryColumn({ name: 'concert_id', type: 'uuid' })
   concertId: string;
@@ -17,7 +25,9 @@ export class ConcertBandLineup {
   @PrimaryColumn({ name: 'band_id', type: 'uuid' })
   bandId: string;
 
-  @ManyToOne(() => Concert, (concert) => concert.lineup, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Concert, (concert) => concert.lineup, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'concert_id' })
   concert: Concert;
 

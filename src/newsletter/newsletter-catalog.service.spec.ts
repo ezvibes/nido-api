@@ -4,10 +4,8 @@ import {
   Concert,
   ConcertCatalogStatus,
 } from '../apis/concerts/entities/concert.entity';
-import {
-  MAX_NEWSLETTER_CATALOG_RESULTS,
-  NewsletterCatalogService,
-} from './newsletter-catalog.service';
+import { NewsletterCatalogService } from './newsletter-catalog.service';
+import { MAX_NEWSLETTER_CATALOG_RESULTS } from './newsletter.constants';
 
 describe('NewsletterCatalogService', () => {
   const find = jest.fn<Promise<Concert[]>, [FindManyOptions<Concert>]>();
@@ -58,6 +56,7 @@ describe('NewsletterCatalogService', () => {
     expect(where.startsAt).toBeInstanceOf(FindOperator);
     expect(options.relations).toEqual(['venue', 'lineup', 'lineup.band']);
     expect(options.order).toEqual({ startsAt: 'ASC' });
+    expect(options.take).toBeUndefined();
     expect(results).toEqual([
       expect.objectContaining({
         id: '8da58775-806a-43a4-a526-824c73027106',
@@ -110,6 +109,7 @@ describe('NewsletterCatalogService', () => {
       limit: 1,
     });
 
+    expect(find.mock.calls[0][0].take).toBe(500);
     expect(results.map((concert) => concert.id)).toEqual([
       '22222222-2222-4222-8222-222222222222',
     ]);
@@ -175,6 +175,13 @@ describe('NewsletterCatalogService', () => {
         end: new Date('2026-10-11T00:00:00.000Z'),
       },
       message: 'before or equal',
+    },
+    {
+      query: {
+        start: new Date('2026-01-01T00:00:00.000Z'),
+        end: new Date('2027-01-03T00:00:00.000Z'),
+      },
+      message: 'date range cannot exceed 366 days',
     },
     {
       query: {

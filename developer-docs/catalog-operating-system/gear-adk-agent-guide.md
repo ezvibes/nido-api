@@ -32,12 +32,12 @@ root_agent = Agent(
 
 ### Parameter Breakdown
 
-| Parameter | Type | Required? | Primary Audience | Core Purpose |
-| :--- | :--- | :--- | :--- | :--- |
-| **`model`** | `string` | **Yes** | Execution Runtime | The underlying LLM engine powering decisions. In Google AI Studio / Vertex AI, use current active generation models (e.g., `gemini-3.6-flash`). |
-| **`name`** | `string` | **Yes** | ADK Runtime / Observability | Unique system identifier used across logging, traces, debugging, and multi-agent graph topologies. |
-| **`description`** | `string` | Optional (Recommended) | **Other Agents** | Concise semantic description of capabilities used by router/dispatcher agents to decide delegation. |
-| **`instruction`** | `string` | Optional (Critical) | **This Agent Itself** | The behavioral blueprint, persona, rules of engagement, and step-by-step operating guidelines. |
+| Parameter         | Type     | Required?              | Primary Audience            | Core Purpose                                                                                                                                    |
+| :---------------- | :------- | :--------------------- | :-------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`model`**       | `string` | **Yes**                | Execution Runtime           | The underlying LLM engine powering decisions. In Google AI Studio / Vertex AI, use current active generation models (e.g., `gemini-3.6-flash`). |
+| **`name`**        | `string` | **Yes**                | ADK Runtime / Observability | Unique system identifier used across logging, traces, debugging, and multi-agent graph topologies.                                              |
+| **`description`** | `string` | Optional (Recommended) | **Other Agents**            | Concise semantic description of capabilities used by router/dispatcher agents to decide delegation.                                             |
+| **`instruction`** | `string` | Optional (Critical)    | **This Agent Itself**       | The behavioral blueprint, persona, rules of engagement, and step-by-step operating guidelines.                                                  |
 
 ---
 
@@ -67,18 +67,19 @@ The single most critical architectural distinction in multi-agent ADK systems is
 
 ### Quick Reference Matrix
 
-| Feature | `description` | `instruction` |
-| :--- | :--- | :--- |
-| **Audience** | **Peer / Parent Agents** | **The Agent Itself** |
-| **Core Question Answered** | *"Should I delegate this task here?"* | *"How do I behave and execute this job?"* |
-| **Perspective** | Third-person semantic summary | Second-person persona & operating rules |
-| **Good Example** | `"Verifies North Carolina music venues against the Nido curated catalog and pulls scheduled concerts."` | `"You are the EZ Vibes Scene Scout. Always verify the venue in the catalog before querying upcoming shows. Never assume a room is verified without calling lookupCuratedVenue."` |
+| Feature                    | `description`                                                                                           | `instruction`                                                                                                                                                                    |
+| :------------------------- | :------------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Audience**               | **Peer / Parent Agents**                                                                                | **The Agent Itself**                                                                                                                                                             |
+| **Core Question Answered** | _"Should I delegate this task here?"_                                                                   | _"How do I behave and execute this job?"_                                                                                                                                        |
+| **Perspective**            | Third-person semantic summary                                                                           | Second-person persona & operating rules                                                                                                                                          |
+| **Good Example**           | `"Verifies North Carolina music venues against the Nido curated catalog and pulls scheduled concerts."` | `"You are the EZ Vibes Scene Scout. Always verify the venue in the catalog before querying upcoming shows. Never assume a room is verified without calling lookupCuratedVenue."` |
 
 ---
 
 ## 4. The `root_agent` Entry-Point Convention
 
 When building in Python ADK:
+
 - The ADK CLI tools (`adk web`, `adk run`) and Google Cloud Agent Platform runtimes look for a specific top-level Python variable named **`root_agent`** in `agent.py`.
 - While the internal parameter `name` can be specific (e.g. `name="math_tutor_agent"`), the exported variable must be `root_agent`:
 
@@ -100,6 +101,7 @@ root_agent = scene_scout
 ## 5. Instruction Crafting Architecture
 
 An effective ADK instruction establishes three pillars:
+
 1. **Persona & Tone:** Who the agent is and how it communicates (e.g., authoritative, jam-adjacent, authentic, encouraging).
 2. **Operational Guardrails & Boundaries:** What the agent is strictly prohibited from doing (e.g., never auto-publish unreviewed concert candidates to production; never draft email blasts with broken ticket links).
 3. **Step-by-Step Tool Protocol:** The exact chronological reasoning path the agent must follow when executing tools.
@@ -110,15 +112,59 @@ An effective ADK instruction establishes three pillars:
 
 Applying these patterns to the active Nido agent roadmap:
 
+### Canonical Agent Names
+
+| Canonical name | Functional label                 | Current capability                                                                                                                                                                                    | Plain-English guide                             |
+| :------------- | :------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------- |
+| **Firenze**    | Newsletter Agent                 | Four registered, tested tools for approved-catalog retrieval, PostgreSQL co-bill discovery, ticket URL verification, and confirmation-gated Beehiiv draft staging; full orchestration remains planned | [Firenze guide](firenze-newsletter-agent.md)    |
+| **Munchen**    | Venue Scout Agent                | Local ADK learning spike over seeded venue and show data; it is not yet backed by the live Nido catalog                                                                                               | [Munchen guide](munchen-venue-scout-agent.md)   |
+| **Bologna**    | Documentation and Teaching Agent | Explains implemented behavior, evidence, boundaries, and project history; it does not establish runtime proof or approve product decisions                                                            | [Bologna guide](bologna-documentation-agent.md) |
+
+Use **Firenze**, **Munchen**, and **Bologna** as the durable product names. Use the functional
+labels on first mention when writing for readers who may not know the project.
+The reference snippets below illustrate architecture and may use older internal
+identifiers until implementation work renames them. The linked guides define the
+current capability boundaries.
+
+### How The Network Evolved
+
+The network grew in small, evidence-backed steps rather than beginning as a
+large autonomous system:
+
+1. **Munchen established the learning pattern.** The Venue Scout spike proved
+   that an ADK agent could select typed tools, carry a stable venue identifier
+   between calls, and expose its tool events for inspection.
+2. **The operating system became shared infrastructure.** The root contract,
+   reusable skills, context map, and evaluation harness made the same workflow
+   understandable across Codex, Claude, Antigravity, GitHub, and local
+   development without copying large instruction sets into every tool.
+3. **The harness separated determinism from model quality.** Newsletter
+   fixtures, external-service mocks, and the shared gate made workflow regressions
+   repeatable while leaving live model voice and factual review as explicit
+   evidence.
+4. **Firenze moved the architecture toward production.** Issue #102 replaced
+   seeded research data with bounded NestJS services, approved PostgreSQL
+   evidence, strict Zod contracts, safe external checks, and a human-confirmed
+   Beehiiv draft boundary.
+5. **Bologna made the work teachable.** The documentation role preserves why the
+   system exists, what each agent can do, and where people retain authority.
+
+The next phase is connection, not uncontrolled autonomy. Firenze can gain
+reviewable orchestration, structured newsletter output, authenticated cloud
+execution, and live quality evaluation. Munchen can graduate from seeded data to
+reviewed catalog evidence. Bologna should keep those changes understandable and
+ensure that proposed capability is never mistaken for deployed behavior.
+
 ### 1. Scene Scout Agent (PR #108 / Issue #107)
+
 ```typescript
-export const ezVibesScoutAgent = new Agent({
-  name: 'EZVibesSceneScout',
+export const munchenVenueScoutAgent = new Agent({
+  name: 'MunchenVenueScout',
   model: 'gemini-3.6-flash',
   description:
     'Verifies North Carolina music venues, identifies partner tier rankings, and retrieves scheduled concert lineups.',
   instruction: `
-You are the EZ Vibes Venue Scout & Vibe Inspector for Nido - North Carolina's indie live music intelligence portal.
+You are Munchen, the EZ Vibes Venue Scout & Vibe Inspector for Nido - North Carolina's indie live music intelligence portal.
 
 Operational Protocol:
 1. Always call lookupCuratedVenue with the venue name to verify if the room is in Nido's curated catalog.
@@ -131,9 +177,10 @@ Operational Protocol:
 ```
 
 ### 2. Autonomous Newsletter Curator (Issue #101 / #102 / #103)
+
 ```typescript
-export const newsletterCuratorAgent = new Agent({
-  name: 'NewsletterCurator',
+export const firenzeNewsletterAgent = new Agent({
+  name: 'FirenzeNewsletterAgent',
   model: 'gemini-3.6-flash',
   description:
     'Curates the weekly EZ Vibes live music email newsletter following the 70/20/10 rule and stages drafts in Beehiiv.',
@@ -158,6 +205,7 @@ Operational Protocol:
 ```
 
 ### 3. Multimodal Flyer Ingestion Agent (Issue #53 / ADR Ingestion v2)
+
 ```typescript
 export const flyerIngestionAgent = new Agent({
   name: 'FlyerIngestionCritic',
@@ -198,12 +246,12 @@ An ADK agent's `agent.py` code remains identical regardless of how it is execute
 
 ### Execution Comparison Matrix
 
-| Method | Execution Syntax | Primary Audience & Use Case | Session Persistence |
-| :--- | :--- | :--- | :--- |
-| **1. Visual Web UI** | `adk web` | Visual development, prompt iteration, inspecting tool payloads | In-browser |
-| **2. Terminal CLI** | `adk run <agent>` | Fast command-line interaction, headless VM debugging, CI/CD smoke testing | Process lifecycle |
-| **3. REST API Server** | `adk api_server <agent>` | Exposing the agent as a REST service with interactive OpenAPI docs (`/docs`). Ideal for Cloud Run deployment | Client / Session store |
-| **4. Programmatic SDK** | `Runner` + `SessionService` | Deep integration into backend services (Python or TypeScript `@google/adk`). Fine-grained execution control | Custom (InMemory or Database) |
+| Method                  | Execution Syntax            | Primary Audience & Use Case                                                                                  | Session Persistence           |
+| :---------------------- | :-------------------------- | :----------------------------------------------------------------------------------------------------------- | :---------------------------- |
+| **1. Visual Web UI**    | `adk web`                   | Visual development, prompt iteration, inspecting tool payloads                                               | In-browser                    |
+| **2. Terminal CLI**     | `adk run <agent>`           | Fast command-line interaction, headless VM debugging, CI/CD smoke testing                                    | Process lifecycle             |
+| **3. REST API Server**  | `adk api_server <agent>`    | Exposing the agent as a REST service with interactive OpenAPI docs (`/docs`). Ideal for Cloud Run deployment | Client / Session store        |
+| **4. Programmatic SDK** | `Runner` + `SessionService` | Deep integration into backend services (Python or TypeScript `@google/adk`). Fine-grained execution control  | Custom (InMemory or Database) |
 
 ### Enterprise GCP Runtime Configuration (Vertex AI vs. AI Studio)
 
@@ -226,6 +274,7 @@ GOOGLE_CLOUD_LOCATION="us-east1"
 ## 8. ADK Quick Reference Card & Cheat Sheet
 
 ### Essential CLI Commands
+
 ```bash
 # Environment Setup
 python3 -m venv adk-env               # Create virtual environment
@@ -245,6 +294,7 @@ adk api_server                        # REST API server with /docs
 ```
 
 ### Pattern 1: Python-Based Agent (`agent.py`)
+
 ```python
 from google.adk.agents import Agent
 
@@ -258,6 +308,7 @@ root_agent = Agent(
 ```
 
 ### Pattern 2: YAML-Based Agent (`root_agent.yaml`)
+
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/google/adk-python/refs/heads/main/src/google/adk/agents/config_schemas/AgentConfig.json
 name: math_tutor_agent
@@ -273,6 +324,7 @@ instruction: |
 ```
 
 ### Pattern 3: Programmatic Execution (`Runner` + `SessionService`)
+
 ```python
 import asyncio
 from google.adk.agents import Agent
@@ -314,6 +366,7 @@ if __name__ == "__main__":
 ---
 
 ## 9. Next Steps in GEAR 2 Path
+
 - **Graph-Based Workflows:** Chaining agents into Directed Acyclic Graphs (DAGs) using ADK state machines.
 - **Session State Persistence:** Migrating from `InMemorySessionService` to Cloud SQL / Redis-backed persistent sessions.
 - **Model Context Protocol (MCP):** Exposing Nido's catalog services as MCP endpoints to allow external tools and Jules to query live data cleanly.

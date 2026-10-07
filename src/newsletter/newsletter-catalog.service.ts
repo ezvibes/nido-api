@@ -5,8 +5,11 @@ import {
   Concert,
   ConcertCatalogStatus,
 } from '../apis/concerts/entities/concert.entity';
-
-export const MAX_NEWSLETTER_CATALOG_RESULTS = 100;
+import {
+  MAX_NEWSLETTER_CATALOG_RANGE_DAYS,
+  MAX_NEWSLETTER_CATALOG_RESULTS,
+  MAX_NEWSLETTER_CATALOG_SCAN_RESULTS,
+} from './newsletter.constants';
 
 const HIGHLIGHT_ARTISTS = [
   'dr bacon',
@@ -126,6 +129,7 @@ export class NewsletterCatalogService {
       },
       relations: ['venue', 'lineup', 'lineup.band'],
       order: { startsAt: 'ASC' },
+      take: query.limit ? MAX_NEWSLETTER_CATALOG_SCAN_RESULTS : undefined,
     });
 
     const filtered = concerts.filter((concert) =>
@@ -150,6 +154,14 @@ export class NewsletterCatalogService {
     if (query.start > query.end) {
       throw new BadRequestException(
         'Newsletter catalog start must be before or equal to end.',
+      );
+    }
+    if (
+      query.end.getTime() - query.start.getTime() >
+      MAX_NEWSLETTER_CATALOG_RANGE_DAYS * 24 * 60 * 60 * 1_000
+    ) {
+      throw new BadRequestException(
+        `Newsletter catalog date range cannot exceed ${MAX_NEWSLETTER_CATALOG_RANGE_DAYS} days.`,
       );
     }
     if (

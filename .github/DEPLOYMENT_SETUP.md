@@ -142,7 +142,7 @@ Current dev runtime posture:
 DB_SYNCHRONIZE=false
 RUN_MIGRATIONS=true
 DB_MIGRATIONS_RUN=false
-DB_MIGRATION_TRANSACTION_MODE=all
+DB_MIGRATION_TRANSACTION_MODE=each
 GEMINI_MODEL=gemini-3.6-flash
 CONCERT_SYNC_GEMINI_ENABLED=false
 CONCERT_SYNC_MAX_EVENTS_PER_JOB=25
@@ -443,7 +443,7 @@ Runtime database posture:
 DB_SYNCHRONIZE=false
 RUN_MIGRATIONS=true
 DB_MIGRATIONS_RUN=false
-DB_MIGRATION_TRANSACTION_MODE=all
+DB_MIGRATION_TRANSACTION_MODE=each
 ```
 
 Current API runtime env set by `.github/workflows/deploy-dev.yml`:
@@ -456,7 +456,7 @@ DB_USER=nido_api
 DB_NAME=nido
 DB_SYNCHRONIZE=false
 DB_MIGRATIONS_RUN=false
-DB_MIGRATION_TRANSACTION_MODE=all
+DB_MIGRATION_TRANSACTION_MODE=each
 FIREBASE_PROJECT_ID=nido-api-9ed65
 FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@nido-api-9ed65.iam.gserviceaccount.com
 ADMIN_EMAILS=<set-by-github-variable>
@@ -566,9 +566,29 @@ DB_MIGRATIONS_RUN=false
 new image before deploying the API service. `DB_MIGRATIONS_RUN=false` keeps the API
 service from racing migrations across multiple Cloud Run instances or revisions.
 
-Use `DB_MIGRATION_TRANSACTION_MODE=all` by default. Use `each` only when a migration
-set contains statements that cannot share one transaction. Use `none` only after a
-specific migration has been reviewed for non-transactional DDL.
+Use `DB_MIGRATION_TRANSACTION_MODE=each` for the current migration set. Newsletter
+catalog indexes are created concurrently and opt out of a per-migration transaction,
+while other migrations retain their own transaction boundary. Use `all` only when
+every pending migration can share one transaction. Use `none` only after the full
+pending set has been reviewed for non-transactional DDL.
+
+Concurrent index creation can leave an invalid index if the job is interrupted.
+Before retrying a failed newsletter-index migration, inspect PostgreSQL rather
+than assuming `IF NOT EXISTS` repaired it:
+
+```sql
+SELECT indexrelid::regclass AS index_name, indisvalid
+FROM pg_index
+WHERE indexrelid::regclass::text IN (
+  '"IDX_concert_band_lineups_band_id_concert_id"',
+  '"IDX_concerts_newsletter_publishable_starts_at"'
+);
+```
+
+If either target exists with `indisvalid = false`, remove only that invalid index
+with `DROP INDEX CONCURRENTLY` during an approved maintenance action, then rerun
+the migration job. Do not drop a valid index or mutate production without the
+normal maintainer approval and rollback process.
 
 ### Migration Job Deployment Mechanics
 
