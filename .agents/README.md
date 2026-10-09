@@ -25,8 +25,27 @@ explains how useful findings become tests, runbooks, and better instructions.
   rollback, cost, and production hardening.
 - [agent-infrastructure-maintainer](skills/agent-infrastructure-maintainer/SKILL.md): keeps Codex, Claude, Antigravity, and skill
   instructions aligned.
-- [tps2-curator](skills/tps2-curator/SKILL.md): Weekly Top Picks newsletter curation and prompt refinement.
+- [firenze-newsletter](skills/firenze-newsletter/SKILL.md): Firenze/TPS2
+  newsletter curation, editorial evaluation, prompt refinement, and draft
+  preparation.
 - [gear-agent-flywheel](skills/gear-agent-flywheel/SKILL.md): GEAR/ADK/Jules agent architecture work.
+
+## Named Agent Network
+
+- **Innsbruck** is the Coordinator and Orchestrator. It is the lead coding-agent
+  role for the active task, not a standing cloud service.
+- **Munchen** is the Venue Scout Agent. Its current implementation is a seeded
+  local ADK experiment.
+- **Venezia** is the Multimodal Poster and Concert Ingestion Agent. Its runtime
+  remains proposed until the ingestion ADR is implemented and verified.
+- **Firenze** is the Newsletter and Editorial Agent. TPS2 is the Weekly Top Picks
+  program that Firenze supports.
+- **Bologna** is the Documentation and Teaching Agent. It explains evidence,
+  decisions, boundaries, and learning paths without treating docs as runtime
+  proof.
+
+Use the [context map](../developer-docs/catalog-operating-system/agent-context-map.md)
+to distinguish implemented, partial, proposed, and verified capabilities.
 
 ## Frontend Work
 

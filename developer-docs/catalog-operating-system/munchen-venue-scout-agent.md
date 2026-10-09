@@ -152,7 +152,7 @@ Munchen should never invent local credibility.
 
 ## The Connected City Network
 
-[Firenze](firenze-newsletter-agent.md) is Nido's Newsletter Agent. Firenze helps
+[Firenze](firenze-newsletter-agent.md) is Nido's Newsletter and Editorial Agent. Firenze helps
 an editor curate approved concerts and prepare a newsletter draft. Munchen helps
 someone investigate the place where music happens.
 
@@ -184,6 +184,11 @@ Agent. Bologna records how Munchen works, which evidence it uses, and where
 human investigation is still required. It does not verify venues or turn seeded
 examples into catalog facts.
 
+[Innsbruck](innsbruck-coordinator-agent.md) coordinates cross-agent work.
+[Venezia](venezia-ingestion-agent.md) may eventually ask bounded venue-resolution
+services for evidence while processing a poster, but Munchen cannot approve a
+venue match or turn a candidate into a public concert.
+
 ## Glossary
 
 | Term                 | Meaning                                                                                   |
@@ -192,9 +197,11 @@ examples into catalog facts.
 | **Alias**            | Another name or spelling used for the same venue.                                         |
 | **Bologna**          | The canonical name of Nido's Documentation and Teaching Agent.                            |
 | **Catalog evidence** | Structured information retrieved from Nido with a known source and status.                |
-| **Firenze**          | The canonical name of Nido's Newsletter Agent.                                            |
+| **Firenze**          | The canonical name of Nido's Newsletter and Editorial Agent.                              |
 | **Function tool**    | A narrowly scoped operation an agent can request using validated data.                    |
 | **Munchen**          | The canonical name of Nido's Venue Scout Agent.                                           |
+| **Innsbruck**        | The canonical name of Nido's Coordinator and Orchestrator.                                |
+| **Venezia**          | The canonical name of Nido's Multimodal Poster and Concert Ingestion Agent.               |
 | **Seeded data**      | Fixed example records included in a development script; not live catalog data.            |
 | **Stable venue ID**  | A durable identifier used to connect one venue record to its concerts and aliases.        |
 | **TypeORM**          | The application layer Nido uses to query PostgreSQL from NestJS services.                 |
@@ -203,8 +210,10 @@ examples into catalog facts.
 
 ## Learning More
 
-- [Firenze: the Newsletter Agent](firenze-newsletter-agent.md)
+- [Firenze: the Newsletter and Editorial Agent](firenze-newsletter-agent.md)
 - [Bologna: the Documentation and Teaching Agent](bologna-documentation-agent.md)
+- [Innsbruck: the Coordinator and Orchestrator](innsbruck-coordinator-agent.md)
+- [Venezia: the Ingestion Agent](venezia-ingestion-agent.md)
 - [ADK architecture guide](gear-adk-agent-guide.md)
 - [Agent context map](agent-context-map.md)
 - [Agent development and evaluation harness](agent-development-harness-guide.md)

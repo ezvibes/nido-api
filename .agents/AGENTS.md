@@ -8,7 +8,8 @@ Use `.agents/skills/` for reusable project workflows:
 - `nido-deployment-manager`: deployment, GCP/Firebase operations, rollback, and
   production readiness.
 - `agent-infrastructure-maintainer`: agent instruction and adapter maintenance.
-- `tps2-curator`: Weekly Top Picks curation and prompt quality.
+- `firenze-newsletter`: Firenze/TPS2 newsletter curation, editorial quality,
+  and draft preparation.
 - `gear-agent-flywheel`: GEAR/ADK/Jules agent work.
 
 Do not merge pull requests, trigger production deployments, mutate IAM/secrets,

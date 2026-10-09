@@ -10,7 +10,7 @@ of a much larger engineering organization.
 ```text
 Maintainer defines the outcome and approval boundaries
                          |
-GPT-5.6 SOL coordinator scopes and implements the change
+Innsbruck, the coordinator, scopes and implements the change
                          |
 Local deterministic gate tests API, client, and production builds
                          |
@@ -28,7 +28,8 @@ paid-service limits, merge, production deployment, and destructive operations.
 
 ## Model And Agent Policy
 
-The current preferred coordinator is GPT-5.6 SOL because feature delivery benefits
+Innsbruck is the durable name for the coordinator role. The current preferred
+model is GPT-5.6 SOL because feature delivery benefits
 from strong repository reasoning, cross-layer implementation, and review judgment.
 The workflow is not coupled to a model name; a future model can replace it without
 changing the issue, test, GitHub, or GCP contracts.

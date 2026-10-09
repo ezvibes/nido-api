@@ -74,6 +74,28 @@ Copy this template for every training session:
 
 ## 📖 Session Logs
 
+### October 9, 2026 | Week 2: Naming The Complete Agent Network
+
+- **1. Breakthrough (The Concept):**
+  - Nido now has five durable agent identities with distinct boundaries.
+    Innsbruck coordinates, Venezia prepares ingestion candidates, Munchen scouts
+    venues, Firenze supports newsletter editorial work, and Bologna teaches.
+    TPS2 remains the newsletter program rather than competing with Firenze as a
+    second agent.
+- **2. Build (The Documentation):**
+  - Added dedicated guides for Innsbruck and Venezia, updated the shared setup
+    and context map, and clarified the implemented, partial, and proposed state
+    of the newsletter, venue, ingestion, and documentation roles.
+- **3. Boundary / Bug (The Real-World Lesson):**
+  - A name creates clarity only when capability and authority remain explicit.
+    Innsbruck is not a deployed runtime, Venezia's multimodal worker is still
+    proposed, and human maintainers retain approval and publication authority.
+- **4. Broadcast (Content Hook for LinkedIn / X):**
+  > "Nido's agent network now follows the path of a European journey: Innsbruck
+  > connects the work, Venezia assembles scattered poster evidence, Munchen
+  > understands the venues, Firenze shapes the story, and Bologna makes the
+  > system teachable. Distinct responsibilities, shared evidence, human control."
+
 ### October 7, 2026 | Week 2: A Connected Network Of City Agents
 
 - **1. Breakthrough (The Concept):**

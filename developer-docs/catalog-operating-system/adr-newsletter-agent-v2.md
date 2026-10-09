@@ -1,6 +1,12 @@
-# ADR: Autonomous Newsletter Curation Agent (v2)
+# ADR: Firenze Newsletter And Editorial Agent (v2)
 
 Status: Proposed / In Development
+
+Canonical agent: **Firenze**, Nido's Newsletter and Editorial Agent. **TPS2** is
+the Weekly Top Picks program and workflow, not a separate agent.
+
+Implementation note: the four-tool foundation and the existing newsletter
+generation workflow are implemented. Full ADK orchestration remains proposed.
 
 Target: Newsletter Agent v2 Epic (GitHub #101)
 
@@ -25,7 +31,9 @@ While Phase 1 solves the mechanical transport to Beehiiv, it operates as a britt
 3. **Fragile Downstream Formatting:** Converting Markdown to Beehiiv HTML via regex risks malformed tags and API `422` rejections.
 4. **No Link Verification:** Dead or 404 ticket links are passed directly to subscribers.
 
-**Newsletter Agent v2** introduces an **Autonomous Live Music Curation Agent** powered by Google's **Agent Development Kit (`@google/adk`)** and **Gemini Enterprise Agent Platform**.
+**Newsletter Agent v2** introduces Firenze as a review-gated live-music curation
+agent powered by Google's **Agent Development Kit (`@google/adk`)**. A human
+editor retains final selection, publication, and sending authority.
 
 ---
 

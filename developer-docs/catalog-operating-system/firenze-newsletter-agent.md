@@ -1,7 +1,7 @@
-# Firenze: The Newsletter Agent
+# Firenze: The Newsletter And Editorial Agent
 
-Firenze is Nido's **Newsletter Agent**. It helps a human editor turn trustworthy
-concert information into a useful live-music newsletter draft.
+Firenze is Nido's **Newsletter and Editorial Agent**. It helps a human editor
+turn trustworthy concert information into a useful live-music newsletter draft.
 
 The name remembers where the idea took shape: Firenze, or Florence, Italy. It is
 also a reminder that this project is about more than automating content. Firenze
@@ -28,6 +28,24 @@ In plain English, Firenze is intended to:
 Firenze is not a replacement for a local music editor. It does not attend shows,
 know a community by instinct, or have authority to decide what Nido publishes.
 Its recommendations are evidence to consider, not facts to accept blindly.
+
+## Firenze And TPS2
+
+**TPS2** is the Weekly Top Picks newsletter program and workflow. **Firenze** is
+the agent responsible for helping people operate and improve that program. TPS2
+is not a separate agent.
+
+Firenze owns the reusable curation guidance for the program: North Carolina
+focus, core genre preferences, partner-aware review, authentic voice, prompt
+refinement, and the pre-publication checklist. Those rules guide editorial
+review; they do not override catalog approval, source evidence, disclosure
+requirements, or a human editor's judgment.
+
+The repository skill is located at
+`.agents/skills/firenze-newsletter/SKILL.md`. Its directory and metadata use the
+canonical agent name, and the shared agent adapters route newsletter work to it.
+The TPS2 curation rules now live inside that Firenze skill rather than defining a
+separate agent.
 
 ## Why Firenze Exists
 
@@ -235,6 +253,11 @@ Agent. Bologna explains this workflow, its evidence, and its limits for future
 contributors and creators. It does not choose concerts, approve source data, or
 publish Firenze's work.
 
+[Innsbruck](innsbruck-coordinator-agent.md) coordinates work that crosses agent,
+application, review, and deployment boundaries. [Venezia](venezia-ingestion-agent.md)
+may create reviewable concert candidates from posters, but Firenze may only use
+those records after an administrator approves them into the catalog.
+
 ## Glossary
 
 | Term                   | Meaning                                                                                                               |
@@ -245,10 +268,13 @@ publish Firenze's work.
 | **Bologna**            | The canonical name of Nido's Documentation and Teaching Agent.                                                        |
 | **Catalog evidence**   | Structured concert, artist, venue, and lineup information retrieved from Nido.                                        |
 | **Co-bill**            | Two or more artists appearing on the same concert lineup. It is a discovery clue, not a musical-similarity guarantee. |
-| **Firenze**            | The canonical name of Nido's Newsletter Agent.                                                                        |
+| **Firenze**            | The canonical name of Nido's Newsletter and Editorial Agent.                                                          |
 | **Function tool**      | A narrowly defined operation an ADK agent may request, with validated inputs and outputs.                             |
 | **Human confirmation** | An explicit pause requiring a person to approve an external action before it runs.                                    |
 | **Munchen**            | The canonical name of Nido's Venue Scout Agent.                                                                       |
+| **TPS2**               | The Weekly Top Picks newsletter program and workflow operated with Firenze; not a separate agent.                     |
+| **Venezia**            | The canonical name of Nido's Multimodal Poster and Concert Ingestion Agent.                                           |
+| **Innsbruck**          | The canonical name of Nido's Coordinator and Orchestrator.                                                            |
 | **PostgreSQL**         | Nido's relational database and source of durable catalog evidence.                                                    |
 | **TypeORM**            | The application layer Nido uses to query PostgreSQL from NestJS services.                                             |
 | **Zod**                | The schema library that validates data crossing the AI tool boundary.                                                 |
@@ -259,6 +285,8 @@ Readers who want implementation detail can continue with:
 
 - [Newsletter module guide](../../src/newsletter/README.md)
 - [Bologna: the Documentation and Teaching Agent](bologna-documentation-agent.md)
+- [Innsbruck: the Coordinator and Orchestrator](innsbruck-coordinator-agent.md)
+- [Venezia: the Ingestion Agent](venezia-ingestion-agent.md)
 - [Newsletter Agent v2 architecture decision](adr-newsletter-agent-v2.md)
 - [ADK architecture guide](gear-adk-agent-guide.md)
 - [Agent development and evaluation harness](agent-development-harness-guide.md)

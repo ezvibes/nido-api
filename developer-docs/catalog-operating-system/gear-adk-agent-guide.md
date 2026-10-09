@@ -114,17 +114,20 @@ Applying these patterns to the active Nido agent roadmap:
 
 ### Canonical Agent Names
 
-| Canonical name | Functional label                 | Current capability                                                                                                                                                                                    | Plain-English guide                             |
-| :------------- | :------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------- |
-| **Firenze**    | Newsletter Agent                 | Four registered, tested tools for approved-catalog retrieval, PostgreSQL co-bill discovery, ticket URL verification, and confirmation-gated Beehiiv draft staging; full orchestration remains planned | [Firenze guide](firenze-newsletter-agent.md)    |
-| **Munchen**    | Venue Scout Agent                | Local ADK learning spike over seeded venue and show data; it is not yet backed by the live Nido catalog                                                                                               | [Munchen guide](munchen-venue-scout-agent.md)   |
-| **Bologna**    | Documentation and Teaching Agent | Explains implemented behavior, evidence, boundaries, and project history; it does not establish runtime proof or approve product decisions                                                            | [Bologna guide](bologna-documentation-agent.md) |
+| Canonical name | Functional label                 | Current capability                                                                                                                                                                                    | Plain-English guide                               |
+| :------------- | :------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------ |
+| **Innsbruck**  | Coordinator and Orchestrator     | Operating identity for the lead coding agent; it routes work and synthesizes evidence but is not a deployed ADK runtime                                                                               | [Innsbruck guide](innsbruck-coordinator-agent.md) |
+| **Firenze**    | Newsletter and Editorial Agent   | Four registered, tested tools for approved-catalog retrieval, PostgreSQL co-bill discovery, ticket URL verification, and confirmation-gated Beehiiv draft staging; full orchestration remains planned | [Firenze guide](firenze-newsletter-agent.md)      |
+| **Munchen**    | Venue Scout Agent                | Local ADK learning spike over seeded venue and show data; it is not yet backed by the live Nido catalog                                                                                               | [Munchen guide](munchen-venue-scout-agent.md)     |
+| **Venezia**    | Multimodal Ingestion Agent       | Partial upload and admin-review workflow; multimodal extraction, entity resolution, durable worker execution, and agent orchestration remain proposed                                                 | [Venezia guide](venezia-ingestion-agent.md)       |
+| **Bologna**    | Documentation and Teaching Agent | Explains implemented behavior, evidence, boundaries, and project history; it does not establish runtime proof or approve product decisions                                                            | [Bologna guide](bologna-documentation-agent.md)   |
 
-Use **Firenze**, **Munchen**, and **Bologna** as the durable product names. Use the functional
-labels on first mention when writing for readers who may not know the project.
-The reference snippets below illustrate architecture and may use older internal
-identifiers until implementation work renames them. The linked guides define the
-current capability boundaries.
+Use **Innsbruck**, **Venezia**, **Munchen**, **Firenze**, and **Bologna** as the
+durable agent names. Use the functional labels on first mention when writing for
+readers who may not know the project. TPS2 remains the newsletter program and is
+not a separate agent. The reference snippets below illustrate architecture and
+may use older internal identifiers until implementation work renames them. The
+linked guides define the current capability boundaries.
 
 ### How The Network Evolved
 
@@ -148,12 +151,19 @@ large autonomous system:
    Beehiiv draft boundary.
 5. **Bologna made the work teachable.** The documentation role preserves why the
    system exists, what each agent can do, and where people retain authority.
+6. **Innsbruck and Venezia completed the responsibility map.** Innsbruck names
+   the coordinating role already used for delivery, while Venezia gives the
+   review-gated ingestion journey a durable identity without claiming its
+   proposed multimodal runtime is already built.
 
-The next phase is connection, not uncontrolled autonomy. Firenze can gain
+The next phase is connection, not uncontrolled autonomy. Innsbruck can coordinate
+bounded work across the network. Firenze can gain
 reviewable orchestration, structured newsletter output, authenticated cloud
 execution, and live quality evaluation. Munchen can graduate from seeded data to
-reviewed catalog evidence. Bologna should keep those changes understandable and
-ensure that proposed capability is never mistaken for deployed behavior.
+reviewed catalog evidence. Venezia can replace placeholder OCR with tested,
+durable candidate extraction while preserving admin publication authority.
+Bologna should keep those changes understandable and ensure that proposed
+capability is never mistaken for deployed behavior.
 
 ### 1. Scene Scout Agent (PR #108 / Issue #107)
 
@@ -176,7 +186,7 @@ Operational Protocol:
 });
 ```
 
-### 2. Autonomous Newsletter Curator (Issue #101 / #102 / #103)
+### 2. Firenze Newsletter And Editorial Agent (Issue #101 / #102 / #103)
 
 ```typescript
 export const firenzeNewsletterAgent = new Agent({
@@ -204,16 +214,16 @@ Operational Protocol:
 });
 ```
 
-### 3. Multimodal Flyer Ingestion Agent (Issue #53 / ADR Ingestion v2)
+### 3. Venezia Multimodal Ingestion Agent (Issue #53 / ADR Ingestion v2)
 
 ```typescript
-export const flyerIngestionAgent = new Agent({
-  name: 'FlyerIngestionCritic',
+export const veneziaIngestionAgent = new Agent({
+  name: 'VeneziaIngestionAgent',
   model: 'gemini-3.6-flash',
   description:
     'Parses concert poster images to extract headliners, support acts, dates, and venues, performing sanity validation before saving concert candidates.',
   instruction: `
-You are the Multimodal Concert Flyer Inspector for Nido.
+You are Venezia, the Multimodal Poster and Concert Ingestion Agent for Nido.
 
 Operational Protocol:
 1. Extract date, headliner, support acts, and venue from the poster image.

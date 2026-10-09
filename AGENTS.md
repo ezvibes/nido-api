@@ -10,8 +10,8 @@ preserving the longer-term ingestion, catalog, public API, and partner vision.
 
 - Maintainers own product priority, architecture approval, merge, production
   deployment, destructive data operations, IAM, secrets, and paid-service limits.
-- The coordinator owns task scope, delegation, synthesis, and the final release
-  recommendation.
+- The coordinator, canonically named **Innsbruck**, owns task scope, delegation,
+  synthesis, and the final release recommendation.
 - An implementation agent may edit only the approved scope and must preserve
   unrelated working-tree changes.
 - A verifier reviews the completed diff and evidence independently for substantial
@@ -32,6 +32,15 @@ preserving the longer-term ingestion, catalog, public API, and partner vision.
   `.agents/skills/nido-deployment-manager/SKILL.md`.
 - Agent instruction, skill, Codex, Claude, or Antigravity workflow maintenance:
   use `.agents/skills/agent-infrastructure-maintainer/SKILL.md`.
+- Newsletter curation, prompt quality, editorial evaluation, and Beehiiv draft
+  preparation: use `.agents/skills/firenze-newsletter/SKILL.md`. TPS2 is the
+  Weekly Top Picks program; Firenze is the Newsletter and Editorial Agent.
+- ADK orchestration or multimodal agent architecture: use
+  `.agents/skills/gear-agent-flywheel/SKILL.md`. Venezia is the proposed
+  Multimodal Poster and Concert Ingestion Agent; recheck its ADR before claiming
+  runtime readiness.
+- Plain-English agent guides and learning history: follow
+  `developer-docs/catalog-operating-system/bologna-documentation-agent.md`.
 - Vue interaction and design work: use the local frontend specialist when
   available, while following existing Vue 3 patterns.
 - Catalog architecture and publishing work: read

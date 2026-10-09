@@ -54,28 +54,36 @@ establish behavior. Bologna explains that evidence without overstating it.
 
 The cities are distinct homes for different kinds of work:
 
-| City        | Role                             | Primary output                                     |
-| ----------- | -------------------------------- | -------------------------------------------------- |
-| **Munchen** | Venue Scout Agent                | Venue identity, evidence, and research context     |
-| **Firenze** | Newsletter Agent                 | Evidence-backed editorial selections and drafts    |
-| **Bologna** | Documentation and Teaching Agent | Clear guides, decision history, and learning paths |
+| City          | Role                                          | Primary output                                        |
+| ------------- | --------------------------------------------- | ----------------------------------------------------- |
+| **Innsbruck** | Coordinator and Orchestrator                  | Bounded plans, routing, evidence, and recommendations |
+| **Venezia**   | Multimodal Poster and Concert Ingestion Agent | Reviewable concert candidates and provenance          |
+| **Munchen**   | Venue Scout Agent                             | Venue identity, evidence, and research context        |
+| **Firenze**   | Newsletter and Editorial Agent                | Evidence-backed editorial selections and drafts       |
+| **Bologna**   | Documentation and Teaching Agent              | Clear guides, decision history, and learning paths    |
 
 They are connected through Nido's reviewed catalog, explicit tool contracts, and
-human approval boundaries. The coordinator scopes and synthesizes work across
-the network; maintainers decide priorities, approve durable architecture, and
+human approval boundaries. Innsbruck scopes and synthesizes work across the
+network; maintainers decide priorities, approve durable architecture, and
 control publication and deployment.
 
 ```text
-Munchen gathers bounded venue evidence
+Innsbruck coordinates scope, specialists, and evidence
+                    |
+                    v
+Venezia prepares reviewable candidates from source evidence
+                    |
+                    v
+Human admins approve catalog records
                     |
                     v
 Nido catalog preserves reviewed facts and provenance
-                    |
-                    v
-Firenze prepares evidence-backed editorial work
-                    |
-                    v
-Human editor reviews and publishes
+              /                       \
+             v                         v
+Munchen investigates venues    Firenze prepares editorial work
+                                        |
+                                        v
+                              Human editor reviews and publishes
 
 Bologna documents every boundary, decision, and reusable lesson.
 ```
@@ -96,8 +104,10 @@ audience. A useful Bologna handoff should answer:
 
 ## Learning More
 
-- [Firenze: the Newsletter Agent](firenze-newsletter-agent.md)
+- [Firenze: the Newsletter and Editorial Agent](firenze-newsletter-agent.md)
 - [Munchen: the Venue Scout Agent](munchen-venue-scout-agent.md)
+- [Innsbruck: the Coordinator and Orchestrator](innsbruck-coordinator-agent.md)
+- [Venezia: the Ingestion Agent](venezia-ingestion-agent.md)
 - [ADK architecture guide](gear-adk-agent-guide.md)
 - [Agent context map](agent-context-map.md)
 - [Agent learning guide](agent-learning-guide.md)
