@@ -69,7 +69,9 @@ describe('NewsletterController', () => {
 
       const result = await controller.generateWeekly(dto);
 
-      expect(mockNewsletterService.generateNewsletter).toHaveBeenCalledWith(dto);
+      expect(mockNewsletterService.generateNewsletter).toHaveBeenCalledWith(
+        dto,
+      );
       expect(result).toEqual(mockResult);
     });
   });
@@ -86,11 +88,15 @@ describe('NewsletterController', () => {
         totalCount: 0,
       };
 
-      mockNewsletterService.previewNewsletterSources.mockResolvedValue(mockResult);
+      mockNewsletterService.previewNewsletterSources.mockResolvedValue(
+        mockResult,
+      );
 
       const result = await controller.previewSources(dto);
 
-      expect(mockNewsletterService.previewNewsletterSources).toHaveBeenCalledWith(dto);
+      expect(
+        mockNewsletterService.previewNewsletterSources,
+      ).toHaveBeenCalledWith(dto);
       expect(result).toEqual(mockResult);
     });
   });
@@ -109,7 +115,9 @@ describe('NewsletterController', () => {
         status: 'draft',
       };
 
-      mockBeehiivService.createDraftFromHtml.mockResolvedValue(mockBeehiivResult);
+      mockBeehiivService.createDraftFromHtml.mockResolvedValue(
+        mockBeehiivResult,
+      );
 
       const result = await controller.pushBeehiivDraft(dto);
 
@@ -145,7 +153,9 @@ describe('NewsletterController', () => {
 
       const result = await controller.previewSources(dto);
 
-      expect(mockNewsletterService.previewNewsletterSources).toHaveBeenCalledWith(dto);
+      expect(
+        mockNewsletterService.previewNewsletterSources,
+      ).toHaveBeenCalledWith(dto);
       expect(result).toEqual(expectedResponse);
     });
   });

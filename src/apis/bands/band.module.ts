@@ -6,10 +6,7 @@ import { BandController } from './band.controller';
 import { AuthModule } from '../../auth/auth.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Band]),
-    AuthModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Band]), AuthModule],
   controllers: [BandController],
   providers: [BandService],
   exports: [BandService],

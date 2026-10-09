@@ -241,7 +241,9 @@ export class IngestionService {
             city: dto.city ?? '',
             state: dto.state ?? '',
             ...(normalizedGenre ? { genre: normalizedGenre } : {}),
-            ...(validConcertDate ? { concertDate: validConcertDate.toISOString() } : {}),
+            ...(validConcertDate
+              ? { concertDate: validConcertDate.toISOString() }
+              : {}),
             ...(venueId ? { venueId } : {}),
             ...(bandId ? { bandId } : {}),
             source: normalizedSource,
@@ -553,9 +555,7 @@ export class IngestionService {
       return cbl;
     });
     const description =
-      dto.concertDescription?.trim() ||
-      dto.notes?.trim() ||
-      null;
+      dto.concertDescription?.trim() || dto.notes?.trim() || null;
 
     if (existingConcert) {
       const updateResult = await concertRepository

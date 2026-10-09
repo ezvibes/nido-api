@@ -29,7 +29,8 @@ import { NewsletterModule } from './newsletter/newsletter.module';
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: configService.get<string>('DB_SYNCHRONIZE') === 'true',
         migrations: [__dirname + '/migrations/**/*{.ts,.js}'],
-        migrationsRun: configService.get<string>('DB_MIGRATIONS_RUN') === 'true',
+        migrationsRun:
+          configService.get<string>('DB_MIGRATIONS_RUN') === 'true',
       }),
       inject: [ConfigService],
     }),

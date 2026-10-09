@@ -4,7 +4,10 @@ import { ConfigService } from '@nestjs/config';
 import { NewsletterService } from './newsletter.service';
 import { NewsletterCatalogService } from './newsletter-catalog.service';
 import { BeehiivService } from './beehiiv.service';
-import { Concert, ConcertCatalogStatus } from '../apis/concerts/entities/concert.entity';
+import {
+  Concert,
+  ConcertCatalogStatus,
+} from '../apis/concerts/entities/concert.entity';
 
 const mockGenerateContent = jest.fn();
 const mockGetGenerativeModel = jest.fn();
@@ -154,7 +157,8 @@ describe('NewsletterService', () => {
       mockConcertRepository.find.mockResolvedValue(mockConcerts);
       mockGenerateContent.mockResolvedValue({
         response: {
-          text: () => '# EZ Vibes Weekly Top Picks\n\n## Quick Hits\n- Papadosio at Lincoln Theatre',
+          text: () =>
+            '# EZ Vibes Weekly Top Picks\n\n## Quick Hits\n- Papadosio at Lincoln Theatre',
         },
       });
 

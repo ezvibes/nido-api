@@ -1,4 +1,8 @@
-import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 export interface BeehiivDraftParams {
@@ -26,7 +30,9 @@ export class BeehiivService {
   /**
    * Pushes generated HTML newsletter content to Beehiiv API v2 as a template-based draft.
    */
-  async createDraftFromHtml(params: BeehiivDraftParams): Promise<BeehiivDraftResponse> {
+  async createDraftFromHtml(
+    params: BeehiivDraftParams,
+  ): Promise<BeehiivDraftResponse> {
     const apiKey = this.configService.get<string>('BEEHIIV_API_KEY')?.trim();
     if (!apiKey) {
       throw new InternalServerErrorException(
@@ -91,7 +97,9 @@ export class BeehiivService {
       const responseData = await response.json();
       const draftData = responseData.data || responseData;
 
-      this.logger.log(`Successfully created Beehiiv draft post ID: ${draftData.id}`);
+      this.logger.log(
+        `Successfully created Beehiiv draft post ID: ${draftData.id}`,
+      );
 
       return {
         id: draftData.id,
@@ -105,8 +113,13 @@ export class BeehiivService {
       if (err instanceof InternalServerErrorException) {
         throw err;
       }
-      this.logger.error(`Failed to push draft to Beehiiv: ${err.message}`, err.stack);
-      throw new InternalServerErrorException(`Beehiiv draft creation failed: ${err.message}`);
+      this.logger.error(
+        `Failed to push draft to Beehiiv: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        `Beehiiv draft creation failed: ${err.message}`,
+      );
     }
   }
 }

@@ -4,7 +4,10 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { NewsletterService } from '../newsletter/newsletter.service';
 import { BeehiivService } from '../newsletter/beehiiv.service';
-import { Concert, ConcertCatalogStatus } from '../apis/concerts/entities/concert.entity';
+import {
+  Concert,
+  ConcertCatalogStatus,
+} from '../apis/concerts/entities/concert.entity';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -53,7 +56,9 @@ async function runTest() {
 
   const service = moduleRef.get<NewsletterService>(NewsletterService);
 
-  const preview = await service.previewNewsletterSources({ editionType: 'weekly' });
+  const preview = await service.previewNewsletterSources({
+    editionType: 'weekly',
+  });
   console.log('Preview Result:', JSON.stringify(preview, null, 2));
 }
 

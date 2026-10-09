@@ -20,7 +20,10 @@ describe('FirebaseAuthGuard', () => {
     const configService = {
       get: jest.fn().mockReturnValue(undefined),
     };
-    const guard = new FirebaseAuthGuard(authService as any, configService as any);
+    const guard = new FirebaseAuthGuard(
+      authService as any,
+      configService as any,
+    );
     const request = {
       headers: {
         authorization: 'Bearer firebase-token',
@@ -51,7 +54,10 @@ describe('FirebaseAuthGuard', () => {
         return undefined;
       }),
     };
-    const guard = new FirebaseAuthGuard(authService as any, configService as any);
+    const guard = new FirebaseAuthGuard(
+      authService as any,
+      configService as any,
+    );
     const request = {
       headers: {
         'x-dev-user-uid': 'bruno-user',
@@ -88,11 +94,14 @@ describe('FirebaseAuthGuard', () => {
         return undefined;
       }),
     };
-    const guard = new FirebaseAuthGuard(authService as any, configService as any);
-
-    await expect(guard.canActivate(createContext({ headers: {} }))).rejects.toThrow(
-      'Authorization header is missing.',
+    const guard = new FirebaseAuthGuard(
+      authService as any,
+      configService as any,
     );
+
+    await expect(
+      guard.canActivate(createContext({ headers: {} })),
+    ).rejects.toThrow('Authorization header is missing.');
   });
 });
 

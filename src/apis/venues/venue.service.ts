@@ -36,7 +36,10 @@ export class VenueService {
     });
   }
 
-  async findByNameAndCity(name: string, citySlug: string): Promise<Venue | null> {
+  async findByNameAndCity(
+    name: string,
+    citySlug: string,
+  ): Promise<Venue | null> {
     return this.venueRepository.findOne({
       where: { name, citySlug },
     });
@@ -53,8 +56,17 @@ export class VenueService {
     await this.venueRepository.remove(venue);
   }
 
-  async findOrCreateByName(name: string, city?: string, state?: string): Promise<Venue> {
-    const slugify = (text: string) => text.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w\-]+/g, '');
+  async findOrCreateByName(
+    name: string,
+    city?: string,
+    state?: string,
+  ): Promise<Venue> {
+    const slugify = (text: string) =>
+      text
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w\-]+/g, '');
     const cleanCity = city?.trim() || 'Unknown City';
     const cleanState = state?.trim() || 'Unknown State';
     const citySlug = slugify(cleanCity);

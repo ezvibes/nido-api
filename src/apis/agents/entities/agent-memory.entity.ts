@@ -7,29 +7,20 @@ import {
   Index,
 } from 'typeorm';
 
-@Entity('venues')
-export class Venue {
+@Entity({ name: 'agent_memories' })
+@Index(['scope', 'key'])
+export class AgentMemory {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column()
-  name: string;
-
-  @Column({ nullable: true })
-  address: string;
+  scope: string; // e.g. GLOBAL, OPERATOR, VENUE
 
   @Column()
-  city: string;
+  key: string;
 
-  @Column({ name: 'city_slug' })
-  @Index('IDX_venues_city_slug')
-  citySlug: string;
-
-  @Column()
-  region: string;
-
-  @Column({ name: 'region_slug' })
-  regionSlug: string;
+  @Column('jsonb')
+  value: any;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

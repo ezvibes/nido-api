@@ -77,7 +77,9 @@ export class FirebaseService implements OnModuleInit {
       // If Firebase isn't initialized, we can't validate tokens.
       // Depending on the desired behavior, you could throw an error
       // or return a mock/guest user. Here, we'll throw an error.
-      throw new Error('Firebase app not initialized. Cannot authenticate user.');
+      throw new Error(
+        'Firebase app not initialized. Cannot authenticate user.',
+      );
     }
     return this.auth.verifyIdToken(token);
   }

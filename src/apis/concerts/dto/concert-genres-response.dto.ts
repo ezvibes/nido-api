@@ -2,7 +2,8 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class ConcertGenreOptionResponseDto {
   @ApiProperty({
-    description: 'Stable lowercase genre slug for future normalized references.',
+    description:
+      'Stable lowercase genre slug for future normalized references.',
     example: 'bluegrass',
   })
   slug: string;

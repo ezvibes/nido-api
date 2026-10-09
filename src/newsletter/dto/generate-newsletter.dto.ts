@@ -51,8 +51,9 @@ export class GenerateNewsletterDto {
   dateRangeLabel?: string;
 
   @ApiPropertyOptional({
-    description: 'Optional personal recap notes from recent shows or weekend events.',
-    example: 'Great crowd at Cat\'s Cradle last Friday!',
+    description:
+      'Optional personal recap notes from recent shows or weekend events.',
+    example: "Great crowd at Cat's Cradle last Friday!",
   })
   @IsOptional()
   @IsString()
@@ -75,7 +76,8 @@ export class GenerateNewsletterDto {
   featuredFestival?: string;
 
   @ApiPropertyOptional({
-    description: 'Raw calendar feed data (can be an ICS URL, raw ICS string, or text/JSON dump)',
+    description:
+      'Raw calendar feed data (can be an ICS URL, raw ICS string, or text/JSON dump)',
     example: 'https://calendar.google.com/calendar/ical/.../basic.ics',
   })
   @IsOptional()
@@ -83,7 +85,8 @@ export class GenerateNewsletterDto {
   rawCalendarData?: string;
 
   @ApiPropertyOptional({
-    description: 'Whether to fetch and merge active, admin-approved concerts from the Nido database',
+    description:
+      'Whether to fetch and merge active, admin-approved concerts from the Nido database',
     default: true,
   })
   @IsOptional()
@@ -91,7 +94,8 @@ export class GenerateNewsletterDto {
   useDatabase?: boolean = true;
 
   @ApiPropertyOptional({
-    description: 'Restrict database concert inclusion to admin Featured concerts.',
+    description:
+      'Restrict database concert inclusion to admin Featured concerts.',
     default: false,
   })
   @IsOptional()
@@ -99,7 +103,8 @@ export class GenerateNewsletterDto {
   featuredOnly?: boolean = false;
 
   @ApiPropertyOptional({
-    description: 'Restrict database concert inclusion to calculated Top Pick concerts.',
+    description:
+      'Restrict database concert inclusion to calculated Top Pick concerts.',
     default: false,
   })
   @IsOptional()
@@ -117,7 +122,8 @@ export class GenerateNewsletterDto {
   excludeConcertIds?: string[];
 
   @ApiPropertyOptional({
-    description: 'Optional list of cities to restrict database concert inclusion to',
+    description:
+      'Optional list of cities to restrict database concert inclusion to',
     example: ['Raleigh', 'Durham'],
     type: [String],
   })
@@ -127,7 +133,8 @@ export class GenerateNewsletterDto {
   cities?: string[];
 
   @ApiPropertyOptional({
-    description: 'Optional list of genres to restrict database concert inclusion to',
+    description:
+      'Optional list of genres to restrict database concert inclusion to',
     example: ['funk', 'bluegrass'],
     type: [String],
   })
@@ -137,7 +144,8 @@ export class GenerateNewsletterDto {
   genres?: string[];
 
   @ApiPropertyOptional({
-    description: 'Optional list of venue names to restrict database concert inclusion to',
+    description:
+      'Optional list of venue names to restrict database concert inclusion to',
     example: ['The Pour House Music Hall'],
     type: [String],
   })
@@ -155,7 +163,8 @@ export class GenerateNewsletterDto {
   region?: string;
 
   @ApiPropertyOptional({
-    description: 'Whether to enforce legacy strict genre & NC city filtering. Defaults to false so all active, approved DB concerts in range are included.',
+    description:
+      'Whether to enforce legacy strict genre & NC city filtering. Defaults to false so all active, approved DB concerts in range are included.',
     default: false,
   })
   @IsOptional()
@@ -172,7 +181,8 @@ export class GenerateNewsletterDto {
   autoPushToBeehiiv?: boolean;
 
   @ApiPropertyOptional({
-    description: 'Optional Beehiiv Post Template ID to override environment default.',
+    description:
+      'Optional Beehiiv Post Template ID to override environment default.',
     example: 'tpl_123456',
   })
   @IsOptional()

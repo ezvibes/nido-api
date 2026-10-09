@@ -47,7 +47,11 @@ describe('BandService', () => {
   describe('create', () => {
     it('should successfully create and save a band with auto-generated slug', async () => {
       const dto = { name: 'The Floozies', genres: ['Electronic', 'Funk'] };
-      const band = { id: 'uuid', ...dto, slug: 'the-floozies' } as unknown as Band;
+      const band = {
+        id: 'uuid',
+        ...dto,
+        slug: 'the-floozies',
+      } as unknown as Band;
 
       mockBandRepository.findOne.mockResolvedValue(null);
       mockBandRepository.create.mockReturnValue(band);
@@ -55,7 +59,9 @@ describe('BandService', () => {
 
       const result = await service.create(dto);
 
-      expect(mockBandRepository.findOne).toHaveBeenCalledWith({ where: { slug: 'the-floozies' } });
+      expect(mockBandRepository.findOne).toHaveBeenCalledWith({
+        where: { slug: 'the-floozies' },
+      });
       expect(mockBandRepository.create).toHaveBeenCalledWith({
         ...dto,
         slug: 'the-floozies',
@@ -67,7 +73,9 @@ describe('BandService', () => {
 
     it('should throw ConflictException if slug already exists', async () => {
       const dto = { name: 'The Floozies' };
-      mockBandRepository.findOne.mockResolvedValue({ id: 'existing-id' } as unknown as Band);
+      mockBandRepository.findOne.mockResolvedValue({
+        id: 'existing-id',
+      } as unknown as Band);
 
       await expect(service.create(dto)).rejects.toThrow(ConflictException);
     });
@@ -75,15 +83,33 @@ describe('BandService', () => {
 
   describe('findAll', () => {
     it('should query and return bands list', async () => {
-      const bands = [{ id: '1', name: 'B Band' }, { id: '2', name: 'A Band' }];
+      const bands = [
+        { id: '1', name: 'B Band' },
+        { id: '2', name: 'A Band' },
+      ];
       mockQueryBuilder.getMany.mockResolvedValue(bands);
 
-      const result = await service.findAll({ q: 'Band', genre: 'Funk', isFeatured: true });
+      const result = await service.findAll({
+        q: 'Band',
+        genre: 'Funk',
+        isFeatured: true,
+      });
 
-      expect(mockBandRepository.createQueryBuilder).toHaveBeenCalledWith('band');
-      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('band.name ILIKE :q', { q: '%Band%' });
-      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(':genre = ANY(band.genres)', { genre: 'funk' });
-      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('band.isFeatured = :isFeatured', { isFeatured: true });
+      expect(mockBandRepository.createQueryBuilder).toHaveBeenCalledWith(
+        'band',
+      );
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        'band.name ILIKE :q',
+        { q: '%Band%' },
+      );
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        ':genre = ANY(band.genres)',
+        { genre: 'funk' },
+      );
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        'band.isFeatured = :isFeatured',
+        { isFeatured: true },
+      );
       expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith('band.name', 'ASC');
       expect(result).toEqual(bands);
     });
@@ -96,7 +122,9 @@ describe('BandService', () => {
 
       const result = await service.findOne('1');
 
-      expect(mockBandRepository.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
+      expect(mockBandRepository.findOne).toHaveBeenCalledWith({
+        where: { id: '1' },
+      });
       expect(result).toEqual(band);
     });
 
@@ -108,30 +136,48 @@ describe('BandService', () => {
 
   describe('findBySlug', () => {
     it('should return band by slug', async () => {
-      const band = { id: '1', name: 'B Band', slug: 'b-band' } as unknown as Band;
+      const band = {
+        id: '1',
+        name: 'B Band',
+        slug: 'b-band',
+      } as unknown as Band;
       mockBandRepository.findOne.mockResolvedValue(band);
 
       const result = await service.findBySlug('b-band');
 
-      expect(mockBandRepository.findOne).toHaveBeenCalledWith({ where: { slug: 'b-band' } });
+      expect(mockBandRepository.findOne).toHaveBeenCalledWith({
+        where: { slug: 'b-band' },
+      });
       expect(result).toEqual(band);
     });
 
     it('should throw NotFoundException if band not found by slug', async () => {
       mockBandRepository.findOne.mockResolvedValue(null);
-      await expect(service.findBySlug('b-band')).rejects.toThrow(NotFoundException);
+      await expect(service.findBySlug('b-band')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   describe('update', () => {
     it('should successfully update band properties and regenerate slug', async () => {
-      const existing = { id: '1', name: 'Old Band', slug: 'old-band', genres: [] } as unknown as Band;
+      const existing = {
+        id: '1',
+        name: 'Old Band',
+        slug: 'old-band',
+        genres: [],
+      } as unknown as Band;
       const dto = { name: 'New Band' };
-      const updated = { id: '1', name: 'New Band', slug: 'new-band', genres: [] } as unknown as Band;
+      const updated = {
+        id: '1',
+        name: 'New Band',
+        slug: 'new-band',
+        genres: [],
+      } as unknown as Band;
 
       mockBandRepository.findOne
         .mockResolvedValueOnce(existing) // findOne in update
-        .mockResolvedValueOnce(null);    // duplicate slug check findOne
+        .mockResolvedValueOnce(null); // duplicate slug check findOne
 
       mockBandRepository.save.mockResolvedValue(updated);
 
@@ -150,7 +196,9 @@ describe('BandService', () => {
 
       await service.remove('1');
 
-      expect(mockBandRepository.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
+      expect(mockBandRepository.findOne).toHaveBeenCalledWith({
+        where: { id: '1' },
+      });
       expect(mockBandRepository.remove).toHaveBeenCalledWith(band);
     });
   });
@@ -162,15 +210,26 @@ describe('BandService', () => {
     });
 
     it('should find existing and create missing bands', async () => {
-      const existing = { id: 'uuid-1', name: 'The Floozies', slug: 'the-floozies' } as unknown as Band;
-      const created = { id: 'uuid-2', name: 'Defunk', slug: 'defunk' } as unknown as Band;
+      const existing = {
+        id: 'uuid-1',
+        name: 'The Floozies',
+        slug: 'the-floozies',
+      } as unknown as Band;
+      const created = {
+        id: 'uuid-2',
+        name: 'Defunk',
+        slug: 'defunk',
+      } as unknown as Band;
 
       mockQueryBuilder.getMany.mockResolvedValue([existing]);
       mockBandRepository.findOne.mockResolvedValue(null);
       mockBandRepository.create.mockReturnValue(created);
       mockBandRepository.save.mockResolvedValue(created);
 
-      const result = await service.findOrCreateManyByName(['The Floozies', 'Defunk']);
+      const result = await service.findOrCreateManyByName([
+        'The Floozies',
+        'Defunk',
+      ]);
 
       expect(result).toEqual([existing, created]);
     });
