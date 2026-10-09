@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { NewsletterService } from './newsletter.service';
+import { NewsletterCatalogService } from './newsletter-catalog.service';
 import { BeehiivService } from './beehiiv.service';
 import { Concert, ConcertCatalogStatus } from '../apis/concerts/entities/concert.entity';
 
@@ -46,6 +47,7 @@ describe('NewsletterService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NewsletterService,
+        NewsletterCatalogService,
         {
           provide: getRepositoryToken(Concert),
           useValue: mockConcertRepository,

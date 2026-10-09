@@ -10,8 +10,10 @@ Use the same Nido skills as Codex:
   `.agents/skills/nido-deployment-manager/SKILL.md`
 - Agent instruction maintenance:
   `.agents/skills/agent-infrastructure-maintainer/SKILL.md`
-- Weekly Top Picks curation:
-  `.agents/skills/tps2-curator/SKILL.md`
+- Firenze/TPS2 newsletter and editorial work:
+  `.agents/skills/firenze-newsletter/SKILL.md`
+- ADK and multimodal agent architecture:
+  `.agents/skills/gear-agent-flywheel/SKILL.md`
 
 Antigravity-specific reminders:
 

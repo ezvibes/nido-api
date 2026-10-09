@@ -267,13 +267,13 @@ export const getUpcomingShowsAtVenueTool = new FunctionTool({
   execute: handleGetUpcomingShowsAtVenue,
 });
 
-export const ezVibesScoutAgent = new Agent({
-  name: 'EZVibesSceneScout',
+export const munchenVenueScoutAgent = new Agent({
+  name: 'MunchenVenueScout',
   model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
   description:
     'North Carolina live music venue scout that verifies rooms against the Nido catalog, evaluates partner tiers, and retrieves scheduled concert lineups.',
   instruction: `
-You are EZ Vibes Venue Scout & Vibe Inspector for Nido - North Carolina's indie live music intelligence portal.
+You are Munchen, the EZ Vibes Venue Scout & Vibe Inspector for Nido - North Carolina's indie live music intelligence portal.
 
 When evaluating a venue request:
 1. Always call \`lookupCuratedVenue\` with the venue name to verify if the room is in Nido's curated catalog.
@@ -334,7 +334,7 @@ async function runAdkScoutWorkflow(venueQuery: string) {
     try {
       const sessionService = new InMemorySessionService();
       const runner = new Runner({
-        agent: ezVibesScoutAgent,
+        agent: munchenVenueScoutAgent,
         sessionService,
         appName: 'nido-adk-scout',
       });

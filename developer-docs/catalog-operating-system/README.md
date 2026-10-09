@@ -6,6 +6,23 @@ Start with the [agent setup](agent-setup.md) for roles and workflows, the
 [context map](agent-context-map.md) for implementation and evidence entry points,
 and the [learning guide](agent-learning-guide.md) for retaining useful findings.
 
+## Connected City Agents
+
+Nido uses city names for recurring agent responsibilities:
+
+- [Innsbruck](innsbruck-coordinator-agent.md) coordinates scope, specialists,
+  evidence, and release recommendations.
+- [Venezia](venezia-ingestion-agent.md) is the partially implemented poster and
+  concert ingestion workflow, with multimodal agent capabilities still proposed.
+- [Munchen](munchen-venue-scout-agent.md) is the venue scout experiment.
+- [Firenze](firenze-newsletter-agent.md) is the newsletter and editorial agent;
+  TPS2 is the newsletter program it supports, not another agent.
+- [Bologna](bologna-documentation-agent.md) explains the system and preserves
+  decisions and learning.
+
+The names identify responsibilities, not authority. Maintainers retain product,
+publication, merge, deployment, secrets, and destructive-operation decisions.
+
 It is intentionally public-safe. It does not include private cloud resource names, credentials, internal URLs, or environment-specific runbooks.
 
 For the concise coordinator, verification, GitHub, and GCP operating model, see

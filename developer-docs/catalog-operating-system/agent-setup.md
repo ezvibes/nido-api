@@ -12,30 +12,48 @@ into lasting improvements.
 
 ## Roles And Authority
 
-| Role | Responsibility | How it operates |
-| --- | --- | --- |
-| Maintainer | Product priority, architecture decisions, merge and production approval, sensitive operations | Human owner of the project |
-| Coordinator | Scope, context gathering, implementation ownership, synthesis, release recommendation | The lead coding agent for the active task |
-| Implementation owner | Changes within the agreed file and behavior boundaries | Usually the coordinator; a delegated agent when authorized |
-| Verifier | Independent review of substantial changes and raw evidence | A separate reviewer when available and justified by risk |
-| Domain specialist | Feature, deployment, instruction maintenance, or curation guidance | A skill loaded for the relevant task |
-| GitHub Actions | Repeatable checks and configured deployment steps | Workflows triggered by repository events |
+| Role                                     | Responsibility                                                                                 | How it operates                                                            |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Maintainer                               | Product priority, architecture decisions, merge and production approval, sensitive operations  | Human owner of the project                                                 |
+| Innsbruck (Coordinator and Orchestrator) | Scope, context gathering, routing, implementation ownership, synthesis, release recommendation | The lead coding agent for the active task; not a separate deployed service |
+| Implementation owner                     | Changes within the agreed file and behavior boundaries                                         | Usually the coordinator; a delegated agent when authorized                 |
+| Verifier                                 | Independent review of substantial changes and raw evidence                                     | A separate reviewer when available and justified by risk                   |
+| Domain specialist                        | Feature, deployment, instruction maintenance, or curation guidance                             | A skill loaded for the relevant task                                       |
+| GitHub Actions                           | Repeatable checks and configured deployment steps                                              | Workflows triggered by repository events                                   |
 
 These roles do not imply that separate agents are installed or continuously
 running. A skill is a reusable instruction package. Delegation requires the
 authorization and ownership boundaries in the [operating contract](../../AGENTS.md).
 If independent verification is unavailable, report the gap explicitly.
 
+## Connected City Network
+
+The city names make recurring responsibilities memorable without turning every
+procedure into another autonomous service.
+
+| Name                                        | Formal role                                   | Current state                                                                              | Use it for                                                                    |
+| ------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| [Innsbruck](innsbruck-coordinator-agent.md) | Coordinator and Orchestrator                  | Operating identity for the lead coding agent; not a deployed runtime                       | Scope, routing, evidence synthesis, and release recommendations               |
+| [Venezia](venezia-ingestion-agent.md)       | Multimodal Poster and Concert Ingestion Agent | Partial upload/review foundation; multimodal agent runtime is proposed                     | Turning poster evidence into human-reviewable concert candidates              |
+| [Munchen](munchen-venue-scout-agent.md)     | Venue Scout Agent                             | Local ADK experiment over seeded data                                                      | Venue identity and scene research experiments                                 |
+| [Firenze](firenze-newsletter-agent.md)      | Newsletter and Editorial Agent                | Tested tool foundation and existing newsletter workflow; full ADK orchestration is planned | Approved-catalog curation, link checks, editorial drafting, and draft staging |
+| [Bologna](bologna-documentation-agent.md)   | Documentation and Teaching Agent              | Documentation role used during development; not a deployed runtime                         | Plain-English guides, decision history, and reusable learning                 |
+
+TPS2 is the Weekly Top Picks newsletter program and workflow operated by
+Firenze. It is not a separate agent. Skills such as the feature flywheel,
+deployment manager, GEAR flywheel, and verifier remain capabilities used by the
+coordinator and specialists; they do not need city identities.
+
 ## Instruction Structure
 
-| Layer | Source | Purpose |
-| --- | --- | --- |
-| Operating contract | [AGENTS.md](../../AGENTS.md) | Authority, routing, engineering rules, and completion evidence |
-| Agent directory | [.agents/README.md](../../.agents/README.md) | Entry point for contributors and available skills |
-| Reusable workflows | [.agents/skills](../../.agents/skills/) | Task-specific instructions and supporting resources |
-| Claude adapter | [CLAUDE.md](../../CLAUDE.md) | Points Claude sessions to the shared contract |
-| Antigravity adapter | [.antigravity/rules.md](../../.antigravity/rules.md) | Shared routing plus environment-specific reminders |
-| Durable context | [Catalog Operating System](README.md) | Architecture, decisions, guides, and reusable lessons |
+| Layer               | Source                                               | Purpose                                                        |
+| ------------------- | ---------------------------------------------------- | -------------------------------------------------------------- |
+| Operating contract  | [AGENTS.md](../../AGENTS.md)                         | Authority, routing, engineering rules, and completion evidence |
+| Agent directory     | [.agents/README.md](../../.agents/README.md)         | Entry point for contributors and available skills              |
+| Reusable workflows  | [.agents/skills](../../.agents/skills/)              | Task-specific instructions and supporting resources            |
+| Claude adapter      | [CLAUDE.md](../../CLAUDE.md)                         | Points Claude sessions to the shared contract                  |
+| Antigravity adapter | [.antigravity/rules.md](../../.antigravity/rules.md) | Shared routing plus environment-specific reminders             |
+| Durable context     | [Catalog Operating System](README.md)                | Architecture, decisions, guides, and reusable lessons          |
 
 The root contract remains the canonical repository policy. This summary explains
 the setup; it does not introduce another policy layer. Tool adapters should point
@@ -43,13 +61,13 @@ to shared instructions, with only their own environment-specific notes.
 
 ## Available Repository Skills
 
-| Skill | Use it for | Main output |
-| --- | --- | --- |
-| [nido-feature-flywheel](../../.agents/skills/nido-feature-flywheel/SKILL.md) | NestJS, Vue, migrations, admin and public behavior | Scoped implementation, tests, review evidence, and dev handoff |
-| [nido-deployment-manager](../../.agents/skills/nido-deployment-manager/SKILL.md) | GitHub Actions, GCP, Firebase, rollback, cost, and release readiness | Deployment assessment, smoke evidence, operational risks, and rollback target |
-| [agent-infrastructure-maintainer](../../.agents/skills/agent-infrastructure-maintainer/SKILL.md) | Instruction, skill, and adapter maintenance | Consistent routing, valid references, and less duplicated guidance |
-| [tps2-curator](../../.agents/skills/tps2-curator/SKILL.md) | Newsletter curation and prompt quality | Editorial criteria, draft review, and proposed prompt refinements |
-| [gear-agent-flywheel](../../.agents/skills/gear-agent-flywheel/SKILL.md) | ADK experiments and agent architecture work | Bounded agent implementation or review and learning evidence |
+| Skill                                                                                            | Use it for                                                           | Main output                                                                   |
+| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| [nido-feature-flywheel](../../.agents/skills/nido-feature-flywheel/SKILL.md)                     | NestJS, Vue, migrations, admin and public behavior                   | Scoped implementation, tests, review evidence, and dev handoff                |
+| [nido-deployment-manager](../../.agents/skills/nido-deployment-manager/SKILL.md)                 | GitHub Actions, GCP, Firebase, rollback, cost, and release readiness | Deployment assessment, smoke evidence, operational risks, and rollback target |
+| [agent-infrastructure-maintainer](../../.agents/skills/agent-infrastructure-maintainer/SKILL.md) | Instruction, skill, and adapter maintenance                          | Consistent routing, valid references, and less duplicated guidance            |
+| [firenze-newsletter](../../.agents/skills/firenze-newsletter/SKILL.md)                           | Firenze newsletter curation and prompt quality for the TPS2 program  | Editorial criteria, draft review, and proposed prompt refinements             |
+| [gear-agent-flywheel](../../.agents/skills/gear-agent-flywheel/SKILL.md)                         | ADK experiments and agent architecture work                          | Bounded agent implementation or review and learning evidence                  |
 
 Choose the workflow for the actual task. Load another skill when a real boundary,
 such as deployment impact or editorial requirements, makes it useful. Skill
@@ -62,14 +80,14 @@ are not part of this portable repository contract.
 
 ## Tools And Connections
 
-| Capability | Repository entry point | Session prerequisite |
-| --- | --- | --- |
-| Local edits and Git history | Current checkout and Git | File access; inspect branch and working tree first |
-| API/client tests and builds | [package.json](../../package.json), [client/package.json](../../client/package.json) | Installed dependencies and compatible Node runtime |
-| Issues, PRs, and CI inspection | GitHub connector or `gh` | Available connection and authenticated repository access |
-| Cloud inspection and smoke tests | Deployment skill and [smoke script](../../scripts/smoke-test-api.mjs) | Appropriate GCP identity, network access, and test credentials when required |
-| Browser verification | Vue client and browser/Playwright tooling | Running application and available browser tools |
-| Live model experiments | Newsletter service or [ADK scout script](../../src/scripts/test-adk-venue-scout.ts) | Configured provider, available model, and agreed compute budget |
+| Capability                       | Repository entry point                                                               | Session prerequisite                                                         |
+| -------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Local edits and Git history      | Current checkout and Git                                                             | File access; inspect branch and working tree first                           |
+| API/client tests and builds      | [package.json](../../package.json), [client/package.json](../../client/package.json) | Installed dependencies and compatible Node runtime                           |
+| Issues, PRs, and CI inspection   | GitHub connector or `gh`                                                             | Available connection and authenticated repository access                     |
+| Cloud inspection and smoke tests | Deployment skill and [smoke script](../../scripts/smoke-test-api.mjs)                | Appropriate GCP identity, network access, and test credentials when required |
+| Browser verification             | Vue client and browser/Playwright tooling                                            | Running application and available browser tools                              |
+| Live model experiments           | Newsletter service or [ADK scout script](../../src/scripts/test-adk-venue-scout.ts)  | Configured provider, available model, and agreed compute budget              |
 
 Repository files do not establish an external connection or grant permissions.
 Check access when the task requires it. Keep tokens, credential contents, private
@@ -97,7 +115,10 @@ automation when a repeated manual check has a stable, testable contract. Measure
 whether a change reduces escaped defects, review rework, time to a verified
 handoff, or unnecessary model calls.
 
-The [harness guide](agent-development-harness-guide.md) describes proposed runtime
-evaluation tooling. Its fixture runner and benchmark workflow are not implemented
-in this snapshot. Coding-agent coordination and application AI evaluation are
-related but separate workflows; each needs evidence for its own claims.
+The [harness guide](agent-development-harness-guide.md) describes runtime
+evaluation tooling and planned extensions. The offline newsletter fixture runner
+is implemented and runs through `npm run test:newsletter:harness` as part of
+`npm run agent:gate`. Live model-quality evaluation and the poster-ingestion
+benchmark remain proposed. Coding-agent coordination and application AI
+evaluation are related but separate workflows; each needs evidence for its own
+claims.

@@ -1,32 +1,17 @@
 import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Concert, ConcertCatalogStatus } from '../apis/concerts/entities/concert.entity';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { BeehiivService, BeehiivDraftResponse } from './beehiiv.service';
+import {
+  NewsletterCatalogService,
+  NewsletterSourceConcert,
+} from './newsletter-catalog.service';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
 const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
 
 type NewsletterEditionType = 'weekly' | 'monthly' | 'custom';
-
-export interface NewsletterSourceConcert {
-  id?: string;
-  title: string;
-  date: string;
-  venue: string;
-  artists?: string;
-  genre?: string;
-  description?: string;
-  rawText?: string;
-  isTopPick: boolean;
-  topPickScore: number;
-  isHighlightArtist: boolean;
-  isPartnerArtist: boolean;
-  source: string;
-}
 
 export interface NewsletterSourcePreview {
   dateRangeLabel: string;
@@ -72,8 +57,7 @@ export class NewsletterService {
   private readonly logger = new Logger(NewsletterService.name);
 
   constructor(
-    @InjectRepository(Concert)
-    private readonly concertRepository: Repository<Concert>,
+    private readonly newsletterCatalogService: NewsletterCatalogService,
     private readonly configService: ConfigService,
     private readonly beehiivService: BeehiivService,
   ) {}
@@ -168,20 +152,18 @@ export class NewsletterService {
 
     let concerts: NewsletterSourceConcert[] = [];
     if (params.useDatabase !== false) {
-      concerts = await this.fetchNCConcerts(
-        start.toISOString(),
-        end.toISOString(),
-        {
-          cities: params.cities,
-          genres: params.genres,
-          venues: params.venues,
-          region: params.region,
-          strictFiltering: params.strictFiltering,
-          featuredOnly: params.featuredOnly,
-          topPicksOnly: params.topPicksOnly,
-          excludeConcertIds: params.excludeConcertIds,
-        },
-      );
+      concerts = await this.newsletterCatalogService.findApprovedConcerts({
+        start,
+        end,
+        cities: params.cities,
+        genres: params.genres,
+        venues: params.venues,
+        region: params.region,
+        strictFiltering: params.strictFiltering,
+        featuredOnly: params.featuredOnly,
+        topPicksOnly: params.topPicksOnly,
+        excludeConcertIds: params.excludeConcertIds,
+      });
     }
 
     const calendarEvents = params.rawCalendarData
@@ -320,139 +302,6 @@ export class NewsletterService {
     const label = customLabel || `${startFmt} - ${endFmt}`;
 
     return { start, end, label };
-  }
-
-  private async fetchNCConcerts(
-    startDateStr: string,
-    endDateStr: string,
-    options?: {
-      cities?: string[];
-      genres?: string[];
-      venues?: string[];
-      region?: string;
-      strictFiltering?: boolean;
-      featuredOnly?: boolean;
-      topPicksOnly?: boolean;
-      excludeConcertIds?: string[];
-    },
-  ): Promise<NewsletterSourceConcert[]> {
-    const start = new Date(startDateStr);
-    const end = new Date(endDateStr);
-
-    this.logger.log(
-      `Fetching active approved concerts from DB between ${start.toISOString()} and ${end.toISOString()}...`,
-    );
-
-    const dbConcerts = await this.concertRepository.find({
-      where: {
-        startsAt: Between(start, end),
-        catalogStatus: ConcertCatalogStatus.ACTIVE,
-        isAdminApproved: true,
-      },
-      relations: ['venue', 'lineup', 'lineup.band'],
-      order: {
-        startsAt: 'ASC',
-      },
-    });
-
-    const highlightArtists = [
-      'dr bacon', 'dr. bacon', 'big fur', 'larry keel', 'sam fribush', 'treehouse', 'treehouse!',
-      'julia', 'africa unplugged', 'nth power', 'the nth power', 'chill paxton', 'toubab krewe',
-      'tand', 'badfish', 'sons of paradise', 'eggy', 'daniel donato', 'dogs in a pile', 'billy strings',
-    ];
-
-    const targetCities = ['raleigh', 'durham', 'chapel hill', 'carrboro', 'greensboro', 'winston-salem', 'charlotte', 'asheville', 'wilmington'];
-    const targetGenres = ['funk', 'bluegrass', 'jam', 'reggae', 'hip-hop', 'hip hop', 'salsa', 'rock', 'electronic', 'folk', 'latin'];
-
-    const filtered = dbConcerts.filter((concert) => {
-      if (options?.excludeConcertIds?.includes(concert.id)) return false;
-      if (options?.featuredOnly && !concert.isFeatured) return false;
-      if (options?.topPicksOnly && !concert.isTopPick) return false;
-
-      if (options?.strictFiltering) {
-        const region = (concert.venue?.region || '').toLowerCase().trim();
-        const isNC = region === 'nc' || region === 'north carolina';
-        if (!isNC) return false;
-
-        const city = (concert.venue?.city || '').toLowerCase().trim();
-        const matchesCity = targetCities.some((c) => city.includes(c));
-        if (!matchesCity) return false;
-
-        const genre = (concert.genre || '').toLowerCase().trim();
-        return targetGenres.some((g) => genre.includes(g));
-      }
-
-      if (options?.region) {
-        const concertRegion = (concert.venue?.region || '').toLowerCase().trim();
-        const targetRegion = options.region.toLowerCase().trim();
-        if (
-          concertRegion !== targetRegion &&
-          !(targetRegion === 'nc' && concertRegion === 'north carolina')
-        ) {
-          return false;
-        }
-      }
-
-      if (options?.cities && options.cities.length > 0) {
-        const concertCity = (concert.venue?.city || '').toLowerCase().trim();
-        if (!options.cities.some((c) => concertCity.includes(c.toLowerCase().trim()))) {
-          return false;
-        }
-      }
-
-      if (options?.genres && options.genres.length > 0) {
-        const concertGenre = (concert.genre || '').toLowerCase().trim();
-        if (!options.genres.some((g) => concertGenre.includes(g.toLowerCase().trim()))) {
-          return false;
-        }
-      }
-
-      if (options?.venues && options.venues.length > 0) {
-        const concertVenue = (concert.venue?.name || '').toLowerCase().trim();
-        if (!options.venues.some((v) => concertVenue.includes(v.toLowerCase().trim()))) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-
-    return filtered.map((concert) => {
-      const dateStr = concert.startsAt
-        ? concert.startsAt.toLocaleDateString('en-US', {
-            weekday: 'long',
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-            timeZone: 'America/New_York',
-          })
-        : 'Unknown Date';
-
-      const lineupBands =
-        concert.lineup?.map((l) => l.band?.name).filter((b): b is string => Boolean(b)) || [];
-
-      const hasHighlightArtist =
-        lineupBands.some((bName) =>
-          highlightArtists.some((pa) => bName.toLowerCase().includes(pa)),
-        ) || highlightArtists.some((pa) => concert.title.toLowerCase().includes(pa));
-
-      return {
-        id: concert.id,
-        title: concert.title,
-        date: dateStr,
-        venue: concert.venue
-          ? `${concert.venue.name} (${concert.venue.city}, ${concert.venue.region})`
-          : 'Unknown Venue',
-        artists: lineupBands.join(', '),
-        genre: concert.genre,
-        description: concert.description || '',
-        isTopPick: Boolean(concert.isTopPick),
-        topPickScore: concert.topPickScore || 0,
-        isHighlightArtist: hasHighlightArtist,
-        isPartnerArtist: hasHighlightArtist,
-        source: 'Nido Concert Database',
-      };
-    });
   }
 
   private async parseCalendarData(

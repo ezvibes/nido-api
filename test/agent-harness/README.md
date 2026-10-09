@@ -30,14 +30,14 @@ harness, and runner changes trigger deployment validation.
 All shows, venues, draft responses, and ticket URLs are synthetic. Do not add real
 credentials, personal submission data, or scraped newsletter text to fixtures.
 
-| Scenario | Contract checked |
-| --- | --- |
-| `ideal-weekend` | Three approved NC concerts, chronological order, hydrated prompt, draft-only HTML staging |
-| `data-drought` | An unapproved-only catalog supplies zero shows; no fabricated source rows |
-| `catalog-boundaries` | Unapproved, hidden, archived, excluded, and city-mismatched shows stay out |
-| `date-boundaries` | Inclusive timestamp limits, adjacent events excluded, Eastern display dates |
-| `provider-failure` | A model error stops staging; one call, no implicit retry |
-| `broken-links` | Source URL preserved; known fixture 404 recorded as a warning, not automatically rejected |
+| Scenario             | Contract checked                                                                          |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| `ideal-weekend`      | Three approved NC concerts, chronological order, hydrated prompt, draft-only HTML staging |
+| `data-drought`       | An unapproved-only catalog supplies zero shows; no fabricated source rows                 |
+| `catalog-boundaries` | Unapproved, hidden, archived, excluded, and city-mismatched shows stay out                |
+| `date-boundaries`    | Inclusive timestamp limits, adjacent events excluded, Eastern display dates               |
+| `provider-failure`   | A model error stops staging; one call, no implicit retry                                  |
+| `broken-links`       | Source URL preserved; known fixture 404 recorded as a warning, not automatically rejected |
 
 Additional checks cover empty model output, missing model credentials, and Beehiiv
 staging failure. The prompt's injected JSON must equal the previewed catalog
@@ -89,16 +89,16 @@ Validation on 2026-10-02, branch `codex/newsletter-offline-harness`, based on ma
 `375a575`. Changes were uncommitted during these runs; the generated report records
 that distinction. No live provider calls or deployed-environment checks were run.
 
-| Layer | Evidence | Result |
-| --- | --- | --- |
-| Shared gate | `npm run agent:gate` | Hygiene, 148 API tests, 9 harness checks, 47 client tests, both builds passed |
-| Focused lint | `npx eslint test/agent-harness/newsletter.spec.ts test/agent-harness/offline.setup.ts test/agent-harness/mocks/mock-beehiiv.ts` | Passed without mutating files |
-| Runner/workflows | `node --check scripts/eval-newsletter-harness.mjs`; both workflow files parsed with installed `js-yaml` | Valid syntax and harness steps present |
-| Independent review | Read-only verifier; environment fallback and overlapping city/exclusion fixtures corrected | No residual findings after recheck |
-| Negative evidence | Approval regression failed before the query fix; removing exclusion in memory fails `catalog-boundaries` | Intended regressions detected |
-| Environment isolation | Harness run with conflicting synthetic provider/template environment values | 9/9 checks passed |
-| CI/dev | Checks configured; branch not published or deployed | Pending after maintainer review |
-| Migration/browser | No schema or UI changes | Not applicable; authenticated dev smoke remains pending |
+| Layer                 | Evidence                                                                                                                        | Result                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Shared gate           | `npm run agent:gate`                                                                                                            | Hygiene, 148 API tests, 9 harness checks, 47 client tests, both builds passed |
+| Focused lint          | `npx eslint test/agent-harness/newsletter.spec.ts test/agent-harness/offline.setup.ts test/agent-harness/mocks/mock-beehiiv.ts` | Passed without mutating files                                                 |
+| Runner/workflows      | `node --check scripts/eval-newsletter-harness.mjs`; both workflow files parsed with installed `js-yaml`                         | Valid syntax and harness steps present                                        |
+| Independent review    | Read-only verifier; environment fallback and overlapping city/exclusion fixtures corrected                                      | No residual findings after recheck                                            |
+| Negative evidence     | Approval regression failed before the query fix; removing the PostgreSQL exclusion predicate fails `catalog-boundaries`         | Intended regressions detected                                                 |
+| Environment isolation | Harness run with conflicting synthetic provider/template environment values                                                     | 9/9 checks passed                                                             |
+| CI/dev                | Checks configured; branch not published or deployed                                                                             | Pending after maintainer review                                               |
+| Migration/browser     | No schema or UI changes                                                                                                         | Not applicable; authenticated dev smoke remains pending                       |
 
 ## Dev Verification And Rollback
 
