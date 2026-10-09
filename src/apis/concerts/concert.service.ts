@@ -63,6 +63,9 @@ export class ConcertService {
       .createQueryBuilder('concert')
       .where('concert.catalogStatus = :activeCatalogStatus', {
         activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
+      })
+      .andWhere('concert.isAdminApproved = :isAdminApproved', {
+        isAdminApproved: true,
       });
     return this.findWithQuery(qb, query, currentUser);
   }
@@ -356,7 +359,8 @@ export class ConcertService {
     const concert = await this.findOneForOwner(id, owner);
     if (
       concert.catalogStatus !== ConcertCatalogStatus.ACTIVE ||
-      concert.editorialLockedAt
+      concert.editorialLockedAt ||
+      concert.isAdminApproved
     ) {
       throw new ConflictException(
         'This concert is under admin control and cannot be edited by its owner.',
@@ -397,6 +401,7 @@ export class ConcertService {
           .andWhere('catalog_status = :activeCatalogStatus', {
             activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
           })
+          .andWhere('is_admin_approved = false')
           .andWhere('editorial_locked_at IS NULL')
           .execute();
 
@@ -462,6 +467,15 @@ export class ConcertService {
 
   async removeForOwner(id: string, owner: User) {
     const concert = await this.findOneForOwner(id, owner);
+    if (
+      concert.catalogStatus !== ConcertCatalogStatus.ACTIVE ||
+      concert.editorialLockedAt ||
+      concert.isAdminApproved
+    ) {
+      throw new ConflictException(
+        'This concert is under admin control and cannot be deleted by its owner.',
+      );
+    }
     const result = await this.concertRepository
       .createQueryBuilder()
       .delete()
@@ -474,6 +488,7 @@ export class ConcertService {
       .andWhere('catalog_status = :activeCatalogStatus', {
         activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
       })
+      .andWhere('is_admin_approved = false')
       .andWhere('editorial_locked_at IS NULL')
       .execute();
 
@@ -631,7 +646,9 @@ export class ConcertService {
       .orIgnore()
       .execute();
 
-    return this.getEngagement(id, user);
+    const engagement = await this.getEngagement(id, user);
+    await this.findOnePublic(id);
+    return engagement;
   }
 
   async removeUpvote(id: string, user: User) {
@@ -648,6 +665,7 @@ export class ConcertService {
           SELECT 1 FROM concerts concert
           WHERE concert.id = :concertId
             AND concert.catalog_status = :activeCatalogStatus
+            AND concert.is_admin_approved = true
         )`,
         { activeCatalogStatus: ConcertCatalogStatus.ACTIVE },
       )
@@ -673,7 +691,11 @@ export class ConcertService {
 
   private async findOnePublic(id: string) {
     const concert = await this.concertRepository.findOne({
-      where: { id, catalogStatus: ConcertCatalogStatus.ACTIVE },
+      where: {
+        id,
+        catalogStatus: ConcertCatalogStatus.ACTIVE,
+        isAdminApproved: true,
+      },
     });
 
     if (!concert) {

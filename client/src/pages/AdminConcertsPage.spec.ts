@@ -125,7 +125,7 @@ describe('AdminConcertsPage', () => {
     expect(wrapper.text()).toContain('Page 2 of 2');
   });
 
-  it('toggles Top Picks approval state for a concert', async () => {
+  it('approves a listing for public discovery', async () => {
     api.setConcertApproval.mockResolvedValue({
       id: 'concert-1',
       isAdminApproved: true,
@@ -136,7 +136,7 @@ describe('AdminConcertsPage', () => {
 
     const approveButton = wrapper
       .findAll('.concert-row__actions button')
-      .find((b) => b.text().includes('Approve Top Pick'));
+      .find((b) => b.text().includes('Approve listing'));
     expect(approveButton).toBeDefined();
 
     await approveButton!.trigger('click');
@@ -147,7 +147,39 @@ describe('AdminConcertsPage', () => {
       'concert-1',
       true,
     );
-    expect(wrapper.text()).toContain('approved for Top Picks');
+    expect(wrapper.text()).toContain(
+      'approved for public discovery when active',
+    );
+    expect(wrapper.text()).toContain('Revoke approval');
+  });
+
+  it('clears the approval badge after revoking publication', async () => {
+    api.fetchAdminConcerts.mockResolvedValue({
+      data: [buildConcert({ isAdminApproved: true, isTopPick: true })],
+      total: 1,
+      page: 1,
+      pageSize: 25,
+    });
+    api.setConcertApproval.mockResolvedValue(
+      buildConcert({ isAdminApproved: false, isTopPick: false }),
+    );
+    const wrapper = mount(AdminConcertsPage);
+    await flushPromises();
+
+    await wrapper
+      .findAll('.concert-row__actions button')
+      .find((button) => button.text() === 'Revoke approval')!
+      .trigger('click');
+    await flushPromises();
+
+    expect(api.setConcertApproval).toHaveBeenCalledWith(
+      'firebase-token',
+      'concert-1',
+      false,
+    );
+    expect(wrapper.text()).toContain('removed from public discovery');
+    expect(wrapper.find('.status--approved').exists()).toBe(false);
+    expect(wrapper.text()).toContain('Approve listing');
   });
 
   it('hides a concert using the version returned by the API', async () => {

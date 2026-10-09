@@ -88,15 +88,7 @@ onBeforeUnmount(() => {
           <router-link to="/concerts" class="nav-link" @click="closeMenu">
             Concerts
           </router-link>
-          <router-link
-            v-if="user"
-            to="/concert-sync"
-            class="nav-link"
-            @click="closeMenu"
-          >
-            Sync Doctor
-          </router-link>
-          <router-link v-else to="/" class="nav-link" @click="closeMenu"
+          <router-link v-if="!user" to="/" class="nav-link" @click="closeMenu"
             >Home</router-link
           >
           <router-link
@@ -132,6 +124,13 @@ onBeforeUnmount(() => {
                 @click="closeMenu"
               >
                 My Concerts
+              </router-link>
+              <router-link
+                to="/concert-sync"
+                class="account-menu__item"
+                @click="closeMenu"
+              >
+                Sync Doctor
               </router-link>
               <router-link
                 v-if="isAdmin"

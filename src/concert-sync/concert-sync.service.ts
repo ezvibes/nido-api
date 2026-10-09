@@ -654,6 +654,7 @@ export class ConcertSyncService {
             observedVersion: existingConcert.version,
           })
           .andWhere('editorial_locked_at IS NULL')
+          .andWhere('is_admin_approved = false')
           .andWhere('catalog_status <> :archivedCatalogStatus', {
             archivedCatalogStatus: ConcertCatalogStatus.ARCHIVED,
           })
@@ -732,6 +733,7 @@ export class ConcertSyncService {
   private isProtectedFromSync(concert?: Concert | null) {
     return (
       Boolean(concert?.editorialLockedAt) ||
+      Boolean(concert?.isAdminApproved) ||
       concert?.catalogStatus === ConcertCatalogStatus.ARCHIVED
     );
   }

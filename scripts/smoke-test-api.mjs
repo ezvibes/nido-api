@@ -56,7 +56,7 @@ if (deepEnabled) {
 if (concertsEnabled) {
   checks.push({
     name: 'public concerts feed',
-    path: `/concerts?pageSize=1&startsAfter=${encodeURIComponent(new Date().toISOString())}`,
+    path: `/concerts?pageSize=20&startsAfter=${encodeURIComponent(new Date().toISOString())}`,
     anonymous: true,
     validate: validateConcertsResponse,
   });
@@ -70,7 +70,7 @@ if (authenticatedConcertsEnabled) {
   }
   checks.push({
     name: 'authenticated concerts engagement',
-    path: `/concerts?pageSize=1&startsAfter=${encodeURIComponent(new Date().toISOString())}`,
+    path: `/concerts?pageSize=20&startsAfter=${encodeURIComponent(new Date().toISOString())}`,
     validate: validateConcertsResponse,
   });
   checks.push({
@@ -209,6 +209,9 @@ async function validateConcertsResponse(response) {
   const body = await response.json();
   if (!Array.isArray(body.data)) {
     throw new Error('concerts response does not include a data array');
+  }
+  if (body.data.some((concert) => concert.isAdminApproved !== true)) {
+    throw new Error('public concerts feed includes an unapproved concert');
   }
   const first = body.data[0];
   if (first && !Array.isArray(first.lineup)) {
