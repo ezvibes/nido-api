@@ -98,9 +98,10 @@ The agent is equipped with 4 isolated tools wrapping NestJS services using stric
 - **Current implementation:** `NewsletterCatalogService.findApprovedConcerts()`
   is the single NestJS/TypeORM boundary used by the existing admin preview,
   generation flow, and registered ADK tool. The tool applies strict Zod input
-  and output validation with a maximum 366-day range and bounded result set; the
-  core service enforces active + admin-approved visibility and caps agent
-  database scans at 500 rows.
+  and output validation with a maximum 366-day range and bounded result set. The
+  core service enforces active + admin-approved visibility and pushes location,
+  genre, editorial, and exclusion predicates into PostgreSQL before applying the
+  result limit.
 - **Input (Zod):**
   ```typescript
   z.object({

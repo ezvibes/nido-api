@@ -1,9 +1,15 @@
 import { BadRequestException } from '@nestjs/common';
-import { FindManyOptions, FindOperator, Repository } from 'typeorm';
+import {
+  FindManyOptions,
+  FindOperator,
+  FindOptionsWhere,
+  Repository,
+} from 'typeorm';
 import {
   Concert,
   ConcertCatalogStatus,
 } from '../apis/concerts/entities/concert.entity';
+import { Venue } from '../apis/venues/entities/venue.entity';
 import { NewsletterCatalogService } from './newsletter-catalog.service';
 import { MAX_NEWSLETTER_CATALOG_RESULTS } from './newsletter.constants';
 
@@ -73,10 +79,6 @@ describe('NewsletterCatalogService', () => {
   it('applies editorial and location filters before the result limit', async () => {
     find.mockResolvedValue([
       baseConcert({
-        id: '11111111-1111-4111-8111-111111111111',
-        title: 'Excluded Show',
-      }),
-      baseConcert({
         id: '22222222-2222-4222-8222-222222222222',
         title: 'Durham Jazz Show',
         genre: 'Jazz',
@@ -86,16 +88,6 @@ describe('NewsletterCatalogService', () => {
           region: 'North Carolina',
         } as Concert['venue'],
         lineup: [],
-      }),
-      baseConcert({
-        id: '33333333-3333-4333-8333-333333333333',
-        title: 'Second Durham Jazz Show',
-        genre: 'Jazz',
-        venue: {
-          name: 'The Pinhook',
-          city: 'Durham',
-          region: 'NC',
-        } as Concert['venue'],
       }),
     ]);
 
@@ -109,7 +101,14 @@ describe('NewsletterCatalogService', () => {
       limit: 1,
     });
 
-    expect(find.mock.calls[0][0].take).toBe(500);
+    const options = find.mock.calls[0][0];
+    const where = options.where as FindOptionsWhere<Concert>;
+    const venueWhere = where.venue as FindOptionsWhere<Venue>;
+    expect(options.take).toBe(1);
+    expect((where.id as FindOperator<string>).type).toBe('not');
+    expect((where.genre as FindOperator<string>).type).toBe('or');
+    expect((venueWhere.region as FindOperator<string>).type).toBe('or');
+    expect((venueWhere.city as FindOperator<string>).type).toBe('or');
     expect(results.map((concert) => concert.id)).toEqual([
       '22222222-2222-4222-8222-222222222222',
     ]);
@@ -134,21 +133,7 @@ describe('NewsletterCatalogService', () => {
   });
 
   it('preserves the opt-in legacy NC city and genre filter', async () => {
-    find.mockResolvedValue([
-      baseConcert(),
-      baseConcert({
-        id: '44444444-4444-4444-8444-444444444444',
-        genre: 'Classical',
-      }),
-      baseConcert({
-        id: '55555555-5555-4555-8555-555555555555',
-        venue: {
-          name: 'The Anthem',
-          city: 'Washington',
-          region: 'DC',
-        } as Concert['venue'],
-      }),
-    ]);
+    find.mockResolvedValue([baseConcert()]);
 
     const results = await service.findApprovedConcerts({
       start: new Date('2026-10-09T00:00:00.000Z'),
@@ -159,6 +144,11 @@ describe('NewsletterCatalogService', () => {
     expect(results.map((concert) => concert.id)).toEqual([
       '8da58775-806a-43a4-a526-824c73027106',
     ]);
+    const where = find.mock.calls[0][0].where as FindOptionsWhere<Concert>;
+    const venueWhere = where.venue as FindOptionsWhere<Venue>;
+    expect((where.genre as FindOperator<string>).type).toBe('or');
+    expect((venueWhere.region as FindOperator<string>).type).toBe('or');
+    expect((venueWhere.city as FindOperator<string>).type).toBe('or');
   });
 
   it.each([

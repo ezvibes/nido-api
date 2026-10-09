@@ -100,11 +100,11 @@ to query this database through TypeORM; the AI model does not write SQL or open 
 database connection itself.
 
 The active catalog tool returns only concerts that are both active and approved
-by a Nido administrator. It limits agent requests to a 366-day date window,
-scans at most 500 database rows, and can apply bounded region, city, venue, and
-genre filters. This protects the newsletter from treating an unreviewed import
-or user submission as publication-ready information or issuing an unbounded
-catalog read.
+by a Nido administrator. It limits agent requests to a 366-day date window and
+bounded result count. PostgreSQL applies region, city, venue, genre, editorial,
+and exclusion filters before the limit. This protects the newsletter from
+treating an unreviewed import or user submission as publication-ready information
+or losing valid filtered matches behind a pre-filter scan ceiling.
 
 The co-bill tool also uses PostgreSQL. It examines existing artist-to-concert
 lineup relationships to find evidence such as two artists sharing a bill. It

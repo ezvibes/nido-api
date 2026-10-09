@@ -45,9 +45,9 @@ NewsletterService
 NewsletterCatalogService
   - owns the TypeORM repository
   - requires active + admin-approved database records
-  - applies newsletter filters and exclusions
+  - applies newsletter filters and exclusions in PostgreSQL
   - returns normalized and ordered source records
-  - applies a bounded date range and database scan ceiling for agent callers
+  - applies a bounded date range and result limit for agent callers
 ```
 
 `NewsletterCatalogService.findApprovedConcerts()` is the canonical database
@@ -57,14 +57,10 @@ filters. It rejects invalid ranges, date windows over 366 days, and invalid
 explicit limits, then orders results by start time. Existing admin previews omit
 the limit and continue to receive all eligible records within the bounded date
 window. Agent tools must provide a limit between 1 and 100; the Zod contract
-defaults that request to 20 and the service caps the underlying database scan at
-500 rows before applying in-memory newsletter filters.
-
-At current catalog scale, that ceiling protects the database without affecting a
-normal weekly edition. If a requested annual window contains more than 500
-eligible concerts, city, venue, genre, or exclusion filters may return fewer
-matches than exist beyond the scan ceiling. Move those filters into PostgreSQL or
-add bounded pagination before raising the ceiling; do not remove the bound.
+defaults that request to 20. PostgreSQL applies approval, catalog status, date,
+exclusion, editorial, region, city, genre, and venue predicates before ordering
+and limiting the result, so a populated annual window cannot hide later matches
+behind a pre-filter scan ceiling.
 
 This boundary is important for Agent v2: the future
 `fetchApprovedConcerts` tool calls this service through NestJS dependency
@@ -163,6 +159,13 @@ Migration `1760000015000-AddNewsletterCoBillIndexes.ts` adds a lineup index with
 windows. Both indexes are built concurrently without a migration transaction;
 environment migration jobs therefore use `DB_MIGRATION_TRANSACTION_MODE=each`.
 Run the migration job before using the query in a deployed environment.
+
+For a reviewed rollback, TypeORM's CLI requires
+`migration:revert --transaction none` because its revert path does not honor the
+migration-level transaction override. Confirm this migration is the latest
+executed migration before running that command. The up/down/up sequence and index
+validity were verified against a disposable PostgreSQL 13 database on October 9,
+2026; Cloud SQL execution remains deployment evidence.
 
 Focused registry verification:
 

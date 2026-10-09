@@ -572,6 +572,22 @@ while other migrations retain their own transaction boundary. Use `all` only whe
 every pending migration can share one transaction. Use `none` only after the full
 pending set has been reviewed for non-transactional DDL.
 
+TypeORM applies a migration's `transaction = false` override during
+`migration:run`, but `migration:revert` wraps the selected `down()` method unless
+the command-level mode is `none`. Revert the concurrent newsletter-index
+migration only after confirming it is the latest migration and the target
+database is correct:
+
+```bash
+npm run typeorm -- \
+  -d src/data-source.ts \
+  migration:revert \
+  --transaction none
+```
+
+Use this nontransactional revert only for a specifically reviewed migration that
+requires concurrent DDL. Do not make it the default rollback mode.
+
 Concurrent index creation can leave an invalid index if the job is interrupted.
 Before retrying a failed newsletter-index migration, inspect PostgreSQL rather
 than assuming `IF NOT EXISTS` repaired it:
@@ -589,6 +605,12 @@ If either target exists with `indisvalid = false`, remove only that invalid inde
 with `DROP INDEX CONCURRENTLY` during an approved maintenance action, then rerun
 the migration job. Do not drop a valid index or mutate production without the
 normal maintainer approval and rollback process.
+
+The newsletter-index migration was rehearsed on October 9, 2026 against a
+disposable PostgreSQL 13 database: `up` with `--transaction each`, index readiness
+and validity inspection, `down` with `--transaction none`, absence inspection,
+and a second successful `up`. This proves migration mechanics, not Cloud SQL
+deployment or production query performance.
 
 ### Migration Job Deployment Mechanics
 

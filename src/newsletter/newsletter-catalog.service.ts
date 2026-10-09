@@ -1,6 +1,15 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Repository } from 'typeorm';
+import {
+  Between,
+  FindOperator,
+  FindOptionsWhere,
+  ILike,
+  In,
+  Not,
+  Or,
+  Repository,
+} from 'typeorm';
 import {
   Concert,
   ConcertCatalogStatus,
@@ -8,8 +17,8 @@ import {
 import {
   MAX_NEWSLETTER_CATALOG_RANGE_DAYS,
   MAX_NEWSLETTER_CATALOG_RESULTS,
-  MAX_NEWSLETTER_CATALOG_SCAN_RESULTS,
 } from './newsletter.constants';
+import { Venue } from '../apis/venues/entities/venue.entity';
 
 const HIGHLIGHT_ARTISTS = [
   'dr bacon',
@@ -122,22 +131,13 @@ export class NewsletterCatalogService {
     );
 
     const concerts = await this.concertRepository.find({
-      where: {
-        startsAt: Between(query.start, query.end),
-        catalogStatus: ConcertCatalogStatus.ACTIVE,
-        isAdminApproved: true,
-      },
+      where: this.buildWhere(query),
       relations: ['venue', 'lineup', 'lineup.band'],
       order: { startsAt: 'ASC' },
-      take: query.limit ? MAX_NEWSLETTER_CATALOG_SCAN_RESULTS : undefined,
+      take: query.limit,
     });
 
-    const filtered = concerts.filter((concert) =>
-      this.matchesFilters(concert, query),
-    );
-    const selected = query.limit ? filtered.slice(0, query.limit) : filtered;
-
-    return selected.map((concert) => this.toNewsletterSource(concert));
+    return concerts.map((concert) => this.toNewsletterSource(concert));
   }
 
   private validateQuery(query: ApprovedNewsletterConcertQuery): void {
@@ -176,53 +176,60 @@ export class NewsletterCatalogService {
     }
   }
 
-  private matchesFilters(
-    concert: Concert,
-    filters: NewsletterCatalogFilters,
-  ): boolean {
-    if (filters.excludeConcertIds?.includes(concert.id)) return false;
-    if (filters.featuredOnly && !concert.isFeatured) return false;
-    if (filters.topPicksOnly && !concert.isTopPick) return false;
+  private buildWhere(
+    query: ApprovedNewsletterConcertQuery,
+  ): FindOptionsWhere<Concert> {
+    const where: FindOptionsWhere<Concert> = {
+      startsAt: Between(query.start, query.end),
+      catalogStatus: ConcertCatalogStatus.ACTIVE,
+      isAdminApproved: true,
+    };
 
-    const region = this.normalize(concert.venue?.region);
-    const city = this.normalize(concert.venue?.city);
-    const genre = this.normalize(concert.genre);
-    const venue = this.normalize(concert.venue?.name);
+    if (query.excludeConcertIds?.length) {
+      where.id = Not(In([...new Set(query.excludeConcertIds)]));
+    }
+    if (query.featuredOnly) where.isFeatured = true;
+    if (query.topPicksOnly) where.isTopPick = true;
 
-    if (filters.strictFiltering) {
-      return (
-        this.isNorthCarolina(region) &&
-        LEGACY_TARGET_CITIES.some((target) => city.includes(target)) &&
-        LEGACY_TARGET_GENRES.some((target) => genre.includes(target))
-      );
+    const venueWhere: FindOptionsWhere<Venue> = {};
+    if (query.strictFiltering) {
+      venueWhere.region = this.regionOperator('nc');
+      venueWhere.city = this.containsAnyOperator(LEGACY_TARGET_CITIES);
+      where.genre = this.containsAnyOperator(LEGACY_TARGET_GENRES);
+    } else {
+      if (query.region) venueWhere.region = this.regionOperator(query.region);
+      const cityFilter = this.containsAnyOperator(query.cities);
+      if (cityFilter) venueWhere.city = cityFilter;
+      const venueFilter = this.containsAnyOperator(query.venues);
+      if (venueFilter) venueWhere.name = venueFilter;
+      const genreFilter = this.containsAnyOperator(query.genres);
+      if (genreFilter) where.genre = genreFilter;
     }
 
-    if (filters.region && !this.regionsMatch(region, filters.region))
-      return false;
-    if (!this.matchesAny(city, filters.cities)) return false;
-    if (!this.matchesAny(genre, filters.genres)) return false;
-    if (!this.matchesAny(venue, filters.venues)) return false;
-
-    return true;
+    if (Object.keys(venueWhere).length) where.venue = venueWhere;
+    return where;
   }
 
-  private matchesAny(value: string, candidates?: string[]): boolean {
-    const normalizedCandidates = (candidates || [])
+  private containsAnyOperator(
+    candidates?: string[],
+  ): FindOperator<string> | undefined {
+    const normalized = (candidates || [])
       .map((candidate) => this.normalize(candidate))
       .filter(Boolean);
-    return (
-      normalizedCandidates.length === 0 ||
-      normalizedCandidates.some((candidate) => value.includes(candidate))
+    if (!normalized.length) return undefined;
+    return Or(
+      ...normalized.map((candidate) =>
+        ILike(`%${this.escapeLikePattern(candidate)}%`),
+      ),
     );
   }
 
-  private regionsMatch(
-    concertRegion: string,
-    requestedRegion: string,
-  ): boolean {
-    const target = this.normalize(requestedRegion);
-    if (concertRegion === target) return true;
-    return this.isNorthCarolina(concertRegion) && this.isNorthCarolina(target);
+  private regionOperator(region: string): FindOperator<string> {
+    const normalized = this.normalize(region);
+    const accepted = this.isNorthCarolina(normalized)
+      ? ['nc', 'north carolina']
+      : [normalized];
+    return Or(...accepted.map((candidate) => ILike(candidate)));
   }
 
   private isNorthCarolina(region: string): boolean {
@@ -231,6 +238,10 @@ export class NewsletterCatalogService {
 
   private normalize(value?: string | null): string {
     return (value || '').toLowerCase().trim();
+  }
+
+  private escapeLikePattern(value: string): string {
+    return value.replace(/[\\%_]/g, '\\$&');
   }
 
   private toNewsletterSource(concert: Concert): NewsletterCatalogConcert {

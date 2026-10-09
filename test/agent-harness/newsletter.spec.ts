@@ -3,7 +3,12 @@ import { readFileSync, readdirSync } from 'node:fs';
 import * as path from 'node:path';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
-import { FindManyOptions, FindOperator, Repository } from 'typeorm';
+import {
+  FindManyOptions,
+  FindOperator,
+  FindOptionsWhere,
+  Repository,
+} from 'typeorm';
 import {
   Concert,
   ConcertCatalogStatus,
@@ -60,6 +65,74 @@ const scenarios: Scenario[] = readdirSync(fixtureDirectory)
       ) as Scenario,
   );
 
+function sqlPatternToRegex(pattern: string): RegExp {
+  let source = '^';
+  for (let index = 0; index < pattern.length; index += 1) {
+    const character = pattern[index];
+    if (character === '\\' && index + 1 < pattern.length) {
+      index += 1;
+      source += pattern[index].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    } else if (character === '%') {
+      source += '.*';
+    } else if (character === '_') {
+      source += '.';
+    } else {
+      source += character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+  }
+  return new RegExp(`${source}$`, 'i');
+}
+
+function matchesOperator(actual: unknown, operator: FindOperator<unknown>) {
+  switch (operator.type) {
+    case 'between': {
+      const [start, end] = operator.value as Date[];
+      return actual instanceof Date && actual >= start && actual <= end;
+    }
+    case 'ilike':
+      return sqlPatternToRegex(String(operator.value)).test(
+        String(actual ?? ''),
+      );
+    case 'in':
+      return (operator.value as unknown[]).includes(actual);
+    case 'not':
+      if (!operator.child) throw new Error('Expected nested NOT operator.');
+      return !matchesOperator(actual, operator.child);
+    case 'or':
+      return (operator.value as FindOperator<unknown>[]).some((candidate) =>
+        matchesOperator(actual, candidate),
+      );
+    default:
+      throw new Error(`Unsupported fixture FindOperator: ${operator.type}`);
+  }
+}
+
+function matchesWhere(
+  row: Record<string, unknown>,
+  where: FindOptionsWhere<Concert>,
+): boolean {
+  return Object.entries(where).every(([key, expected]) => {
+    const actual = row[key];
+    if (expected instanceof FindOperator) {
+      return matchesOperator(actual, expected);
+    }
+    if (
+      expected &&
+      typeof expected === 'object' &&
+      !(expected instanceof Date)
+    ) {
+      return (
+        Boolean(actual) &&
+        matchesWhere(
+          actual as Record<string, unknown>,
+          expected as FindOptionsWhere<Concert>,
+        )
+      );
+    }
+    return actual === expected;
+  });
+}
+
 function setup(
   catalogIds: string[],
   configOverrides: Record<string, string> = {},
@@ -68,20 +141,14 @@ function setup(
   // Apply the query's actual predicates; omitted approval/status filters must leak
   // fixture rows and fail expectations rather than be hidden by the repository fake.
   const find = jest.fn((options: FindManyOptions<Concert>) => {
-    const where = options.where as Record<string, unknown>;
+    const where = options.where as FindOptionsWhere<Concert>;
+    const matched = rows
+      .filter((row) =>
+        matchesWhere(row as unknown as Record<string, unknown>, where),
+      )
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
     return Promise.resolve(
-      rows
-        .filter((row) =>
-          Object.entries(where).every(([key, value]) => {
-            if (value instanceof FindOperator) {
-              expect(value.type).toBe('between');
-              const [start, end] = value.value as Date[];
-              return row.startsAt >= start && row.startsAt <= end;
-            }
-            return row[key] === value;
-          }),
-        )
-        .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
+      options.take === undefined ? matched : matched.slice(0, options.take),
     );
   });
   const configValues: Record<string, string | undefined> = {
