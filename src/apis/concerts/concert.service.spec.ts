@@ -181,6 +181,10 @@ describe('ConcertService', () => {
       'concert.catalogStatus = :activeCatalogStatus',
       { activeCatalogStatus: ConcertCatalogStatus.ACTIVE },
     );
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      'concert.isAdminApproved = :isAdminApproved',
+      { isAdminApproved: true },
+    );
     expect(qb.setParameter).toHaveBeenCalledWith('currentUserId', null);
     expect(qb.addSelect).toHaveBeenCalledTimes(8);
     expect(qb.groupBy).not.toHaveBeenCalled();
@@ -258,6 +262,10 @@ describe('ConcertService', () => {
     } as ListAdminConcertsDto);
 
     expect(qb.where).not.toHaveBeenCalled();
+    expect(qb.andWhere).not.toHaveBeenCalledWith(
+      'concert.isAdminApproved = :isAdminApproved',
+      expect.anything(),
+    );
   });
 
   it('returns complete decorated metadata for admin detail responses', async () => {
@@ -421,6 +429,46 @@ describe('ConcertService', () => {
     );
   });
 
+  it('keeps approved concerts under admin control for owner edits and deletes', async () => {
+    concertRepository.findOne.mockResolvedValue({
+      id: 'concert-1',
+      version: 6,
+      catalogStatus: ConcertCatalogStatus.ACTIVE,
+      editorialLockedAt: null,
+      isAdminApproved: true,
+    });
+
+    await expect(
+      service.updateForOwner('concert-1', owner, { title: 'Changed title' }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      service.removeForOwner('concert-1', owner),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(concertRepository.manager.transaction).not.toHaveBeenCalled();
+    expect(concertRepository.createQueryBuilder).not.toHaveBeenCalled();
+  });
+
+  it('rejects an owner edit if approval wins the version race', async () => {
+    const updateQb = createQueryBuilderMock();
+    concertRepository.findOne.mockResolvedValue({
+      id: 'concert-1',
+      version: 6,
+      catalogStatus: ConcertCatalogStatus.ACTIVE,
+      editorialLockedAt: null,
+      isAdminApproved: false,
+    });
+    concertRepository.manager.createQueryBuilder.mockReturnValue(updateQb);
+    updateQb.execute.mockResolvedValue({ affected: 0 });
+
+    await expect(
+      service.updateForOwner('concert-1', owner, { title: 'Changed title' }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(updateQb.andWhere).toHaveBeenCalledWith('is_admin_approved = false');
+    expect(concertRepository.manager.delete).not.toHaveBeenCalled();
+  });
+
   it('deletes an owner concert only while the observed active record remains current', async () => {
     const deleteQb = createQueryBuilderMock();
     concertRepository.findOne.mockResolvedValue({
@@ -447,6 +495,7 @@ describe('ConcertService', () => {
     expect(deleteQb.andWhere).toHaveBeenCalledWith(
       'editorial_locked_at IS NULL',
     );
+    expect(deleteQb.andWhere).toHaveBeenCalledWith('is_admin_approved = false');
   });
 
   it('rejects owner deletion when an admin update wins the race', async () => {
@@ -494,6 +543,28 @@ describe('ConcertService', () => {
       upvotedByMe: true,
       trendingWeekUpvotes: 1,
     });
+    expect(concertRepository.findOne).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not return engagement if approval is revoked during an upvote', async () => {
+    const insertQb = createQueryBuilderMock();
+    const engagementQb = createQueryBuilderMock();
+    concertRepository.findOne
+      .mockResolvedValueOnce({ id: 'concert-1' })
+      .mockResolvedValueOnce(null);
+    concertUpvoteRepository.createQueryBuilder
+      .mockReturnValueOnce(insertQb)
+      .mockReturnValueOnce(engagementQb);
+    insertQb.execute.mockResolvedValue(undefined);
+    engagementQb.getRawOne.mockResolvedValue({
+      upvote_count: '1',
+      upvoted_by_me_count: '1',
+      trending_week_upvotes: '1',
+    });
+
+    await expect(service.upvote('concert-1', owner)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('deletes the current user upvote and returns current engagement', async () => {
@@ -524,16 +595,21 @@ describe('ConcertService', () => {
       expect.stringContaining('concert.catalog_status = :activeCatalogStatus'),
       { activeCatalogStatus: ConcertCatalogStatus.ACTIVE },
     );
+    expect(deleteQb.andWhere).toHaveBeenCalledWith(
+      expect.stringContaining('concert.is_admin_approved = true'),
+      { activeCatalogStatus: ConcertCatalogStatus.ACTIVE },
+    );
     expect(result.upvotedByMe).toBe(false);
     expect(concertRepository.findOne).toHaveBeenNthCalledWith(2, {
       where: {
         id: 'concert-1',
         catalogStatus: ConcertCatalogStatus.ACTIVE,
+        isAdminApproved: true,
       },
     });
   });
 
-  it.each(['hidden-concert', 'archived-concert'])(
+  it.each(['hidden-concert', 'archived-concert', 'unapproved-concert'])(
     'does not expose %s through upvote deletion',
     async (concertId) => {
       concertRepository.findOne.mockResolvedValue(null);
@@ -576,7 +652,7 @@ describe('ConcertService', () => {
     expect(concertUpvoteRepository.createQueryBuilder).not.toHaveBeenCalled();
   });
 
-  it('only accepts new upvotes for active concerts', async () => {
+  it('only accepts new upvotes for active, approved concerts', async () => {
     concertRepository.findOne.mockResolvedValue(null);
 
     await expect(
@@ -587,6 +663,7 @@ describe('ConcertService', () => {
       where: {
         id: 'hidden-concert',
         catalogStatus: ConcertCatalogStatus.ACTIVE,
+        isAdminApproved: true,
       },
     });
   });

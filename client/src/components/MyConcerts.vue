@@ -15,6 +15,9 @@
           <h3>{{ concert.title }}</h3>
           <span class="genre-chip">{{ concert.genre }}</span>
         </div>
+        <p class="concert-meta">
+          {{ concert.isAdminApproved ? 'Approved' : 'Pending approval' }}
+        </p>
         <p class="concert-meta">{{ formatDate(concert.startsAt) }}</p>
         <p class="concert-meta">{{ formatVenue(concert.venue) }}</p>
         <p v-if="concert.lineup.length" class="concert-meta">
@@ -24,6 +27,18 @@
           {{ concert.description }}
         </p>
       </article>
+      <button
+        v-if="concerts.length < total"
+        type="button"
+        class="load-more"
+        :disabled="loadingMore"
+        @click="loadConcerts(page + 1)"
+      >
+        {{ loadingMore ? 'Loading...' : 'Load more' }}
+      </button>
+      <p v-if="loadMoreError" class="state-text state-text--error">
+        {{ loadMoreError }}
+      </p>
     </div>
 
     <p v-else class="state-text">
@@ -46,27 +61,50 @@ const { user } = useAuth();
 
 const concerts = ref<ConcertApiItem[]>([]);
 const loading = ref(false);
+const loadingMore = ref(false);
 const error = ref('');
+const loadMoreError = ref('');
+const page = ref(1);
+const total = ref(0);
+let requestGeneration = 0;
 
-const loadConcerts = async () => {
-  if (!user.value) {
-    concerts.value = [];
-    error.value = '';
-    loading.value = false;
-    return;
+const loadConcerts = async (nextPage = 1) => {
+  const currentUser = user.value;
+  if (!currentUser) return;
+  const append = nextPage > 1;
+  if (append && (loading.value || loadingMore.value)) return;
+  const requestId = ++requestGeneration;
+  if (append) loadingMore.value = true;
+  else {
+    loading.value = true;
+    loadingMore.value = false;
+    loadMoreError.value = '';
   }
-
-  loading.value = true;
-  error.value = '';
+  if (append) loadMoreError.value = '';
+  else error.value = '';
 
   try {
-    const token = await user.value.getIdToken();
-    const response = await fetchUserConcerts(token);
-    concerts.value = Array.isArray(response?.data) ? response.data : [];
+    const token = await currentUser.getIdToken();
+    if (requestId !== requestGeneration || user.value !== currentUser) return;
+    const response = await fetchUserConcerts(token, {
+      sort: 'recently_added',
+      page: nextPage,
+      pageSize: 20,
+    });
+    if (requestId !== requestGeneration || user.value !== currentUser) return;
+    const results = Array.isArray(response?.data) ? response.data : [];
+    concerts.value = append ? [...concerts.value, ...results] : results;
+    page.value = response.page;
+    total.value = response.total;
   } catch {
-    error.value = 'Unable to load your concerts right now.';
+    if (requestId !== requestGeneration) return;
+    if (append) loadMoreError.value = 'Unable to load more concerts right now.';
+    else error.value = 'Unable to load your concerts right now.';
   } finally {
-    loading.value = false;
+    if (requestId === requestGeneration) {
+      if (append) loadingMore.value = false;
+      else loading.value = false;
+    }
   }
 };
 
@@ -101,6 +139,14 @@ const handleConcertsChanged = () => {
 watch(
   user,
   () => {
+    requestGeneration += 1;
+    concerts.value = [];
+    total.value = 0;
+    page.value = 1;
+    loading.value = false;
+    loadingMore.value = false;
+    error.value = '';
+    loadMoreError.value = '';
     void loadConcerts();
   },
   { immediate: true },
@@ -163,6 +209,21 @@ onBeforeUnmount(() => {
 
 .concert-description {
   margin: 0.75rem 0 0;
+}
+
+.load-more {
+  justify-self: start;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: inherit;
+  cursor: pointer;
+}
+
+.load-more:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 .state-text {

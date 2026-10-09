@@ -216,8 +216,9 @@ export async function createBand(
 export async function fetchUserConcerts(
   token: string,
   params?: {
-    sort?: 'soonest' | 'featured' | 'trending_week';
+    sort?: 'soonest' | 'recently_added' | 'featured' | 'trending_week';
     startsAfter?: string;
+    page?: number;
     pageSize?: number;
   },
 ): Promise<ConcertApiResponse> {

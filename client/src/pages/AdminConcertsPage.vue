@@ -457,9 +457,9 @@ async function toggleApproval(concert: ConcertApiItem) {
   const nextApproved = !concert.isAdminApproved;
   try {
     const authToken = await token();
-    await setConcertApproval(authToken, concert.id, nextApproved);
-    concert.isAdminApproved = nextApproved;
-    notice.value = `${concert.title} is now ${nextApproved ? 'approved' : 'unapproved'} for Top Picks.`;
+    const updated = await setConcertApproval(authToken, concert.id, nextApproved);
+    Object.assign(concert, updated);
+    notice.value = `${concert.title} is now ${nextApproved ? 'approved for public discovery when active' : 'removed from public discovery'}.`;
   } catch (reason) {
     error.value = getMessage(reason, 'Unable to update approval status.');
   } finally {
@@ -626,9 +626,9 @@ onMounted(async () => {
             <span
               v-if="concert.isAdminApproved"
               class="status status--approved"
-              title="Approved for Top Picks Weekly newsletter"
+              title="Approved for public discovery and Top Picks eligibility"
             >
-              Top Pick Approved
+              Approved
             </span>
             <span
               v-if="concert.syncSource"
@@ -650,7 +650,9 @@ onMounted(async () => {
             :disabled="savingId === concert.id"
             @click="toggleApproval(concert)"
           >
-            {{ concert.isAdminApproved ? 'Unapprove Top Pick' : 'Approve Top Pick' }}
+            {{
+              concert.isAdminApproved ? 'Revoke approval' : 'Approve listing'
+            }}
           </button>
           <button
             type="button"

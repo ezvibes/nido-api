@@ -95,7 +95,11 @@ export class ConcertResponseDto {
   })
   topPickRefreshedAt?: string | null;
 
-  @ApiProperty({ example: false })
+  @ApiProperty({
+    description:
+      'Admin approval for public discovery and Top Picks eligibility.',
+    example: false,
+  })
   isAdminApproved: boolean;
 
   @ApiPropertyOptional({
