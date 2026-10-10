@@ -69,37 +69,41 @@ flowchart TD
     O --> P["Verify hosted frontend responds"]
 ```
 
-## Terraform: A Staged Transition
+## Terraform Dev API Deployment
 
-**Default path today:** GitHub Actions builds a commit-specific API image, deploys and executes
-the Cloud Run migration job when enabled, then deploys the API service with
-`gcloud run deploy`. It verifies the API before deploying Firebase Hosting.
-Terraform is not part of this default release path. The agent session and memory
-tables from [#122](https://github.com/ezvibes/nido-api/pull/122) reinforce why
+**Dev path today:** GitHub Actions builds a commit-specific API image, deploys
+and executes the Cloud Run migration job when enabled, then updates the API
+service with Terraform. It verifies the API before deploying Firebase Hosting.
+The agent session and memory tables from
+[#122](https://github.com/ezvibes/nido-api/pull/122) reinforce why
 database migrations must finish before the new API revision starts.
 
-**Proposed:** Terraform would own the Cloud Run API service configuration **and
-the exact release image**, with GitHub Actions still coordinating image build,
+**Ownership:** Terraform manages the dev Cloud Run API service configuration **and
+the exact release image**, with GitHub Actions coordinating image build,
 the migration job, verification, and the existing Firebase Hosting deploy. The
 database, migration job, private network, and Firebase Hosting are outside this
 first Terraform ownership boundary. This is a handoff of one release step, not
 an additional deployer of the same service.
 
-The transition requires a protected, versioned GCS state backend; manual import
-of the existing API service; configuration parity against the live service; a
-reviewed plan with no unexpected changes; and maintainer approval. The workflow
-feature flag `TF_API_DEPLOY_ENABLED` defaults to the current `gcloud` path and
-can enable a controlled dev cutover only after those gates pass. Once enabled,
-the workflow accepts image-only Terraform updates and stops on configuration
-drift. The dev state/import, same-image rollback drill, and a successful
+The transition required a protected, versioned GCS state backend; import of the
+existing API service; configuration parity; a reviewed plan; and maintainer
+approval. The dev environment now sets `TF_API_DEPLOY_ENABLED=true`, and only
+`main` may deploy to it. There is no per-deployment reviewer gate; merges still
+trigger the workflow automatically. The workflow accepts image-only Terraform
+updates and stops on configuration drift. The dev state/import, same-image
+rollback drill, and a successful
 [feature-branch CI deployment](https://github.com/ezvibes/nido-api/actions/runs/38017106758)
 were verified on 2026-10-09. That run completed the migration job before the
 Terraform API apply, passed API health and public-feed checks, and deployed
 Firebase Hosting. The authenticated-feed check was skipped because its optional
 test credential was unavailable. Revision `nido-api-00062-cfg` received 100%
-of dev traffic. The temporary workflow flag was reset to `false` afterward;
-no permanent automated cutover has occurred. Production
-would need its own review. [Issue #119](https://github.com/ezvibes/nido-api/issues/119)
+of dev traffic. The subsequent
+[main-branch Terraform deployment](https://github.com/ezvibes/nido-api/actions/runs/38064755046)
+passed on 2026-10-10 and placed revision `nido-api-00064-nx2` at 100% dev
+traffic. API health, public-feed, and Firebase Hosting checks passed. The
+authenticated-feed check remains skipped because its optional test credential
+is not configured. Production needs its own review.
+[Issue #119](https://github.com/ezvibes/nido-api/issues/119)
 keeps private Cloud SQL networking separate from this change.
 
 State and saved plans can contain sensitive values, so access must be limited
