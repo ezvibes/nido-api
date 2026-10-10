@@ -7,6 +7,10 @@ resource "google_cloud_run_v2_service" "nido_api" {
   ingress             = "INGRESS_TRAFFIC_ALL"
   deletion_protection = true
 
+  scaling {
+    min_instance_count = 0
+  }
+
   template {
     service_account                  = var.runtime_service_account
     max_instance_request_concurrency = var.cloud_run_concurrency
@@ -29,6 +33,7 @@ resource "google_cloud_run_v2_service" "nido_api" {
           cpu    = var.cloud_run_cpu
           memory = var.cloud_run_memory
         }
+        cpu_idle          = true
         startup_cpu_boost = true
       }
 
@@ -83,5 +88,6 @@ resource "google_cloud_run_v2_service" "nido_api" {
 
   lifecycle {
     prevent_destroy = true
+    ignore_changes  = [client, client_version]
   }
 }
