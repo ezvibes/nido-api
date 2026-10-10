@@ -91,7 +91,9 @@ reviewed plan with no unexpected changes; and maintainer approval. The workflow
 feature flag `TF_API_DEPLOY_ENABLED` defaults to the current `gcloud` path and
 can enable a controlled dev cutover only after those gates pass. Once enabled,
 the workflow accepts image-only Terraform updates and stops on configuration
-drift. No such cutover has occurred. Production
+drift. The dev state/import and a same-image Terraform rollback rehearsal were
+verified on 2026-10-09, but the automated workflow flag is still off. No
+automated cutover has occurred. Production
 would need its own review. [Issue #119](https://github.com/ezvibes/nido-api/issues/119)
 keeps private Cloud SQL networking separate from this change.
 
