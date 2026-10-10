@@ -65,6 +65,13 @@ firebase-creds.json
 nido-api-08fa5f15fac1.json
 .firebase/
 
+# Terraform local state and provider cache; commit .terraform.lock.hcl after init.
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfplan
+**/tfplan
+
 # Local docs and planning docs
 /docs/
 /src/docs/*

@@ -15,8 +15,8 @@ on:
       - main
 
 concurrency:
-  group: deploy-dev-${{ github.ref }}
-  cancel-in-progress: true
+  group: deploy-dev-${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'dev' }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -36,6 +36,8 @@ jobs:
       VITE_ADMIN_EMAILS: ${{ vars.VITE_ADMIN_EMAILS }}
       ADMIN_EMAILS_OVERRIDE: ${{ vars.ADMIN_EMAILS }}
       DEV_SMOKE_FIREBASE_REFRESH_TOKEN: ${{ secrets.DEV_SMOKE_FIREBASE_REFRESH_TOKEN }}
+      TF_API_DEPLOY_ENABLED: ${{ vars.TF_API_DEPLOY_ENABLED || 'false' }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
 
     steps:
       - name: Check out repository
@@ -144,6 +146,13 @@ jobs:
           : "${FIREBASE_PRIVATE_KEY_SECRET:?Missing FIREBASE_PRIVATE_KEY_SECRET in deployment config}"
           : "${GEMINI_API_KEY_SECRET:?Missing GEMINI_API_KEY_SECRET in deployment config}"
           : "${GOOGLE_CALENDAR_PRIVATE_KEY_SECRET:?Missing GOOGLE_CALENDAR_PRIVATE_KEY_SECRET in deployment config}"
+          case "$TF_API_DEPLOY_ENABLED" in
+            true|false) ;;
+            *) echo "TF_API_DEPLOY_ENABLED must be true or false" >&2; exit 1 ;;
+          esac
+          if [ "$TF_API_DEPLOY_ENABLED" = true ]; then
+            : "${TF_STATE_BUCKET:?Set the dev environment variable TF_STATE_BUCKET before enabling Terraform deploy}"
+          fi
 
       - name: Set up Node
         uses: actions/setup-node@v6
@@ -181,6 +190,21 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
 
+      - name: Set up Terraform for API deploy
+        if: env.TF_API_DEPLOY_ENABLED == 'true'
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: '1.14.6'
+          terraform_wrapper: false
+
+      - name: Verify Terraform state and imported API service
+        if: env.TF_API_DEPLOY_ENABLED == 'true'
+        run: |
+          terraform -chdir=terraform init -input=false -lockfile=readonly \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="prefix=${DEPLOY_ENV}/nido-api"
+          terraform -chdir=terraform state show google_cloud_run_v2_service.nido_api >/dev/null
+
       - name: Resolve client API base URL
         run: |
           if [ -z "$VITE_API_BASE_URL" ]; then
@@ -206,6 +230,7 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Build and push API container
+        id: build_api
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -214,6 +239,25 @@ jobs:
           tags: ${{ env.IMAGE }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Plan imported Cloud Run service update
+        if: env.TF_API_DEPLOY_ENABLED == 'true'
+        env:
+          IMAGE_DIGEST: ${{ steps.build_api.outputs.digest }}
+        run: |
+          : "${IMAGE_DIGEST:?Missing immutable container image digest}"
+          export TERRAFORM_API_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}@${IMAGE_DIGEST}"
+          TF_VARS_FILE="${RUNNER_TEMP}/nido-api-${GITHUB_RUN_ID}.tfvars.json"
+          TF_PLAN_FILE="${RUNNER_TEMP}/nido-api-${GITHUB_RUN_ID}.tfplan"
+          node .github/scripts/render-terraform-vars.mjs "$TF_VARS_FILE"
+          echo "TF_VARS_FILE=$TF_VARS_FILE" >> "$GITHUB_ENV"
+          echo "TF_PLAN_FILE=$TF_PLAN_FILE" >> "$GITHUB_ENV"
+
+          terraform -chdir=terraform plan -input=false -lock-timeout=5m \
+            -var-file="$TF_VARS_FILE" -out="$TF_PLAN_FILE" >/dev/null
+          terraform -chdir=terraform show -json "$TF_PLAN_FILE" |
+            node .github/scripts/validate-terraform-plan.mjs "$TERRAFORM_API_IMAGE"
+          echo "Terraform plan changes only the API image or is a no-op."
 
       - name: Run database migrations
         if: env.RUN_MIGRATIONS == 'true'
@@ -239,6 +283,7 @@ jobs:
             --wait
 
       - name: Deploy API to Cloud Run
+        if: env.TF_API_DEPLOY_ENABLED != 'true'
         run: |
           RUN_ENVS="^|^NODE_ENV=production|DB_HOST=/cloudsql/${SQL_CONNECTION}|DB_PORT=5432|DB_USER=${DB_USER}|DB_NAME=${DB_NAME}|DB_SYNCHRONIZE=false|DB_MIGRATIONS_RUN=${DB_MIGRATIONS_RUN}|DB_MIGRATION_TRANSACTION_MODE=${DB_MIGRATION_TRANSACTION_MODE}|FIREBASE_PROJECT_ID=${PROJECT_ID}|FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@${PROJECT_ID}.iam.gserviceaccount.com|ADMIN_EMAILS=${ADMIN_EMAILS}|GCS_INGESTION_BUCKET=${GCS_INGESTION_BUCKET}|GEMINI_MODEL=${GEMINI_MODEL}|CONCERT_GENRE_OPTIONS=${CONCERT_GENRE_OPTIONS}|CONCERT_SYNC_GEMINI_ENABLED=${CONCERT_SYNC_GEMINI_ENABLED}|CONCERT_SYNC_MAX_EVENTS_PER_JOB=${CONCERT_SYNC_MAX_EVENTS_PER_JOB}|GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL=${GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL}|CORS_ORIGINS=${CORS_ORIGINS}"
           RUN_SECRETS="DB_PASSWORD=${DB_PASSWORD_SECRET},FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY_SECRET},GEMINI_API_KEY=${GEMINI_API_KEY_SECRET},GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY=${GOOGLE_CALENDAR_PRIVATE_KEY_SECRET}"
@@ -259,6 +304,14 @@ jobs:
             --max-instances "$CLOUD_RUN_MAX_INSTANCES" \
             --set-env-vars "$RUN_ENVS" \
             --set-secrets "$RUN_SECRETS"
+
+      - name: Deploy API with validated Terraform plan
+        if: env.TF_API_DEPLOY_ENABLED == 'true'
+        run: terraform -chdir=terraform apply -input=false -lock-timeout=5m "$TF_PLAN_FILE"
+
+      - name: Remove temporary Terraform plan and variables
+        if: always() && env.TF_API_DEPLOY_ENABLED == 'true'
+        run: rm -f "${TF_VARS_FILE:-}" "${TF_PLAN_FILE:-}"
 
       - name: Resolve deployed Cloud Run API URL
         run: |
