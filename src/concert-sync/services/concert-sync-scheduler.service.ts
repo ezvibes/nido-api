@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnApplicationBootstrap,
+  OnApplicationShutdown,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -6,7 +11,9 @@ import { ConcertSyncService } from '../concert-sync.service';
 import { User } from '../../apis/users/entities/user.entity';
 
 @Injectable()
-export class ConcertSyncSchedulerService implements OnApplicationBootstrap, OnApplicationShutdown {
+export class ConcertSyncSchedulerService
+  implements OnApplicationBootstrap, OnApplicationShutdown
+{
   private readonly logger = new Logger(ConcertSyncSchedulerService.name);
   private timer?: NodeJS.Timeout;
 
@@ -18,26 +25,39 @@ export class ConcertSyncSchedulerService implements OnApplicationBootstrap, OnAp
   ) {}
 
   async onApplicationBootstrap() {
-    const enabled = this.configService.get<string>('CONCERT_SYNC_SCHEDULER_ENABLED') === 'true';
+    const enabled =
+      this.configService.get<string>('CONCERT_SYNC_SCHEDULER_ENABLED') ===
+      'true';
     if (!enabled) {
       this.logger.log('Concert sync background scheduler is disabled.');
       return;
     }
 
-    const pollMs = Number(this.configService.get<number>('CONCERT_SYNC_SCHEDULER_POLL_MS') || 3600000); // Default to 1 hour if not set or invalid
-    this.logger.log(`Starting concert sync background scheduler with interval of ${pollMs}ms...`);
+    const pollMs = Number(
+      this.configService.get<number>('CONCERT_SYNC_SCHEDULER_POLL_MS') ||
+        3600000,
+    ); // Default to 1 hour if not set or invalid
+    this.logger.log(
+      `Starting concert sync background scheduler with interval of ${pollMs}ms...`,
+    );
 
     // Run first sync immediately in the background after startup (wait 5s for app to stabilize)
     setTimeout(() => {
-      this.runScheduledSync().catch(err => {
-        this.logger.error(`Error in initial background sync run: ${err.message}`, err.stack);
+      this.runScheduledSync().catch((err) => {
+        this.logger.error(
+          `Error in initial background sync run: ${err.message}`,
+          err.stack,
+        );
       });
     }, 5000);
 
     // Setup interval
     this.timer = setInterval(() => {
-      this.runScheduledSync().catch(err => {
-        this.logger.error(`Error in scheduled background sync run: ${err.message}`, err.stack);
+      this.runScheduledSync().catch((err) => {
+        this.logger.error(
+          `Error in scheduled background sync run: ${err.message}`,
+          err.stack,
+        );
       });
     }, pollMs);
   }
@@ -55,7 +75,9 @@ export class ConcertSyncSchedulerService implements OnApplicationBootstrap, OnAp
     // 1. Find or create a default user for owning the synced concerts
     const owner = await this.resolveSyncUser();
     if (!owner) {
-      this.logger.warn('No user found or created to own background sync jobs. Skipping sync.');
+      this.logger.warn(
+        'No user found or created to own background sync jobs. Skipping sync.',
+      );
       return;
     }
 
@@ -86,7 +108,10 @@ export class ConcertSyncSchedulerService implements OnApplicationBootstrap, OnAp
           refreshTopPicks: true,
         });
       } catch (err) {
-        this.logger.error(`Failed to start scheduled sync job for calendar ${calendarId}: ${err.message}`, err.stack);
+        this.logger.error(
+          `Failed to start scheduled sync job for calendar ${calendarId}: ${err.message}`,
+          err.stack,
+        );
       }
     }
   }
@@ -97,12 +122,16 @@ export class ConcertSyncSchedulerService implements OnApplicationBootstrap, OnAp
     const adminEmail = adminEmailsStr.split(',')[0]?.trim();
 
     if (adminEmail) {
-      const user = await this.userRepository.findOne({ where: { email: adminEmail } });
+      const user = await this.userRepository.findOne({
+        where: { email: adminEmail },
+      });
       if (user) return user;
     }
 
     // 2. Try by system sync bot uid
-    const botUser = await this.userRepository.findOne({ where: { uid: 'sync-bot-system-uid' } });
+    const botUser = await this.userRepository.findOne({
+      where: { uid: 'sync-bot-system-uid' },
+    });
     if (botUser) return botUser;
 
     // 3. Try to find any user
@@ -113,8 +142,12 @@ export class ConcertSyncSchedulerService implements OnApplicationBootstrap, OnAp
     try {
       const email = adminEmail || 'ezvibesinc@gmail.com';
       // Ensure the email is not already taken by some other user
-      const existingByEmail = await this.userRepository.findOne({ where: { email } });
-      const finalEmail = existingByEmail ? `sync-bot-${Date.now()}@example.com` : email;
+      const existingByEmail = await this.userRepository.findOne({
+        where: { email },
+      });
+      const finalEmail = existingByEmail
+        ? `sync-bot-${Date.now()}@example.com`
+        : email;
 
       return await this.userRepository.save(
         this.userRepository.create({
@@ -124,7 +157,10 @@ export class ConcertSyncSchedulerService implements OnApplicationBootstrap, OnAp
         }),
       );
     } catch (err) {
-      this.logger.error(`Failed to resolve/create system sync user: ${err.message}`, err.stack);
+      this.logger.error(
+        `Failed to resolve/create system sync user: ${err.message}`,
+        err.stack,
+      );
       return null;
     }
   }

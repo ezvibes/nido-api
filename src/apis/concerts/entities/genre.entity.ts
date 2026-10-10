@@ -22,7 +22,12 @@ export class Genre {
   @Column({ name: 'sort_order', type: 'integer', default: 0 })
   sortOrder: number;
 
-  @Column({ name: 'parent_genre_slug', type: 'varchar', length: 80, nullable: true })
+  @Column({
+    name: 'parent_genre_slug',
+    type: 'varchar',
+    length: 80,
+    nullable: true,
+  })
   parentGenreSlug?: string | null;
 
   @Column({ name: 'is_active', type: 'boolean', default: true })

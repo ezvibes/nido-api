@@ -154,6 +154,11 @@ export class AdminConcertController {
   ) {
     const profile = await this.userService.syncFromToken(user);
     const file = files?.file?.[0] ?? files?.image?.[0];
-    return this.ingestionService.attachPosterToConcert(id, file, user.uid, profile.id);
+    return this.ingestionService.attachPosterToConcert(
+      id,
+      file,
+      user.uid,
+      profile.id,
+    );
   }
 }

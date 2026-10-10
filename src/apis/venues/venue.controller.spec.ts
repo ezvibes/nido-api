@@ -54,7 +54,9 @@ describe('VenueController', () => {
     });
 
     it('should call findByCity on service when citySlug is provided', async () => {
-      const venues = [{ id: '1', name: 'Venue', citySlug: 'wilmington' }] as Venue[];
+      const venues = [
+        { id: '1', name: 'Venue', citySlug: 'wilmington' },
+      ] as Venue[];
       mockVenueService.findByCity.mockResolvedValue(venues);
 
       const result = await controller.findAll({ citySlug: 'wilmington' });
@@ -66,7 +68,13 @@ describe('VenueController', () => {
 
   describe('create', () => {
     it('should call create on service with correct DTO', async () => {
-      const dto = { name: 'Venue', city: 'Charlotte', citySlug: 'charlotte', region: 'NC', regionSlug: 'nc' };
+      const dto = {
+        name: 'Venue',
+        city: 'Charlotte',
+        citySlug: 'charlotte',
+        region: 'NC',
+        regionSlug: 'nc',
+      };
       const venue = { id: '1', ...dto } as Venue;
       mockVenueService.create.mockResolvedValue(venue);
 

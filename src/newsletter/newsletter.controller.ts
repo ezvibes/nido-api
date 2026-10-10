@@ -1,5 +1,11 @@
 import { Controller, Post, Body, UseGuards, HttpCode } from '@nestjs/common';
-import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { NewsletterService } from './newsletter.service';
 import { BeehiivService, BeehiivDraftResponse } from './beehiiv.service';
 import { GenerateNewsletterDto } from './dto/generate-newsletter.dto';

@@ -1,4 +1,8 @@
-import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { BeehiivService, BeehiivDraftResponse } from './beehiiv.service';
@@ -78,7 +82,8 @@ export class NewsletterService {
     }
 
     const modelName =
-      this.configService.get<string>('GEMINI_MODEL')?.trim() || DEFAULT_GEMINI_MODEL;
+      this.configService.get<string>('GEMINI_MODEL')?.trim() ||
+      DEFAULT_GEMINI_MODEL;
 
     const preview = await this.previewNewsletterSources(params);
     const combinedConcerts = [...preview.concerts, ...preview.calendarEvents];
@@ -100,7 +105,9 @@ export class NewsletterService {
       rawCalendarData: rawCalendarDump,
     });
 
-    this.logger.log(`Invoking Gemini API (${modelName}) to generate newsletter draft...`);
+    this.logger.log(
+      `Invoking Gemini API (${modelName}) to generate newsletter draft...`,
+    );
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: modelName });
@@ -121,7 +128,9 @@ export class NewsletterService {
         const postTitle = `EZ Vibes Top Picks: ${preview.dateRangeLabel}`;
         const htmlContent = this.convertMarkdownToHtml(text);
 
-        this.logger.log(`Auto-pushing generated newsletter to Beehiiv: "${postTitle}"`);
+        this.logger.log(
+          `Auto-pushing generated newsletter to Beehiiv: "${postTitle}"`,
+        );
         beehiivDraft = await this.beehiivService.createDraftFromHtml({
           title: postTitle,
           htmlContent: htmlContent,
@@ -135,8 +144,13 @@ export class NewsletterService {
         beehiivDraft,
       };
     } catch (err) {
-      this.logger.error(`Gemini API generation failed: ${err.message}`, err.stack);
-      throw new InternalServerErrorException(`Gemini generation failed: ${err.message}`);
+      this.logger.error(
+        `Gemini API generation failed: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        `Gemini generation failed: ${err.message}`,
+      );
     }
   }
 
@@ -237,7 +251,10 @@ export class NewsletterService {
         /- \*\*Featured Show Notes:\*\* \[Provided by Evan\]/g,
         `- **Featured Show Notes:** ${params.featuredShow || 'None'}`,
       )
-      .replace(/{{FEATURED_FESTIVAL}}/g, params.featuredFestival || 'None specified.')
+      .replace(
+        /{{FEATURED_FESTIVAL}}/g,
+        params.featuredFestival || 'None specified.',
+      )
       .replace(
         /- \*\*Featured Festival Notes:\*\* \[Provided by Evan\]/g,
         `- **Featured Festival Notes:** ${params.featuredFestival || 'None'}`,
@@ -396,17 +413,25 @@ export class NewsletterService {
         if (current) events.push(current);
         current = null;
       } else if (current) {
-        if (line.startsWith('SUMMARY:')) current.summary = line.replace('SUMMARY:', '');
-        if (line.startsWith('LOCATION:')) current.location = line.replace('LOCATION:', '');
-        if (line.startsWith('DESCRIPTION:')) current.description = line.replace('DESCRIPTION:', '');
-        if (line.startsWith('DTSTART:')) current.start = { dateTime: line.replace('DTSTART:', '') };
+        if (line.startsWith('SUMMARY:'))
+          current.summary = line.replace('SUMMARY:', '');
+        if (line.startsWith('LOCATION:'))
+          current.location = line.replace('LOCATION:', '');
+        if (line.startsWith('DESCRIPTION:'))
+          current.description = line.replace('DESCRIPTION:', '');
+        if (line.startsWith('DTSTART:'))
+          current.start = { dateTime: line.replace('DTSTART:', '') };
       }
     }
 
     return events;
   }
 
-  private isWithinRange(event: GoogleCalendarEvent, min?: string, max?: string): boolean {
+  private isWithinRange(
+    event: GoogleCalendarEvent,
+    min?: string,
+    max?: string,
+  ): boolean {
     if (!min || !max) return true;
     const startStr = event.start?.dateTime || event.start?.date;
     if (!startStr) return true;

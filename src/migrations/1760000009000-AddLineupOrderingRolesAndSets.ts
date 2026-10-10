@@ -74,6 +74,8 @@ export class AddLineupOrderingRolesAndSets1760000009000 implements MigrationInte
     // 3. Drop rich tables and columns
     await queryRunner.query('DROP TABLE IF EXISTS "concert_sets"');
     await queryRunner.query('DROP TABLE IF EXISTS "concert_band_lineups"');
-    await queryRunner.query('ALTER TABLE "bands" DROP COLUMN IF EXISTS "socials"');
+    await queryRunner.query(
+      'ALTER TABLE "bands" DROP COLUMN IF EXISTS "socials"',
+    );
   }
 }

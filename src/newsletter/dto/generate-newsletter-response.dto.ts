@@ -4,7 +4,9 @@ export class BeehiivDraftSummaryDto {
   @ApiProperty({ example: 'post_12345abc' })
   id: string;
 
-  @ApiProperty({ example: 'EZ Vibes Top Picks: Tuesday, Sep 8 - Sunday, Sep 13, 2026' })
+  @ApiProperty({
+    example: 'EZ Vibes Top Picks: Tuesday, Sep 8 - Sunday, Sep 13, 2026',
+  })
   title: string;
 
   @ApiProperty({ example: 'draft' })
@@ -27,7 +29,8 @@ export class GenerateNewsletterResponseDto {
   concertsCount: number;
 
   @ApiPropertyOptional({
-    description: 'Beehiiv draft response details if autoPushToBeehiiv was set to true',
+    description:
+      'Beehiiv draft response details if autoPushToBeehiiv was set to true',
     type: BeehiivDraftSummaryDto,
   })
   beehiivDraft?: BeehiivDraftSummaryDto;

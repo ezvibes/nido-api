@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Band } from './entities/band.entity';
@@ -24,7 +28,7 @@ export class BandService {
 
   async create(dto: CreateBandDto): Promise<Band> {
     const slug = dto.slug ? slugify(dto.slug) : slugify(dto.name);
-    
+
     const existing = await this.bandRepository.findOne({ where: { slug } });
     if (existing) {
       throw new ConflictException(`Band with slug "${slug}" already exists`);
@@ -33,13 +37,17 @@ export class BandService {
     const band = this.bandRepository.create({
       ...dto,
       slug,
-      genres: dto.genres?.map(g => g.toLowerCase()) ?? [],
+      genres: dto.genres?.map((g) => g.toLowerCase()) ?? [],
     });
 
     return this.bandRepository.save(band);
   }
 
-  async findAll(query?: { q?: string; genre?: string; isFeatured?: boolean }): Promise<Band[]> {
+  async findAll(query?: {
+    q?: string;
+    genre?: string;
+    isFeatured?: boolean;
+  }): Promise<Band[]> {
     const qb = this.bandRepository.createQueryBuilder('band');
 
     if (query?.q) {
@@ -47,11 +55,15 @@ export class BandService {
     }
 
     if (query?.genre) {
-      qb.andWhere(':genre = ANY(band.genres)', { genre: query.genre.toLowerCase() });
+      qb.andWhere(':genre = ANY(band.genres)', {
+        genre: query.genre.toLowerCase(),
+      });
     }
 
     if (query?.isFeatured !== undefined) {
-      qb.andWhere('band.isFeatured = :isFeatured', { isFeatured: query.isFeatured });
+      qb.andWhere('band.isFeatured = :isFeatured', {
+        isFeatured: query.isFeatured,
+      });
     }
 
     qb.orderBy('band.name', 'ASC');
@@ -80,18 +92,26 @@ export class BandService {
     if (dto.name && !dto.slug) {
       const newSlug = slugify(dto.name);
       if (newSlug !== band.slug) {
-        const existing = await this.bandRepository.findOne({ where: { slug: newSlug } });
+        const existing = await this.bandRepository.findOne({
+          where: { slug: newSlug },
+        });
         if (existing && existing.id !== id) {
-          throw new ConflictException(`Band with slug "${newSlug}" already exists`);
+          throw new ConflictException(
+            `Band with slug "${newSlug}" already exists`,
+          );
         }
         band.slug = newSlug;
       }
     } else if (dto.slug) {
       const newSlug = slugify(dto.slug);
       if (newSlug !== band.slug) {
-        const existing = await this.bandRepository.findOne({ where: { slug: newSlug } });
+        const existing = await this.bandRepository.findOne({
+          where: { slug: newSlug },
+        });
         if (existing && existing.id !== id) {
-          throw new ConflictException(`Band with slug "${newSlug}" already exists`);
+          throw new ConflictException(
+            `Band with slug "${newSlug}" already exists`,
+          );
         }
         band.slug = newSlug;
       }
@@ -99,7 +119,7 @@ export class BandService {
 
     this.bandRepository.merge(band, {
       ...dto,
-      genres: dto.genres?.map(g => g.toLowerCase()) ?? band.genres,
+      genres: dto.genres?.map((g) => g.toLowerCase()) ?? band.genres,
     });
 
     return this.bandRepository.save(band);

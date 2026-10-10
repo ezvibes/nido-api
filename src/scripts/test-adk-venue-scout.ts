@@ -1,5 +1,11 @@
 import 'reflect-metadata';
-import { Agent, FunctionTool, Runner, InMemorySessionService } from '@google/adk';
+import { Agent, FunctionTool, Runner } from '@google/adk';
+import dataSource from '../data-source';
+import { StandaloneTypeOrmSessionService } from '../apis/agents/session/typeorm-session.service';
+import {
+  createStoreMemoryTool,
+  createRetrieveMemoryTool,
+} from '../apis/agents/tools/memory.tools';
 import { z } from 'zod';
 import * as dotenv from 'dotenv';
 
@@ -198,7 +204,9 @@ function findVenue(query: string): CuratedVenue | null {
 
 // Handler functions for tools
 export async function handleLookupCuratedVenue({ name }: { name: string }) {
-  console.log(`\n  ⚙️  [ADK Tool Executed] lookupCuratedVenue({ name: "${name}" })`);
+  console.log(
+    `\n  ⚙️  [ADK Tool Executed] lookupCuratedVenue({ name: "${name}" })`,
+  );
   const match = findVenue(name);
 
   if (match) {
@@ -262,26 +270,37 @@ export const getUpcomingShowsAtVenueTool = new FunctionTool({
   description:
     'Get upcoming scheduled concerts and live music performances for a verified venue ID.',
   parameters: z.object({
-    venueId: z.string().describe('The Nido venue ID retrieved from lookupCuratedVenue'),
+    venueId: z
+      .string()
+      .describe('The Nido venue ID retrieved from lookupCuratedVenue'),
   }),
   execute: handleGetUpcomingShowsAtVenue,
 });
 
-export const munchenVenueScoutAgent = new Agent({
-  name: 'MunchenVenueScout',
-  model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
-  description:
-    'North Carolina live music venue scout that verifies rooms against the Nido catalog, evaluates partner tiers, and retrieves scheduled concert lineups.',
-  instruction: `
-You are Munchen, the EZ Vibes Venue Scout & Vibe Inspector for Nido - North Carolina's indie live music intelligence portal.
+export function createMunchenVenueScoutAgent(dataSource: any) {
+  return new Agent({
+    name: 'MunchenVenueScout',
+    model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
+    description:
+      'North Carolina live music venue scout that verifies rooms against the Nido catalog, evaluates partner tiers, and retrieves scheduled concert lineups.',
+    instruction: `
+  You are Munchen, the EZ Vibes Venue Scout & Vibe Inspector for Nido - North Carolina's indie live music intelligence portal.
 
-When evaluating a venue request:
-1. Always call \`lookupCuratedVenue\` with the venue name to verify if the room is in Nido's curated catalog.
-2. If verified and a \`venueId\` is returned, call \`getUpcomingShowsAtVenue\` using that \`venueId\`.
-3. Synthesize an energetic, soulful assessment of the room, its partner tier, vibe, and upcoming live music schedule.
-`,
-  tools: [lookupCuratedVenueTool, getUpcomingShowsAtVenueTool],
-});
+  When evaluating a venue request:
+  1. Always call \`lookupCuratedVenue\` with the venue name to verify if the room is in Nido's curated catalog.
+  2. If verified and a \`venueId\` is returned, call \`getUpcomingShowsAtVenue\` using that \`venueId\`.
+  3. You also have access to editorial memory. Before scouting, retrieve operator memory ("scout_preferences") to tailor your response.
+  4. If the operator gave you new instructions (e.g. "prioritize X"), use \`storeEditorialMemory\` to save it for future sessions.
+  5. Synthesize an energetic, soulful assessment of the room, its partner tier, vibe, and upcoming live music schedule.
+  `,
+    tools: [
+      lookupCuratedVenueTool,
+      getUpcomingShowsAtVenueTool,
+      createStoreMemoryTool(dataSource),
+      createRetrieveMemoryTool(dataSource),
+    ],
+  });
+}
 
 function printFormattedSummary(
   targetVenue: string,
@@ -303,7 +322,9 @@ function printFormattedSummary(
   console.log('------------------------------------------------------');
 
   if (showsRes && showsRes.upcomingShows && showsRes.upcomingShows.length > 0) {
-    console.log(` Upcoming Live Music (${showsRes.upcomingShows.length} Shows):`);
+    console.log(
+      ` Upcoming Live Music (${showsRes.upcomingShows.length} Shows):`,
+    );
     showsRes.upcomingShows.forEach((show: any, i: number) => {
       console.log(
         `   ${i + 1}. [${show.date}] ${show.title} (${show.genre}) - Headliner: ${show.headliner}`,
@@ -321,7 +342,7 @@ function printFormattedSummary(
   console.log('======================================================\n');
 }
 
-async function runAdkScoutWorkflow(venueQuery: string) {
+async function runAdkScoutWorkflow(venueQuery: string, sessionId?: string) {
   const apiKey =
     process.env.GEMINI_API_KEY ||
     process.env.GOOGLE_GENAI_API_KEY ||
@@ -332,17 +353,40 @@ async function runAdkScoutWorkflow(venueQuery: string) {
 
   if (apiKey) {
     try {
-      const sessionService = new InMemorySessionService();
+      // Initialize DB
+      await dataSource.initialize();
+      const sessionService = new StandaloneTypeOrmSessionService(dataSource);
+      const agent = createMunchenVenueScoutAgent(dataSource);
+
       const runner = new Runner({
-        agent: munchenVenueScoutAgent,
+        agent,
         sessionService,
         appName: 'nido-adk-scout',
       });
 
-      const session = await sessionService.createSession({
-        appName: 'nido-adk-scout',
-        userId: 'dev-operator',
-      });
+      let session;
+      if (sessionId) {
+        session = await sessionService.getSession({
+          appName: 'nido-adk-scout',
+          userId: 'dev-operator',
+          sessionId,
+        });
+        if (!session) {
+          console.log(`Session ${sessionId} not found. Creating new session.`);
+          session = await sessionService.createSession({
+            appName: 'nido-adk-scout',
+            userId: 'dev-operator',
+            sessionId,
+          });
+        } else {
+          console.log(`Resuming existing session: ID=${session.id}`);
+        }
+      } else {
+        session = await sessionService.createSession({
+          appName: 'nido-adk-scout',
+          userId: 'dev-operator',
+        });
+      }
 
       console.log(`ADK Session initialized: ID=${session.id}`);
       console.log('Invoking Agent runAsync...\n');
@@ -360,7 +404,9 @@ async function runAdkScoutWorkflow(venueQuery: string) {
           for (const part of event.content.parts) {
             if ((part as any).functionCall) {
               const fc = (part as any).functionCall;
-              console.log(`  🤖 [Agent Reasoning] Executing tool: ${fc.name}(${JSON.stringify(fc.args)})`);
+              console.log(
+                `  🤖 [Agent Reasoning] Executing tool: ${fc.name}(${JSON.stringify(fc.args)})`,
+              );
             }
             if ((part as any).functionResponse) {
               const fr = (part as any).functionResponse;
@@ -413,10 +459,17 @@ async function runAdkScoutWorkflow(venueQuery: string) {
   printFormattedSummary(venueQuery, venueRes, showsRes, synthesizedVibe);
 }
 
-const cleanArgs = process.argv.slice(2).filter((arg) => !arg.startsWith('--'));
+const args = process.argv.slice(2);
+const cleanArgs = args.filter((arg) => !arg.startsWith('--'));
 const targetVenueArg = cleanArgs[0] || "Cat's Cradle";
 
-runAdkScoutWorkflow(targetVenueArg).catch((error) => {
-  console.error('Fatal error during ADK Venue Scout execution:', error);
-  process.exit(1);
-});
+const sessionIdArg = args
+  .find((arg) => arg.startsWith('--session-id='))
+  ?.split('=')[1];
+
+runAdkScoutWorkflow(targetVenueArg, sessionIdArg)
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error('Fatal error during ADK Venue Scout execution:', error);
+    process.exit(1);
+  });

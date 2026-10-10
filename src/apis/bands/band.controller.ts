@@ -32,7 +32,9 @@ export class BandController {
   constructor(private readonly bandService: BandService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List all bands, optionally filtered by search query or genre tag' })
+  @ApiOperation({
+    summary: 'List all bands, optionally filtered by search query or genre tag',
+  })
   @ApiOkResponse({ description: 'List of bands', type: [BandResponseDto] })
   async findAll(@Query() query: ListBandsDto): Promise<Band[]> {
     return this.bandService.findAll(query);
@@ -56,7 +58,10 @@ export class BandController {
   @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new band profile (Admin only)' })
-  @ApiCreatedResponse({ description: 'The band profile has been successfully created.', type: BandResponseDto })
+  @ApiCreatedResponse({
+    description: 'The band profile has been successfully created.',
+    type: BandResponseDto,
+  })
   async create(@Body() createBandDto: CreateBandDto): Promise<Band> {
     return this.bandService.create(createBandDto);
   }
@@ -65,7 +70,10 @@ export class BandController {
   @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a band profile by ID (Admin only)' })
-  @ApiOkResponse({ description: 'The band profile has been successfully updated.', type: BandResponseDto })
+  @ApiOkResponse({
+    description: 'The band profile has been successfully updated.',
+    type: BandResponseDto,
+  })
   async update(
     @Param('id') id: string,
     @Body() updateBandDto: UpdateBandDto,

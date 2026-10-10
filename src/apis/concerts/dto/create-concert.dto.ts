@@ -32,7 +32,8 @@ export class LineupItemDto {
   role?: PerformanceRole;
 
   @ApiPropertyOptional({
-    description: 'Performance billing order index (0-indexed opener to headliner).',
+    description:
+      'Performance billing order index (0-indexed opener to headliner).',
     example: 0,
   })
   @IsOptional()

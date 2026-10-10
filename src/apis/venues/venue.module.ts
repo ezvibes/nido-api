@@ -6,10 +6,7 @@ import { VenueController } from './venue.controller';
 import { AuthModule } from '../../auth/auth.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Venue]),
-    AuthModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Venue]), AuthModule],
   controllers: [VenueController],
   providers: [VenueService],
   exports: [VenueService],

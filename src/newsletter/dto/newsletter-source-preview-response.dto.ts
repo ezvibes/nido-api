@@ -22,7 +22,10 @@ export class NewsletterSourceConcertDto {
   @ApiProperty({ description: 'Primary genre label.', required: false })
   genre?: string;
 
-  @ApiProperty({ description: 'Short source description or event notes.', required: false })
+  @ApiProperty({
+    description: 'Short source description or event notes.',
+    required: false,
+  })
   description?: string;
 
   @ApiProperty({ description: 'Whether the concert is marked as a Top Pick.' })
@@ -31,7 +34,10 @@ export class NewsletterSourceConcertDto {
   @ApiProperty({ description: 'Current Top Pick score, when available.' })
   topPickScore: number;
 
-  @ApiProperty({ description: 'Whether the item matches the current highlight artist watchlist.' })
+  @ApiProperty({
+    description:
+      'Whether the item matches the current highlight artist watchlist.',
+  })
   isHighlightArtist: boolean;
 
   @ApiProperty({ description: 'Human-readable source label.' })
@@ -39,21 +45,33 @@ export class NewsletterSourceConcertDto {
 }
 
 export class NewsletterSourcePreviewResponseDto {
-  @ApiProperty({ description: 'Human-readable date range used for the preview.' })
+  @ApiProperty({
+    description: 'Human-readable date range used for the preview.',
+  })
   dateRangeLabel: string;
 
-  @ApiProperty({ description: 'Approved Nido database concerts selected for the prompt.' })
+  @ApiProperty({
+    description: 'Approved Nido database concerts selected for the prompt.',
+  })
   concerts: NewsletterSourceConcertDto[];
 
-  @ApiProperty({ description: 'Parsed calendar feed/text events selected for the prompt.' })
+  @ApiProperty({
+    description: 'Parsed calendar feed/text events selected for the prompt.',
+  })
   calendarEvents: NewsletterSourceConcertDto[];
 
-  @ApiProperty({ description: 'Number of approved Nido database concerts selected.' })
+  @ApiProperty({
+    description: 'Number of approved Nido database concerts selected.',
+  })
   concertsCount: number;
 
-  @ApiProperty({ description: 'Number of parsed calendar feed/text events selected.' })
+  @ApiProperty({
+    description: 'Number of parsed calendar feed/text events selected.',
+  })
   calendarEventsCount: number;
 
-  @ApiProperty({ description: 'Total source items that would be injected into the prompt.' })
+  @ApiProperty({
+    description: 'Total source items that would be injected into the prompt.',
+  })
   totalCount: number;
 }
