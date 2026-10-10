@@ -1,6 +1,6 @@
 # Nido Terraform transition
 
-This directory stages the dev Cloud Run API transition for [issue #121](https://github.com/ezvibes/nido-api/issues/121). The dev service is imported and a controlled same-image apply and rollback drill have succeeded. **Terraform is not yet the automated deployment path:** `TF_API_DEPLOY_ENABLED` remains unset, so GitHub Actions still uses `gcloud run deploy`. Do not run an unreviewed apply or enable the workflow flag without the maintainer's cutover approval. Production is untouched.
+This directory stages the dev Cloud Run API transition for [issue #121](https://github.com/ezvibes/nido-api/issues/121). The dev service is imported, and both a controlled same-image rollback drill and a feature-branch GitHub Actions Terraform deployment have succeeded. **Terraform is not yet the default deployment path:** `TF_API_DEPLOY_ENABLED=false` in the dev GitHub environment, so ordinary deployments still use `gcloud run deploy`. Do not run an unreviewed apply or permanently enable the workflow flag without the maintainer's cutover approval. Production is untouched.
 
 ## Dev rehearsal evidence (2026-10-09)
 
@@ -8,7 +8,8 @@ This directory stages the dev Cloud Run API transition for [issue #121](https://
 - Imported `projects/nido-api-9ed65/locations/us-east1/services/nido-api` into the `dev/nido-api` GCS state prefix. The initial plan exposed a missing explicit CPU-idle setting and service-level minimum-instance setting; both were reconciled in `main.tf`. Informational `gcloud` client labels are not managed.
 - The reviewed apply changed only the image reference from the deployed commit tag to its **identical digest**. It created ready revision `nido-api-00061-46d`; `/health` and `/concerts/meta/genres` returned HTTP 200.
 - Rollback drill: traffic moved 100% to previous ready revision `nido-api-00060-9dj` (same digest), `/health` returned 200, then traffic returned 100% to latest (`00061`), with `/health` again returning 200. After refreshing the revision output, `terraform plan -detailed-exitcode` returned 0.
-- The dev GitHub environment has `TF_STATE_BUCKET` set. `TF_API_DEPLOY_ENABLED` is unset and defaults to `false`. No production state, import, or deployment was changed.
+- A feature-branch [GitHub Actions rehearsal](https://github.com/ezvibes/nido-api/actions/runs/38017106758) passed with the toggle temporarily enabled: tests and builds, state/import preflight, image-only Terraform plan, migration job, Terraform apply, API health/public-feed checks, and Firebase Hosting deployment. Cloud Run revision `nido-api-00062-cfg` became ready and received 100% traffic. The authenticated-feed check was skipped because its optional test credential was unavailable.
+- The dev GitHub environment has `TF_STATE_BUCKET` set. The temporary toggle was reset to `TF_API_DEPLOY_ENABLED=false` after the run; ordinary dev deployments still use `gcloud run deploy`. No production state, import, or deployment was changed.
 
 ## What runs today
 
@@ -27,7 +28,7 @@ The cutover is staged:
 3. **Import and reconcile manually (dev complete).** After the backend and access controls are reviewed, import the existing API service into remote state. Compare every live setting (image, env vars, secrets, Cloud SQL attachment, scaling, ingress, and IAM) with the HCL. Obtain a reviewed, no-surprise plan; `terraform import` changes state, not the service, but a later apply can change it. Resolve or explicitly defer any planned difference before approval.
 4. **Approve a guarded release path (pending).** The deploy workflow has a Terraform path controlled by `TF_API_DEPLOY_ENABLED`; it defaults to `false`. A maintainer reviews permissions, migration order, the exact digest-pinned image, plan, rollback target, and the dev rehearsal above before changing that GitHub environment variable to `true`. The workflow checks that the service is imported and permits only a no-op or an image-only update; a change to ingress, secrets, Cloud SQL, scaling, or traffic fails closed and needs separate review. Never run both `gcloud run deploy` and Terraform apply for the same release. Production requires a separate approval and parity exercise.
 
-The dev backend, import, parity review, and rollback rehearsal are complete; the automated workflow cutover is not. [#119](https://github.com/ezvibes/nido-api/issues/119) must establish and verify private database connectivity separately; this transition does not authorize network changes.
+The dev backend, import, parity review, rollback rehearsal, and feature-branch CI deployment are complete; permanent workflow cutover is not. [#119](https://github.com/ezvibes/nido-api/issues/119) must establish and verify private database connectivity separately; this transition does not authorize network changes.
 
 ## Drift and rollback
 

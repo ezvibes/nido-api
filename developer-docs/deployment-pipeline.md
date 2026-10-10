@@ -71,10 +71,10 @@ flowchart TD
 
 ## Terraform: A Staged Transition
 
-**Today:** GitHub Actions builds a commit-specific API image, deploys and executes
+**Default path today:** GitHub Actions builds a commit-specific API image, deploys and executes
 the Cloud Run migration job when enabled, then deploys the API service with
 `gcloud run deploy`. It verifies the API before deploying Firebase Hosting.
-Terraform is not part of this live release path. The agent session and memory
+Terraform is not part of this default release path. The agent session and memory
 tables from [#122](https://github.com/ezvibes/nido-api/pull/122) reinforce why
 database migrations must finish before the new API revision starts.
 
@@ -91,9 +91,14 @@ reviewed plan with no unexpected changes; and maintainer approval. The workflow
 feature flag `TF_API_DEPLOY_ENABLED` defaults to the current `gcloud` path and
 can enable a controlled dev cutover only after those gates pass. Once enabled,
 the workflow accepts image-only Terraform updates and stops on configuration
-drift. The dev state/import and a same-image Terraform rollback rehearsal were
-verified on 2026-10-09, but the automated workflow flag is still off. No
-automated cutover has occurred. Production
+drift. The dev state/import, same-image rollback drill, and a successful
+[feature-branch CI deployment](https://github.com/ezvibes/nido-api/actions/runs/38017106758)
+were verified on 2026-10-09. That run completed the migration job before the
+Terraform API apply, passed API health and public-feed checks, and deployed
+Firebase Hosting. The authenticated-feed check was skipped because its optional
+test credential was unavailable. Revision `nido-api-00062-cfg` received 100%
+of dev traffic. The temporary workflow flag was reset to `false` afterward;
+no permanent automated cutover has occurred. Production
 would need its own review. [Issue #119](https://github.com/ezvibes/nido-api/issues/119)
 keeps private Cloud SQL networking separate from this change.
 

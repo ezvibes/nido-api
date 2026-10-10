@@ -233,8 +233,9 @@ The project uses GitHub Actions, Google Workload Identity Federation, Cloud Run,
 See [developer-docs/DEPLOYMENT.md](developer-docs/DEPLOYMENT.md) for the public deployment overview and [`.github/DEPLOYMENT_SETUP.md`](.github/DEPLOYMENT_SETUP.md) for the detailed operations runbook.
 
 Terraform under [`terraform/`](terraform/README.md) is a staged dev transition,
-not yet the automated release path. Its state/import and rollback rehearsal are
-complete, but the GitHub Actions Terraform toggle remains off. GitHub Actions
+not yet the default release path. Its state/import, rollback rehearsal, and a
+[feature-branch CI deployment](https://github.com/ezvibes/nido-api/actions/runs/38017106758)
+are complete, but the GitHub Actions Terraform toggle is back off. GitHub Actions
 still runs migrations
 before deploying the Cloud Run API and continues to deploy Firebase Hosting.
 The [deployment pipeline guide](developer-docs/deployment-pipeline.md) explains
