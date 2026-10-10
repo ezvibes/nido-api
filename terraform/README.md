@@ -1,36 +1,30 @@
-# Nido Terraform starter
+# Nido Terraform transition
 
-This directory is the learning scaffold for [issue #121](https://github.com/ezvibes/nido-api/issues/121), not an active deployment path.
+This directory is an **unapplied starter** for [issue #121](https://github.com/ezvibes/nido-api/issues/121). Terraform is not yet the deployment path. The HCL describes the existing Cloud Run API service, but that service has not been imported into remote state or reconciled with the configuration. **Do not run `terraform apply` against dev or production from this directory.** An initial plan is not a safe release plan until state and live-service parity are established.
 
-> Do not run `terraform plan` or `terraform apply` against the Nido dev project from this directory yet. The GCS backend is not configured, the existing Cloud Run service has not been imported, and `main.tf` does not match its live configuration. An apply could attempt to create an existing service or change a working revision.
+## What runs today
 
-## Current ownership
+GitHub Actions (`.github/workflows/deploy-dev.yml`) builds and pushes an image tagged for the commit being released. When enabled, it deploys and executes the Cloud Run migration job with that image **before** updating the API service. The API does not run migrations at startup. The same workflow deploys the Vue client to Firebase Hosting and performs smoke checks. GitHub Actions is the sole release writer for Cloud Run today.
 
-| Area | Current owner |
-| --- | --- |
-| API image, Cloud Run service, migration job, smoke tests | `.github/workflows/deploy-dev.yml` |
-| Deployment values | `.github/deploy/environments/dev.env` |
-| Firebase Hosting | Existing deploy workflow |
-| Terraform state and live resources | None yet |
+The agent session and memory tables added in [#122](https://github.com/ezvibes/nido-api/pull/122) make this order important: the new API revision must not start before its required database migration has succeeded. A migration is a database change, not something that automatically rolls back with an API revision.
 
-PR #120 is merged, but its concert publication changes are not a Terraform prerequisite. This branch predates that merge and should be refreshed from `main` before a PR. [Issue #119](https://github.com/ezvibes/nido-api/issues/119) is still required before claiming that the database uses private IP through Direct VPC egress. The `vpc_access` block in `main.tf` is a proposal, not the current network configuration.
+## Proposed ownership, not a cutover
 
-## Safe first exercise
+The target is for Terraform to own **Cloud Run API service configuration and the release image**, while GitHub Actions continues to build the SHA-pinned image, run the migration job first, call the approved Terraform release path, verify the API, and deploy Firebase Hosting through its existing path. The migration job, database, network, and Firebase Hosting are not being transferred to Terraform by this starter. GitHub Actions and Terraform must never be independent writers of the API revision.
 
-The first deliverable is a protected state backend and a validation-only workflow. It must not take ownership of the live service or change its revisions.
+The proposed cutover is staged:
 
-1. With maintainer approval, choose a dedicated GCS state bucket and dev state prefix. Bootstrap the bucket separately, enable object versioning, uniform bucket-level access, public access prevention, and least-privilege access for the Terraform identity. Restrict access to state because state and plan files can contain sensitive values. Record the bucket name in backend configuration only after it exists.
-2. Pin the Terraform CLI version in CI, initialize the provider without a backend for syntax checks, and commit the generated `.terraform.lock.hcl`. Locally, after Terraform is installed, run `terraform init -backend=false`, `terraform fmt -check`, and `terraform validate`. These commands do not authorize an infrastructure change.
-3. Replace the active Cloud Run resource proposal with read-only inventory or otherwise remove it from the root configuration before the first dev plan. Activate the GCS backend and inspect a plan that proposes no live resource changes. Do not publish a raw plan or state file in a PR comment.
-4. Document the observed Cloud Run service, migration job, Cloud SQL configuration, secret references, and release image strategy. Keep the existing deploy workflow as the sole writer while the ownership decision is open.
+1. **Bootstrap protected state.** Create a dedicated GCS bucket outside this root configuration, then enable object versioning, uniform bucket-level access, public access prevention, and least-privilege access for the Terraform identity. Configure the GCS backend only after the bucket exists. GCS state locking prevents concurrent writes; versioning helps recover a damaged state. State and saved plans may contain sensitive values: do not commit them, paste them into issues, or expose them as unrestricted CI artifacts. Keep separate state prefixes and approvals per environment.
+2. **Validate without changing infrastructure.** Pin Terraform and provider versions, commit the provider lockfile, and run `terraform init -backend=false`, `terraform fmt -check`, and `terraform validate`. Inventory the real service before adding an applyable definition or generating a shared plan. Syntax checks are not evidence of live parity.
+3. **Import and reconcile manually.** After the backend and access controls are reviewed, import the existing API service into remote state. Compare every live setting (image, env vars, secrets, Cloud SQL attachment, scaling, ingress, and IAM) with the HCL. Obtain a reviewed, no-surprise plan; `terraform import` changes state, not the service, but a later apply can change it. Resolve or explicitly defer any planned difference before approval.
+4. **Approve a guarded release path.** The deploy workflow now has a Terraform path controlled by `TF_API_DEPLOY_ENABLED`; it defaults to `false` and is not a live cutover. A maintainer reviews permissions, migration order, the exact digest-pinned image, plan, rollback target, and first dev apply before changing that GitHub environment variable to `true`. Set `TF_STATE_BUCKET` to the protected state bucket. The workflow checks that the service is imported and permits only a no-op or an image-only update; a change to ingress, secrets, Cloud SQL, scaling, or traffic fails closed and needs separate review. Never run both `gcloud run deploy` and Terraform apply for the same release. Production requires a separate approval and parity exercise.
 
-The bucket is a one-time bootstrap prerequisite: a GCS backend cannot create its own bucket. The GCS backend provides state locking; bucket versioning supports recovery. Do not use local state for shared infrastructure.
+These are transition gates, **not completed steps**. `backend.tf` declares a GCS backend, but the bucket and prefix still need approved bootstrap and configuration; no import or parity plan is recorded here. A Terraform workflow path is not a live cutover. [#119](https://github.com/ezvibes/nido-api/issues/119) must establish and verify private database connectivity separately; this transition does not authorize network changes.
 
-## Later decisions
+## Drift and rollback
 
-- Decide which stable resources Terraform should own and which release-time values GitHub Actions should own. In particular, the deploy workflow currently publishes a commit-specific image and runs the migration job before updating the API. Avoid two independent writers for the same Cloud Run service.
-- If Cloud Run moves to Terraform, import the existing service and any IAM resources into remote state, reconcile the configuration with the live service, and require a reviewed plan with no unexpected changes before the first apply. `terraform import` changes state, not the remote service; a later apply can still change it.
-- Complete #119 and verify Cloud SQL private connectivity before declaring Direct VPC egress production-ready. Handle Cloud SQL and networking ownership separately from this first exercise.
-- Add a protected, explicit apply path only after imports, ownership, rollback, and CI permissions are reviewed. Merging an ordinary application PR must not automatically apply infrastructure changes.
+Before cutover, the existing workflow remains authoritative and Terraform must not apply. After cutover, a manual Cloud Run edit or legacy `gcloud run deploy` would create drift; the workflow stops on non-image drift rather than silently reconciling it. Investigate that drift with a reviewed plan. Release plans use the exact image digest built for that commit, not a moving `:latest` tag.
 
-No GCP resources, IAM bindings, or deployment workflows are changed by this starter branch. Terraform CLI validation remains pending until the CLI is available locally or in CI.
+For an API failure, redeploy the last known-good **digest-pinned image and reviewed service configuration** through the designated single writer, then verify health and behavior. Keep the previous Cloud Run revision as an emergency rollback reference. If an operator shifts traffic to that revision as an emergency measure, pause Terraform releases until the approved configuration and state reflect the intended traffic; the current HCL otherwise directs 100% of traffic to the latest revision. Do not automatically reverse database migrations: assess compatibility and use an approved forward fix or a separately rehearsed data recovery plan. If Terraform itself caused the fault, stop further applies, preserve state, and review the recovery plan before changing state or service configuration.
+
+See [Deployment Pipeline](../developer-docs/deployment-pipeline.md) for the end-to-end release sequence. No Terraform command in this guide authorizes an apply.

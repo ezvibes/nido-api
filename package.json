@@ -7,7 +7,7 @@
   "license": "SEE LICENSE IN LICENSE.md",
   "scripts": {
     "build": "nest build",
-    "agent:gate": "npm-run-all --print-label agent:gate:hygiene agent:gate:api-test test:newsletter:harness agent:gate:client-test build agent:gate:client-build",
+    "agent:gate": "npm-run-all --print-label agent:gate:hygiene agent:gate:api-test test:newsletter:harness test:terraform-config agent:gate:client-test build agent:gate:client-build",
     "agent:gate:hygiene": "node scripts/check-hygiene.mjs",
     "agent:gate:api-test": "jest --runInBand",
     "agent:gate:client-test": "npm test --prefix client",
@@ -33,6 +33,7 @@
     "seed:dev:concerts": "ts-node -r tsconfig-paths/register src/scripts/seed-dev-concerts.ts",
     "test": "jest",
     "test:newsletter:harness": "node scripts/eval-newsletter-harness.mjs",
+    "test:terraform-config": "node --test .github/scripts/*terraform*.test.mjs",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",

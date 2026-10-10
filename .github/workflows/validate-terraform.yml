@@ -1,0 +1,37 @@
+name: Validate Terraform
+
+on:
+  pull_request:
+    paths:
+      - 'terraform/**'
+      - '.github/scripts/render-terraform-vars*.mjs'
+      - '.github/workflows/deploy-dev.yml'
+      - '.github/workflows/validate-terraform.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Terraform format and validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: '1.14.6'
+          terraform_wrapper: false
+      - name: Verify provider lock file is tracked
+        run: git ls-files --error-unmatch terraform/.terraform.lock.hcl
+      - name: Initialize providers without accessing remote state
+        run: terraform -chdir=terraform init -backend=false -input=false -lockfile=readonly
+      - name: Check Terraform formatting
+        run: terraform -chdir=terraform fmt -check
+      - name: Validate Terraform configuration
+        run: terraform -chdir=terraform validate
+      - name: Test deployment variable renderer
+        run: node --test .github/scripts/render-terraform-vars.test.mjs

@@ -1,85 +1,72 @@
 variable "project_id" {
   type        = string
-  description = "The Google Cloud Project ID (e.g. nido-api-9ed65)"
+  description = "Google Cloud project hosting the API service."
 }
 
 variable "region" {
   type        = string
-  description = "Google Cloud region for resources"
-  default     = "us-east1"
+  description = "Cloud Run service region."
 }
 
 variable "service_name" {
   type        = string
-  description = "Cloud Run service name"
-  default     = "nido-api"
+  description = "Existing Cloud Run API service name."
 }
 
 variable "container_image" {
   type        = string
-  description = "Artifact Registry container image URI"
+  description = "Immutable image reference built by the release workflow."
 }
 
 variable "runtime_service_account" {
   type        = string
-  description = "IAM Service Account email used by Cloud Run container at runtime"
+  description = "Service account used by the API container."
 }
 
 variable "sql_instance_connection" {
   type        = string
-  description = "Cloud SQL instance connection name (PROJECT_ID:REGION:INSTANCE_NAME)"
-}
-
-variable "db_user" {
-  type        = string
-  description = "PostgreSQL application user"
-  default     = "nido_api"
-}
-
-variable "db_name" {
-  type        = string
-  description = "PostgreSQL database name"
-  default     = "nido"
+  description = "Cloud SQL project:region:instance connection name."
 }
 
 variable "cloud_run_memory" {
   type        = string
-  description = "Memory limit for Cloud Run instance"
-  default     = "512Mi"
+  description = "Memory limit per Cloud Run instance."
 }
 
 variable "cloud_run_cpu" {
   type        = string
-  description = "CPU allocation for Cloud Run instance"
-  default     = "1"
+  description = "CPU limit per Cloud Run instance."
 }
 
 variable "cloud_run_concurrency" {
   type        = number
-  description = "Max concurrent requests per container instance"
-  default     = 80
+  description = "Maximum concurrent requests per instance."
+}
+
+variable "cloud_run_timeout" {
+  type        = number
+  description = "Request timeout in seconds."
 }
 
 variable "cloud_run_min_instances" {
   type        = number
-  description = "Minimum container instances (0 for serverless scale-to-zero)"
-  default     = 0
+  description = "Minimum instances for the API service."
 }
 
 variable "cloud_run_max_instances" {
   type        = number
-  description = "Maximum container instances under peak load"
-  default     = 20
+  description = "Maximum instances for the API service."
 }
 
-variable "vpc_network" {
-  type        = string
-  description = "VPC network for Direct VPC Egress"
-  default     = "default"
+variable "runtime_env" {
+  type        = map(string)
+  description = "Non-secret API environment variables."
 }
 
-variable "vpc_subnet" {
-  type        = string
-  description = "VPC subnet for Direct VPC Egress"
-  default     = "default"
+variable "secret_refs" {
+  type = map(object({
+    secret  = string
+    version = string
+  }))
+  description = "Secret Manager references; never secret values."
 }
