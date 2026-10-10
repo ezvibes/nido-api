@@ -105,14 +105,22 @@ export class CreateBandsAndLinkRelationalConcerts1760000008000 implements Migrat
     `);
 
     // 8. Drop legacy JSONB columns
-    await queryRunner.query('ALTER TABLE "concerts" DROP COLUMN IF EXISTS "venues"');
-    await queryRunner.query('ALTER TABLE "concerts" DROP COLUMN IF EXISTS "artists"');
+    await queryRunner.query(
+      'ALTER TABLE "concerts" DROP COLUMN IF EXISTS "venues"',
+    );
+    await queryRunner.query(
+      'ALTER TABLE "concerts" DROP COLUMN IF EXISTS "artists"',
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     // 1. Re-add legacy columns
-    await queryRunner.query('ALTER TABLE "concerts" ADD COLUMN "venues" jsonb DEFAULT \'[]\'::jsonb');
-    await queryRunner.query('ALTER TABLE "concerts" ADD COLUMN "artists" jsonb DEFAULT \'[]\'::jsonb');
+    await queryRunner.query(
+      'ALTER TABLE "concerts" ADD COLUMN "venues" jsonb DEFAULT \'[]\'::jsonb',
+    );
+    await queryRunner.query(
+      'ALTER TABLE "concerts" ADD COLUMN "artists" jsonb DEFAULT \'[]\'::jsonb',
+    );
 
     // 2. Re-populate venues JSONB
     await queryRunner.query(`
@@ -151,8 +159,12 @@ export class CreateBandsAndLinkRelationalConcerts1760000008000 implements Migrat
 
     // 4. Drop relational columns, constraints and tables
     await queryRunner.query('DROP TABLE IF EXISTS "concert_bands"');
-    await queryRunner.query('ALTER TABLE "concerts" DROP CONSTRAINT IF EXISTS "FK_concerts_venue_id"');
-    await queryRunner.query('ALTER TABLE "concerts" DROP COLUMN IF EXISTS "venue_id"');
+    await queryRunner.query(
+      'ALTER TABLE "concerts" DROP CONSTRAINT IF EXISTS "FK_concerts_venue_id"',
+    );
+    await queryRunner.query(
+      'ALTER TABLE "concerts" DROP COLUMN IF EXISTS "venue_id"',
+    );
     await queryRunner.query('DROP INDEX IF EXISTS "IDX_bands_slug"');
     await queryRunner.query('DROP TABLE IF EXISTS "bands"');
   }

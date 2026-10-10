@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddUploadMetadataHints1760000014000
-  implements MigrationInterface
-{
+export class AddUploadMetadataHints1760000014000 implements MigrationInterface {
   name = 'AddUploadMetadataHints1760000014000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -51,9 +49,15 @@ export class AddUploadMetadataHints1760000014000
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query('DROP INDEX IF EXISTS "IDX_concert_uploads_concert_date"');
-    await queryRunner.query('DROP INDEX IF EXISTS "IDX_concert_uploads_band_id"');
-    await queryRunner.query('DROP INDEX IF EXISTS "IDX_concert_uploads_venue_id"');
+    await queryRunner.query(
+      'DROP INDEX IF EXISTS "IDX_concert_uploads_concert_date"',
+    );
+    await queryRunner.query(
+      'DROP INDEX IF EXISTS "IDX_concert_uploads_band_id"',
+    );
+    await queryRunner.query(
+      'DROP INDEX IF EXISTS "IDX_concert_uploads_venue_id"',
+    );
     await queryRunner.query(`
       ALTER TABLE "concert_uploads"
       DROP CONSTRAINT IF EXISTS "FK_concert_uploads_band_id_bands_id"

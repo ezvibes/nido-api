@@ -54,7 +54,7 @@ export class ConcertController {
   @ApiOperation({
     summary: 'List concerts for the shared discovery feed',
     description:
-      'Returns paginated upcoming concert records for the shared /concerts discovery feed. Authentication is optional; signed-in listeners also receive their upvotedByMe state. Results include concerts created manually, published from approved uploads, or produced by calendar sync across all users. Example: GET /concerts?sort=soonest&startsAfter=2026-07-03T19:04:08.267Z&pageSize=100.',
+      'Returns paginated active, admin-approved concert records for the shared /concerts discovery feed. Authentication is optional; signed-in listeners also receive their upvotedByMe state. Unapproved uploads and calendar syncs remain available to their owners and admins, but are not public. Example: GET /concerts?sort=soonest&startsAfter=2026-07-03T19:04:08.267Z&pageSize=100.',
   })
   @ApiQuery({ name: 'q', required: false, example: 'doctor s' })
   @ApiQuery({ name: 'genre', required: false, example: 'Electronic' })

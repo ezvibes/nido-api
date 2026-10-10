@@ -88,7 +88,9 @@ async function main() {
       });
 
       if (existing) {
-        console.log(`Venue "${seed.name}" in ${seed.city} already exists. Skipping.`);
+        console.log(
+          `Venue "${seed.name}" in ${seed.city} already exists. Skipping.`,
+        );
         continue;
       }
 

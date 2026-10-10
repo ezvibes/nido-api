@@ -440,6 +440,32 @@ describe('ConcertSyncService', () => {
     expect(concertRepository.save).not.toHaveBeenCalled();
   });
 
+  it('preserves an approved concert during calendar sync', async () => {
+    const approvedConcert = {
+      id: 'approved-concert',
+      isAdminApproved: true,
+      editorialLockedAt: null,
+    } as Concert;
+    concertRepository.findOne.mockResolvedValue(approvedConcert);
+
+    const result = await (service as any).upsertConcertFromEvent(
+      { id: 7 },
+      {
+        title: 'Calendar title',
+        genre: 'Rock',
+        startsAt: '2026-08-01T20:00:00.000Z',
+        endsAt: null,
+        description: null,
+        artists: [{ name: 'Example Band' }],
+        venues: [{ name: 'Example Venue' }],
+      },
+      'approved-concert',
+    );
+
+    expect(result.wasSkipped).toBe(true);
+    expect(concertRepository.manager.transaction).not.toHaveBeenCalled();
+  });
+
   it('skips a stale sync update when an admin edit wins the version race', async () => {
     const staleConcert = {
       id: 'racing-concert',
@@ -471,6 +497,7 @@ describe('ConcertSyncService', () => {
       'version = :observedVersion',
       { observedVersion: 5 },
     );
+    expect(updateQb.andWhere).toHaveBeenCalledWith('is_admin_approved = false');
     expect(result.wasSkipped).toBe(true);
     expect(concertRepository.manager.delete).not.toHaveBeenCalled();
     expect(concertRepository.manager.save).not.toHaveBeenCalled();

@@ -29,7 +29,8 @@ describe('FirebaseService', () => {
 
   it('falls back to legacy FIREBASE_PRIVATE_KEY_ID when it contains a PEM key', () => {
     process.env.FIREBASE_PRIVATE_KEY = '';
-    process.env.FIREBASE_PRIVATE_KEY_ID = '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n';
+    process.env.FIREBASE_PRIVATE_KEY_ID =
+      '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n';
 
     expect((service as any).resolvePrivateKey()).toContain('BEGIN PRIVATE KEY');
   });

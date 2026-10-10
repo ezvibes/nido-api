@@ -1,3 +1,5 @@
+import { AgentSession } from './apis/agents/entities/agent-session.entity';
+import { AgentMemory } from './apis/agents/entities/agent-memory.entity';
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import * as dotenv from 'dotenv';
@@ -30,6 +32,8 @@ export default new DataSource({
     Band,
     ConcertBandLineup,
     ConcertSet,
+    AgentSession,
+    AgentMemory,
   ],
   migrations: [__dirname + '/migrations/*{.ts,.js}'],
   synchronize: false,

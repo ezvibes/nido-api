@@ -38,7 +38,8 @@ Automated calendar and ranking jobs use the same precedence rule:
 - ingestion approval of an existing linked concert fails with `409 Conflict` when
   a newer admin or workflow update wins the race.
 - owner edits and deletes require the record to remain active, unlocked, and at the
-  version the owner read; an admin hide, archive, or edit wins the race.
+  version the owner read; approved records are under admin control, and an admin
+  hide, archive, approval, or edit wins the race.
 
 This is intentionally a small concurrency model. PostgreSQL conditional updates
 provide the atomic boundary; Nido does not add explicit pessimistic locks, Redis,
@@ -48,17 +49,23 @@ or another always-on coordination service.
 
 `catalogStatus` is mutually exclusive:
 
-| State      | Public discovery | Admin catalog | Automated calendar updates |
-| ---------- | ---------------- | ------------- | -------------------------- |
-| `active`   | Included         | Included      | Allowed unless locked      |
-| `hidden`   | Excluded         | Included      | Allowed unless locked      |
-| `archived` | Excluded         | Included      | Always skipped             |
+| State      | Public discovery | Admin catalog | Automated calendar updates       |
+| ---------- | ---------------- | ------------- | -------------------------------- |
+| `active`   | Only if approved | Included      | Allowed until approved or locked |
+| `hidden`   | Excluded         | Included      | Allowed until approved or locked |
+| `archived` | Excluded         | Included      | Always skipped                   |
 
 Moving a concert out of `active` automatically clears `isFeatured`. Archiving is
 recoverable and does not delete the concert or its history.
 
 `isFeatured` is a manual editorial decision. It is separate from `isTopPick`, which
 is calculated by the ranking workflow.
+
+`isAdminApproved` is the publication gate. Approval does not change the catalog
+state: an approved hidden or archived record stays private until an admin restores
+it to active. Removing approval immediately removes an active record from public
+discovery and Top Picks eligibility. Owners and calendar sync cannot change an
+approved record; admins can still correct it.
 
 ## API Contract
 

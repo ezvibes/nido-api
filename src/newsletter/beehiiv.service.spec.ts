@@ -70,7 +70,8 @@ describe('BeehiivService', () => {
 
       const result = await service.createDraftFromHtml({
         title: 'EZ Vibes Top Picks: Sep 10 - Sep 15, 2026',
-        htmlContent: '<h1>Weekly Top Picks</h1><p>Check out Papadosio live!</p>',
+        htmlContent:
+          '<h1>Weekly Top Picks</h1><p>Check out Papadosio live!</p>',
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
@@ -106,7 +107,10 @@ describe('BeehiivService', () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 422,
-        text: async () => JSON.stringify({ errors: [{ message: 'Invalid template ID specified' }] }),
+        text: async () =>
+          JSON.stringify({
+            errors: [{ message: 'Invalid template ID specified' }],
+          }),
       });
 
       await expect(

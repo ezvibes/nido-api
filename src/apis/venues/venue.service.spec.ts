@@ -38,7 +38,11 @@ describe('VenueService', () => {
 
   describe('create', () => {
     it('should successfully create and save a venue', async () => {
-      const dto = { name: 'Test Venue', city: 'Wilmington', citySlug: 'wilmington' };
+      const dto = {
+        name: 'Test Venue',
+        city: 'Wilmington',
+        citySlug: 'wilmington',
+      };
       const venue = { id: 'uuid', ...dto } as Venue;
 
       mockVenueRepository.create.mockReturnValue(venue);
@@ -54,7 +58,10 @@ describe('VenueService', () => {
 
   describe('findAll', () => {
     it('should return list of all venues ordered by name', async () => {
-      const venues = [{ id: '1', name: 'A Venue' }, { id: '2', name: 'B Venue' }];
+      const venues = [
+        { id: '1', name: 'A Venue' },
+        { id: '2', name: 'B Venue' },
+      ];
       mockVenueRepository.find.mockResolvedValue(venues);
 
       const result = await service.findAll();
@@ -73,7 +80,9 @@ describe('VenueService', () => {
 
       const result = await service.findOne('1');
 
-      expect(mockVenueRepository.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
+      expect(mockVenueRepository.findOne).toHaveBeenCalledWith({
+        where: { id: '1' },
+      });
       expect(result).toEqual(venue);
     });
 
@@ -101,7 +110,11 @@ describe('VenueService', () => {
 
   describe('update', () => {
     it('should successfully update and save a venue', async () => {
-      const existingVenue = { id: '1', name: 'Old Name', citySlug: 'wilmington' } as Venue;
+      const existingVenue = {
+        id: '1',
+        name: 'Old Name',
+        citySlug: 'wilmington',
+      } as Venue;
       const updateDto = { name: 'New Name' };
       const updatedVenue = { ...existingVenue, ...updateDto } as Venue;
 
@@ -110,7 +123,9 @@ describe('VenueService', () => {
 
       const result = await service.update('1', updateDto);
 
-      expect(mockVenueRepository.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
+      expect(mockVenueRepository.findOne).toHaveBeenCalledWith({
+        where: { id: '1' },
+      });
       expect(mockVenueRepository.save).toHaveBeenCalledWith(updatedVenue);
       expect(result).toEqual(updatedVenue);
     });
@@ -124,7 +139,9 @@ describe('VenueService', () => {
 
       await service.delete('1');
 
-      expect(mockVenueRepository.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
+      expect(mockVenueRepository.findOne).toHaveBeenCalledWith({
+        where: { id: '1' },
+      });
       expect(mockVenueRepository.remove).toHaveBeenCalledWith(venue);
     });
   });

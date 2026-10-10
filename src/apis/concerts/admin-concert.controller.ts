@@ -96,9 +96,9 @@ export class AdminConcertController {
 
   @Put(':id/approval')
   @ApiOperation({
-    summary: 'Approve or unapprove a concert for Top Picks eligibility',
+    summary: 'Approve or unapprove a concert for public discovery',
     description:
-      'Admin-only endpoint. Approved concerts can participate in internal Top Picks scoring after sync jobs refresh rankings.',
+      'Admin-only endpoint. Active, approved concerts appear in public discovery and can participate in Top Picks scoring. Unapproving removes them from public discovery.',
   })
   @ApiParam({ name: 'id', description: 'Concert id', example: 'concert-uuid' })
   @ApiBody({ type: SetConcertApprovalDto })
@@ -154,6 +154,11 @@ export class AdminConcertController {
   ) {
     const profile = await this.userService.syncFromToken(user);
     const file = files?.file?.[0] ?? files?.image?.[0];
-    return this.ingestionService.attachPosterToConcert(id, file, user.uid, profile.id);
+    return this.ingestionService.attachPosterToConcert(
+      id,
+      file,
+      user.uid,
+      profile.id,
+    );
   }
 }

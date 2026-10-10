@@ -17,9 +17,13 @@ export class IngestionJob {
   @Column({ name: 'concert_upload_id' })
   concertUploadId: string;
 
-  @ManyToOne(() => ConcertUpload, (concertUpload) => concertUpload.ingestionJobs, {
-    onDelete: 'CASCADE',
-  })
+  @ManyToOne(
+    () => ConcertUpload,
+    (concertUpload) => concertUpload.ingestionJobs,
+    {
+      onDelete: 'CASCADE',
+    },
+  )
   @JoinColumn({ name: 'concert_upload_id' })
   concertUpload: ConcertUpload;
 

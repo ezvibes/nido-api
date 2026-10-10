@@ -1,5 +1,22 @@
-import { Controller, Get, Post, Put, Delete, Param, Query, Body, UseGuards, HttpCode } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Param,
+  Query,
+  Body,
+  UseGuards,
+  HttpCode,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiCreatedResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { VenueService } from './venue.service';
 import { Venue } from './entities/venue.entity';
 import { ListVenuesDto } from './dto/list-venues.dto';
@@ -15,7 +32,9 @@ export class VenueController {
   constructor(private readonly venueService: VenueService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List all venues, optionally filtered by city or region slug' })
+  @ApiOperation({
+    summary: 'List all venues, optionally filtered by city or region slug',
+  })
   @ApiOkResponse({ description: 'List of venues', type: [VenueResponseDto] })
   async findAll(@Query() query: ListVenuesDto): Promise<Venue[]> {
     if (query.citySlug) {
@@ -35,7 +54,10 @@ export class VenueController {
   @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new venue (Admin only)' })
-  @ApiCreatedResponse({ description: 'The venue has been successfully created.', type: VenueResponseDto })
+  @ApiCreatedResponse({
+    description: 'The venue has been successfully created.',
+    type: VenueResponseDto,
+  })
   async create(@Body() createVenueDto: CreateVenueDto): Promise<Venue> {
     return this.venueService.create(createVenueDto);
   }
@@ -44,7 +66,10 @@ export class VenueController {
   @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a venue by ID (Admin only)' })
-  @ApiOkResponse({ description: 'The venue has been successfully updated.', type: VenueResponseDto })
+  @ApiOkResponse({
+    description: 'The venue has been successfully updated.',
+    type: VenueResponseDto,
+  })
   async update(
     @Param('id') id: string,
     @Body() updateVenueDto: UpdateVenueDto,

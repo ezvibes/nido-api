@@ -11,7 +11,8 @@ export class PushBeehiivDraftDto {
   title: string;
 
   @ApiProperty({
-    description: 'HTML content block string to push into the Beehiiv draft template',
+    description:
+      'HTML content block string to push into the Beehiiv draft template',
     example: '<h1>Weekly Top Picks</h1><p>Check out upcoming shows!</p>',
   })
   @IsString()
@@ -19,7 +20,8 @@ export class PushBeehiivDraftDto {
   htmlContent: string;
 
   @ApiPropertyOptional({
-    description: 'Optional Beehiiv Post Template ID to override default env configuration',
+    description:
+      'Optional Beehiiv Post Template ID to override default env configuration',
     example: 'tpl_beehiiv_123',
   })
   @IsOptional()
@@ -27,7 +29,8 @@ export class PushBeehiivDraftDto {
   postTemplateId?: string;
 
   @ApiPropertyOptional({
-    description: 'Optional Beehiiv Publication ID to override default env configuration',
+    description:
+      'Optional Beehiiv Publication ID to override default env configuration',
     example: 'pub_beehiiv_456',
   })
   @IsOptional()

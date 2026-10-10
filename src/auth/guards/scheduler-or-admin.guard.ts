@@ -65,7 +65,10 @@ export class SchedulerOrAdminGuard implements CanActivate {
 
       return true;
     } catch (err) {
-      if (err instanceof ForbiddenException || err instanceof UnauthorizedException) {
+      if (
+        err instanceof ForbiddenException ||
+        err instanceof UnauthorizedException
+      ) {
         throw err;
       }
       throw new UnauthorizedException(`Authentication failed: ${err.message}`);

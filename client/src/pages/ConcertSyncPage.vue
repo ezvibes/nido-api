@@ -6,8 +6,8 @@
         <h2>Concert sync</h2>
         <p>Create concerts from calendar events and monitor the sync job.</p>
       </div>
-      <router-link class="concert-sync__concerts-link" to="/concerts">
-        View Concerts
+      <router-link class="concert-sync__concerts-link" to="/my-concerts">
+        My Concerts
       </router-link>
     </header>
 
@@ -19,7 +19,9 @@
           <div class="concert-sync__panel-header">
             <div>
               <h3>Run sync</h3>
-              <p>Sync live calendar events into your concert feed.</p>
+              <p>
+                Bring calendar events into your submissions for admin review.
+              </p>
             </div>
           </div>
 
@@ -142,9 +144,12 @@
             </p>
 
             <div v-if="showConcertsHandoff" class="concert-sync__handoff">
-              <p>Concerts were written to your concert feed.</p>
-              <router-link class="concert-sync__primary" to="/concerts">
-                View Concerts
+              <p>
+                Synced concerts are in My Concerts while they await admin
+                approval.
+              </p>
+              <router-link class="concert-sync__primary" to="/my-concerts">
+                My Concerts
               </router-link>
             </div>
 
@@ -152,7 +157,8 @@
               v-if="activeJob.status === 'completed'"
               class="concert-sync__muted"
             >
-              Admin approval for Top Picks can be completed in Swagger.
+              An admin can review synced concerts in the concert catalog before
+              they appear publicly.
             </p>
           </div>
         </section>

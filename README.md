@@ -115,12 +115,13 @@ Local URLs:
 
 ### Concerts
 
-`/concerts` is the current shared discovery feed and primary API surface for displayed shows.
+`/concerts` is the shared discovery feed. It displays only active concerts that an admin has approved; owners can still review their submissions through `/concerts/mine` before publication.
 
 Common endpoints:
 
 - `GET /concerts`
-- `GET /concerts/:id`
+- `GET /concerts/mine` (signed-in owner's submissions)
+- `GET /concerts/:id` (signed-in owner only)
 - `POST /concerts`
 - `PATCH /concerts/:id`
 - `DELETE /concerts/:id`

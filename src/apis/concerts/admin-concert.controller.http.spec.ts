@@ -176,7 +176,10 @@ describe('AdminConcertController HTTP contract', () => {
   });
 
   it('updates admin approval status on PUT /admin/concerts/:id/approval', async () => {
-    userService.syncFromToken.mockResolvedValue({ id: 1, email: 'admin@example.com' });
+    userService.syncFromToken.mockResolvedValue({
+      id: 1,
+      email: 'admin@example.com',
+    });
     concertService.setAdminApproval.mockResolvedValue({
       id: 'concert-1',
       isAdminApproved: true,
@@ -200,7 +203,10 @@ describe('AdminConcertController HTTP contract', () => {
   });
 
   it('attaches a poster image on POST /admin/concerts/:id/poster', async () => {
-    userService.syncFromToken.mockResolvedValue({ id: 1, email: 'admin@example.com' });
+    userService.syncFromToken.mockResolvedValue({
+      id: 1,
+      email: 'admin@example.com',
+    });
     ingestionService.attachPosterToConcert.mockResolvedValue({
       uploadId: 'upload-uuid',
       posterUrl: '/ingestion/uploads/upload-uuid/image',
