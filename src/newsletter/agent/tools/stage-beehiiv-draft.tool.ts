@@ -1,5 +1,6 @@
 import { FunctionTool } from '@google/adk';
 import { BeehiivService } from '../../beehiiv.service';
+import { BeehiivMcpService } from '../../beehiiv-mcp.service';
 import {
   stageBeehiivDraftInputSchema,
   stageBeehiivDraftOutputSchema,
@@ -9,6 +10,7 @@ export const STAGE_BEEHIIV_DRAFT_TOOL_NAME = 'stageBeehiivDraft';
 
 export function createStageBeehiivDraftTool(
   beehiivService: BeehiivService,
+  beehiivMcpService?: BeehiivMcpService,
 ): FunctionTool<typeof stageBeehiivDraftInputSchema> {
   return new FunctionTool({
     name: STAGE_BEEHIIV_DRAFT_TOOL_NAME,
@@ -17,6 +19,20 @@ export function createStageBeehiivDraftTool(
     parameters: stageBeehiivDraftInputSchema,
     requireConfirmation: true,
     execute: async ({ title, htmlContent, postTemplateId }) => {
+      // 1. Try MCP Staging first if service is provided
+      if (beehiivMcpService) {
+        try {
+          const mcpResult = await beehiivMcpService.stageDraftViaMcp({
+            title,
+            content_html: htmlContent,
+          });
+          return stageBeehiivDraftOutputSchema.parse(mcpResult);
+        } catch {
+          // Fall back to REST/local staging
+        }
+      }
+
+      // 2. Standard REST API or fallback staging
       const draft = await beehiivService.createDraftFromHtml({
         title,
         htmlContent,
