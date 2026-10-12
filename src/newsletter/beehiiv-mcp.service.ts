@@ -39,9 +39,7 @@ export class BeehiivMcpService {
       'https://mcp.beehiiv.com/mcp';
 
     if (!apiKey) {
-      this.logger.warn(
-        'BEEHIIV_API_KEY is not configured; Beehiiv MCP toolset disabled.',
-      );
+      this.logger.warn('BEEHIIV_API_KEY is not configured; Beehiiv MCP toolset disabled.');
       return null;
     }
 
@@ -58,17 +56,11 @@ export class BeehiivMcpService {
     };
 
     try {
-      this.toolset = new MCPToolset(connectionParams, [
-        'create_post',
-        'get_posts',
-      ]);
+      this.toolset = new MCPToolset(connectionParams, ['create_post', 'get_posts']);
       this.logger.log(`Initialized Beehiiv MCPToolset target: ${mcpUrl}`);
       return this.toolset;
     } catch (err: any) {
-      this.logger.error(
-        `Failed to initialize Beehiiv MCPToolset: ${err.message}`,
-        err.stack,
-      );
+      this.logger.error(`Failed to initialize Beehiiv MCPToolset: ${err.message}`, err.stack);
       return null;
     }
   }
@@ -76,9 +68,7 @@ export class BeehiivMcpService {
   /**
    * Stages a newsletter draft via MCP or graceful mock fallback.
    */
-  async stageDraftViaMcp(
-    payload: McpPostDraftPayload,
-  ): Promise<McpPostDraftResult> {
+  async stageDraftViaMcp(payload: McpPostDraftPayload): Promise<McpPostDraftResult> {
     const isMockStaging =
       this.configService.get<string>('BEEHIIV_MOCK_STAGING') === 'true';
 

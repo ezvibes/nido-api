@@ -101,12 +101,12 @@ or test cannot mutate the application registry.
 
 The registry currently exposes:
 
-| Tool                       | Status                                         | Core dependency                |
-| -------------------------- | ---------------------------------------------- | ------------------------------ |
-| `fetchApprovedConcerts`    | Operational                                    | `NewsletterCatalogService`     |
-| `getCoBillRecommendations` | Operational                                    | `NewsletterCoBillService`      |
-| `verifyTicketUrl`          | Operational                                    | `TicketUrlVerificationService` |
-| `stageBeehiivDraft`        | Operational, draft-only, confirmation required | `BeehiivService`               |
+| Tool                       | Status                                         | Core dependency                                          |
+| -------------------------- | ---------------------------------------------- | -------------------------------------------------------- |
+| `fetchApprovedConcerts`    | Operational                                    | `NewsletterCatalogService`                               |
+| `getCoBillRecommendations` | Operational                                    | `NewsletterCoBillService`                                |
+| `verifyTicketUrl`          | Operational                                    | `TicketUrlVerificationService`                           |
+| `stageBeehiivDraft`        | Operational, draft-only, confirmation required | `BeehiivMcpService` (MCP) / `BeehiivService` (REST fallback) |
 
 Tools are never registered as placeholders. An advertised tool must have a real
 handler and deterministic tests.
@@ -128,7 +128,7 @@ parses its output before returning it to the agent. HTTP controllers continue to
 use class-validator DTOs, and `NewsletterCatalogService` remains responsible for
 date ordering and active/admin-approved business rules.
 
-### External Tool Boundaries
+### External Tool Boundaries & Beehiiv MCP
 
 `verifyTicketUrl` accepts at most 10 HTTP(S) URLs. Its NestJS service blocks URL
 credentials, local hostnames, private or non-routable IPs, and non-standard
@@ -140,11 +140,29 @@ after five seconds; unsupported `HEAD` requests fall back to a range-limited
 `GET`. Results distinguish
 `reachable`, `unreachable`, policy-`blocked`, and `indeterminate` outcomes.
 
-`stageBeehiivDraft` requires the literal input `status: "draft"`. ADK also
-requires human confirmation before the provider call executes, and the returned
-Beehiiv payload must still report `status: "draft"`. This is defense in depth:
-the schema, tool implementation, existing Beehiiv adapter, and confirmation gate
-all withhold publication authority from the model.
+`stageBeehiivDraft` uses a dual-transport staging architecture:
+1. **Primary Transport (Remote Beehiiv MCP):** Invokes `create_post` on the hosted
+   Beehiiv Model Context Protocol endpoint (`https://mcp.beehiiv.com/mcp`) via
+   `BeehiivMcpService`, powered by `@google/adk` and `@modelcontextprotocol/sdk`.
+   This bypasses Beehiiv's enterprise-tier REST restriction on post creation and
+   allows draft staging across standard tiers.
+2. **Fallback Transport (REST / Offline Mock):** If MCP transport is disabled,
+   missing credentials, or unreachable, it falls back to `BeehiivService.createDraftFromHtml`
+   or a non-fatal local draft result.
+3. **Draft Safety:** `stageBeehiivDraft` requires the literal input `status: "draft"`.
+   ADK requires explicit human confirmation (`requireConfirmation: true`) before
+   the provider call executes, and the returned payload must strictly report
+   `status: "draft"`. Publication authority is never granted to the agent.
+
+#### Beehiiv MCP Configuration & Environment Variables
+
+- `BEEHIIV_API_KEY`: API token used for Bearer authentication with the remote MCP server.
+- `BEEHIIV_PUBLICATION_ID`: Target publication ID for created drafts.
+- `BEEHIIV_MCP_URL`: Optional remote MCP endpoint override (defaults to `https://mcp.beehiiv.com/mcp`).
+- `BEEHIIV_MOCK_STAGING`: When set to `true`, simulates draft creation locally without remote network egress.
+
+For editor desktop sessions and reference playbooks, see the
+[Beehiiv MCP Playbook](../../.agents/skills/firenze-newsletter/references/beehiiv-mcp-playbook.md).
 
 `getCoBillRecommendations` uses a dedicated NestJS service and TypeORM query
 builder over PostgreSQL's existing `concert_band_lineups` relationship. It
@@ -175,6 +193,7 @@ npx jest src/newsletter/agent/newsletter-agent-tool-registry.service.spec.ts \
   src/newsletter/newsletter-co-bill.service.spec.ts \
   src/newsletter/agent/newsletter-agent-external-tools.spec.ts \
   src/newsletter/ticket-url-verification.service.spec.ts \
+  src/newsletter/beehiiv-mcp.service.spec.ts \
   --runInBand
 ```
 

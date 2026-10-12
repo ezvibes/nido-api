@@ -86,8 +86,10 @@ resource "google_cloud_run_v2_service" "nido_api" {
     percent = 100
   }
 
+  labels = var.labels
+
   lifecycle {
     prevent_destroy = true
-    ignore_changes  = [client, client_version]
+    ignore_changes  = [client, client_version, labels["client"], labels["client-version"]]
   }
 }
