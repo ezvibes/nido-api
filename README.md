@@ -22,6 +22,7 @@ The product and API use `Concert` as the primary live-music record, supported by
 - Frontend: Vue 3, TypeScript, Vite
 - Auth: Firebase Auth and Firebase Admin SDK
 - Storage: Google Cloud Storage for ingestion uploads
+- AI & Agent Tooling: Google Gemini, Google ADK, Beehiiv Model Context Protocol (MCP)
 - Deployment target: Cloud Run API and Firebase Hosting
 - API docs: Swagger/OpenAPI
 
