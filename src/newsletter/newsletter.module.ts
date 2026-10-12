@@ -11,9 +11,14 @@ import { AuthModule } from '../auth/auth.module';
 import { NewsletterAgentToolRegistry } from './agent/newsletter-agent-tool-registry.service';
 import { TicketUrlVerificationService } from './ticket-url-verification.service';
 import { NewsletterCoBillService } from './newsletter-co-bill.service';
+import { AgentSession } from '../apis/agents/entities/agent-session.entity';
+import { TypeOrmSessionService } from '../apis/agents/session/typeorm-session.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Concert, ConcertBandLineup]), AuthModule],
+  imports: [
+    TypeOrmModule.forFeature([Concert, ConcertBandLineup, AgentSession]),
+    AuthModule,
+  ],
   controllers: [NewsletterController],
   providers: [
     NewsletterService,
@@ -23,6 +28,7 @@ import { NewsletterCoBillService } from './newsletter-co-bill.service';
     BeehiivService,
     BeehiivMcpService,
     TicketUrlVerificationService,
+    TypeOrmSessionService,
   ],
   exports: [
     NewsletterService,
@@ -32,6 +38,7 @@ import { NewsletterCoBillService } from './newsletter-co-bill.service';
     BeehiivService,
     BeehiivMcpService,
     TicketUrlVerificationService,
+    TypeOrmSessionService,
   ],
 })
 export class NewsletterModule {}

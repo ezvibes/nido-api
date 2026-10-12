@@ -108,6 +108,12 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "transformIgnorePatterns": [
+      "/node_modules/(?!lodash-es)/"
+    ],
+    "moduleNameMapper": {
+      "^lodash-es$": "lodash"
+    },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],

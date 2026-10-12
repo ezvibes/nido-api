@@ -4,12 +4,14 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { Agent, Runner } from '@google/adk';
 import { BeehiivService, BeehiivDraftResponse } from './beehiiv.service';
 import {
   NewsletterCatalogService,
   NewsletterSourceConcert,
 } from './newsletter-catalog.service';
+import { NewsletterAgentToolRegistry } from './agent/newsletter-agent-tool-registry.service';
+import { TypeOrmSessionService } from '../apis/agents/session/typeorm-session.service';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -64,6 +66,8 @@ export class NewsletterService {
     private readonly newsletterCatalogService: NewsletterCatalogService,
     private readonly configService: ConfigService,
     private readonly beehiivService: BeehiivService,
+    private readonly toolRegistry: NewsletterAgentToolRegistry,
+    private readonly sessionService: TypeOrmSessionService,
   ) {}
 
   /**
@@ -94,27 +98,77 @@ export class NewsletterService {
       );
     }
 
-    const rawCalendarDump = JSON.stringify(combinedConcerts, null, 2);
-
-    const prompt = await this.buildPrompt({
+    const systemInstruction = await this.buildPrompt({
       dateRange: preview.dateRangeLabel,
       editionType: params.editionType || 'weekly',
       recapNotes: params.weekendRecap,
       featuredShow: params.featuredShow,
       featuredFestival: params.featuredFestival,
-      rawCalendarData: rawCalendarDump,
+      rawCalendarData:
+        'Use the fetchApprovedConcertsTool to retrieve verified catalog events, and verify URLs as necessary.',
+    });
+
+    const agent = new Agent({
+      name: 'Firenze',
+      model: modelName,
+      description:
+        "Nido's live music curation and editorial agent. Prepares the weekly top picks newsletter.",
+      instruction: systemInstruction,
+      tools: this.toolRegistry.getTools(),
+    });
+
+    // Set API key for ADK models to pick up if they fallback to environment vars
+    process.env.GEMINI_API_KEY = apiKey;
+    process.env.GOOGLE_GENAI_API_KEY = apiKey;
+
+    const runner = new Runner({
+      agent,
+      sessionService: this.sessionService,
+      appName: 'nido-newsletter-agent',
     });
 
     this.logger.log(
-      `Invoking Gemini API (${modelName}) to generate newsletter draft...`,
+      `Invoking ADK Agent "Firenze" (${modelName}) to generate newsletter draft...`,
     );
     try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: modelName });
+      const session = await this.sessionService.createSession({
+        appName: 'nido-newsletter-agent',
+        userId: 'admin',
+      });
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
+      let text = '';
+      let beehiivDraftInfo: any = undefined;
+
+      const userMessageText = `Please draft the ${params.editionType || 'weekly'} newsletter for ${preview.dateRangeLabel}.
+Start by fetching the approved concerts.
+${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehiiv as a draft using stageBeehiivDraftTool.` : ''}`;
+
+      for await (const event of runner.runAsync({
+        userId: 'admin',
+        sessionId: session.id,
+        newMessage: {
+          role: 'user',
+          parts: [{ text: userMessageText }],
+        },
+      })) {
+        if (event.content && event.content.parts) {
+          for (const part of event.content.parts) {
+            if (part.text) {
+              text += part.text;
+            }
+            if ((part as any).functionResponse) {
+              const fr = (part as any).functionResponse;
+              if (fr.name === 'stageBeehiivDraft' && fr.response?.success) {
+                beehiivDraftInfo = {
+                  id: fr.response.id,
+                  status: fr.response.status,
+                  title: fr.response.title,
+                };
+              }
+            }
+          }
+        }
+      }
 
       if (!text) {
         throw new InternalServerErrorException(
@@ -122,20 +176,28 @@ export class NewsletterService {
         );
       }
 
+      // Keep explicit manual push as fallback if ADK agent didn't push when autoPushToBeehiiv is true
       let beehiivDraft: BeehiivDraftResponse | undefined;
 
       if (params.autoPushToBeehiiv) {
-        const postTitle = `EZ Vibes Top Picks: ${preview.dateRangeLabel}`;
-        const htmlContent = this.convertMarkdownToHtml(text);
+        if (beehiivDraftInfo) {
+          this.logger.log(
+            `Agent automatically pushed generated newsletter to Beehiiv.`,
+          );
+          beehiivDraft = beehiivDraftInfo;
+        } else {
+          const postTitle = `EZ Vibes Top Picks: ${preview.dateRangeLabel}`;
+          const htmlContent = this.convertMarkdownToHtml(text);
 
-        this.logger.log(
-          `Auto-pushing generated newsletter to Beehiiv: "${postTitle}"`,
-        );
-        beehiivDraft = await this.beehiivService.createDraftFromHtml({
-          title: postTitle,
-          htmlContent: htmlContent,
-          postTemplateId: params.postTemplateId,
-        });
+          this.logger.log(
+            `Agent did not auto-push. Falling back to auto-pushing generated newsletter to Beehiiv: "${postTitle}"`,
+          );
+          beehiivDraft = await this.beehiivService.createDraftFromHtml({
+            title: postTitle,
+            htmlContent: htmlContent,
+            postTemplateId: params.postTemplateId,
+          });
+        }
       }
 
       return {
