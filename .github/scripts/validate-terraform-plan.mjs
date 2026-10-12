@@ -10,6 +10,9 @@ const imageOf = (service) => service?.template?.[0]?.containers?.[0]?.image;
 const withoutReleaseImage = (service) => {
   const copy = structuredClone(service);
   delete copy.template[0].containers[0].image;
+  delete copy.labels;
+  delete copy.effective_labels;
+  delete copy.terraform_labels;
   return copy;
 };
 

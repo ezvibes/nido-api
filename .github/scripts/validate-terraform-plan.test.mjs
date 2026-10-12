@@ -18,6 +18,16 @@ const plan = (before, after, actions = ['update']) => ({
 test('accepts the built digest as the only service change or a no-op', () => {
   assert.doesNotThrow(() => validateTerraformPlan(plan(service(oldImage), service(newImage)), newImage));
   assert.doesNotThrow(() => validateTerraformPlan(plan(service(newImage), service(newImage), ['no-op']), newImage));
+  assert.doesNotThrow(() => {
+    const before = service(oldImage);
+    const after = {
+      ...service(newImage),
+      labels: { app: 'nido', environment: 'dev' },
+      effective_labels: { app: 'nido', environment: 'dev' },
+      terraform_labels: { app: 'nido' },
+    };
+    validateTerraformPlan(plan(before, after), newImage);
+  });
 });
 
 test('rejects configuration drift, unexpected resources, and other plans', () => {
