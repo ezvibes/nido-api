@@ -164,15 +164,44 @@ A reachable result means the web server responded. It does **not** prove that th
 page sells tickets for the correct concert, that tickets remain available, or
 that the price is accurate. The editor must still inspect important links.
 
-### Beehiiv Draft Staging
+### Beehiiv Draft Staging & MCP Integration
 
-Firenze's Beehiiv tool is deliberately draft-only. Its input must explicitly say
-`draft`, ADK requires a human confirmation before the external call, and the
-response is checked to ensure Beehiiv created a draft. The tool has no publish or
-send capability.
+Firenze's draft staging uses a resilient dual-transport architecture designed for
+both automated agent workflows and human editor oversight:
 
-These overlapping controls are intentional. A prompt, model mistake, or malformed
-tool call should not silently turn into an email sent to subscribers.
+1. **Why Beehiiv MCP Was Adopted:**
+   Beehiiv's public REST API restricts programmatic post creation (`POST /v2/publications/.../posts`)
+   to Enterprise accounts. To enable draft staging across standard plans without
+   requiring enterprise licensing, Firenze connects to the official hosted Beehiiv
+   Model Context Protocol (MCP) endpoint (`https://mcp.beehiiv.com/mcp`) using
+   `@google/adk` and `@modelcontextprotocol/sdk`.
+
+2. **Dual-Transport Staging (`stageBeehiivDraft`):**
+   - **Primary (Remote MCP):** `BeehiivMcpService` connects to the hosted Beehiiv MCP
+     server using Bearer authentication (`BEEHIIV_API_KEY`) and invokes the remote
+     `create_post` tool.
+   - **Fallback (REST / Offline Mock):** If the MCP endpoint is disabled, unreachable,
+     or unauthenticated, the tool falls back gracefully to `BeehiivService.createDraftFromHtml`
+     or an offline staging result (`BEEHIIV_MOCK_STAGING=true`).
+
+3. **Strict Draft Safety Boundaries:**
+   Firenze's Beehiiv tool is deliberately draft-only:
+   - The tool parameter requires `status: "draft"`.
+   - ADK enforces human confirmation (`requireConfirmation: true`) before any remote
+     call is executed.
+   - The returned response is verified to confirm Beehiiv created a draft; any non-draft
+     status is rejected.
+   - The tool contains zero publish, schedule, or subscriber-send capabilities.
+
+4. **Connected Desktop MCP Editor Sessions:**
+   Human editors can also connect desktop MCP tools directly to Beehiiv for interactive
+   read/edit/verify sessions. The
+   [MCP draft playbook](../../.agents/skills/firenze-newsletter/references/beehiiv-mcp-playbook.md)
+   records the authentic venue-guide format, subscriber gate checks, and editorial
+   rules learned from hands-on curation.
+
+These overlapping controls are intentional. A prompt mistake, model hallucination,
+or malformed tool call cannot silently turn into an email sent to subscribers.
 
 ### Human Approval
 

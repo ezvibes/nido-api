@@ -6,6 +6,7 @@ import { NewsletterController } from './newsletter.controller';
 import { NewsletterService } from './newsletter.service';
 import { NewsletterCatalogService } from './newsletter-catalog.service';
 import { BeehiivService } from './beehiiv.service';
+import { BeehiivMcpService } from './beehiiv-mcp.service';
 import { AuthModule } from '../auth/auth.module';
 import { NewsletterAgentToolRegistry } from './agent/newsletter-agent-tool-registry.service';
 import { TicketUrlVerificationService } from './ticket-url-verification.service';
@@ -20,6 +21,7 @@ import { NewsletterCoBillService } from './newsletter-co-bill.service';
     NewsletterCoBillService,
     NewsletterAgentToolRegistry,
     BeehiivService,
+    BeehiivMcpService,
     TicketUrlVerificationService,
   ],
   exports: [
@@ -28,6 +30,7 @@ import { NewsletterCoBillService } from './newsletter-co-bill.service';
     NewsletterCoBillService,
     NewsletterAgentToolRegistry,
     BeehiivService,
+    BeehiivMcpService,
     TicketUrlVerificationService,
   ],
 })
