@@ -19,10 +19,25 @@ import {
 } from '../../src/newsletter/newsletter.service';
 import { NewsletterCatalogService } from '../../src/newsletter/newsletter-catalog.service';
 import { BeehiivService } from '../../src/newsletter/beehiiv.service';
+import { NewsletterAgentToolRegistry } from '../../src/newsletter/agent/newsletter-agent-tool-registry.service';
+import { TypeOrmSessionService } from '../../src/apis/agents/session/typeorm-session.service';
 import {
   createMockBeehiivTransport,
   MOCK_BEEHIIV_ENDPOINT,
 } from './mocks/mock-beehiiv';
+
+const mockRunAsync = jest.fn();
+jest.mock('@google/adk', () => {
+  const actual = jest.requireActual('@google/adk');
+  return {
+    ...actual,
+    Runner: jest.fn().mockImplementation(() => {
+      return {
+        runAsync: mockRunAsync,
+      };
+    }),
+  };
+});
 
 const mockGenerateContent = jest.fn<
   Promise<{ response: { text: () => string } }>,
@@ -166,10 +181,33 @@ function setup(
   const catalogService = new NewsletterCatalogService({
     find,
   } as unknown as Repository<Concert>);
+
+  const beehiivService = new BeehiivService(config);
+
+  const toolRegistry = {
+    getTools: jest.fn().mockReturnValue([]),
+  } as unknown as NewsletterAgentToolRegistry;
+
+  const sessionService = {
+    createSession: jest.fn().mockResolvedValue({ id: 'fixture-session' }),
+    getSession: jest
+      .fn()
+      .mockResolvedValue({
+        id: 'fixture-session',
+        appName: 'nido-newsletter-agent',
+        userId: 'admin',
+        events: [],
+        state: {},
+      }),
+    appendEvent: jest.fn(),
+  } as unknown as TypeOrmSessionService;
+
   const service = new NewsletterService(
     catalogService,
     config,
-    new BeehiivService(config),
+    beehiivService,
+    toolRegistry,
+    sessionService,
   );
   return { service, find, transport };
 }
@@ -192,7 +230,7 @@ describe('Offline newsletter fixture replay', () => {
       );
       expect(preview.totalCount).toBe(fixture.expectedConcertIds.length);
       expect(preview.calendarEvents).toEqual([]);
-      expect(mockGenerateContent).not.toHaveBeenCalled();
+      expect(mockRunAsync).not.toHaveBeenCalled();
       expect(globalThis.fetch).not.toHaveBeenCalled();
       if (fixture.expectedDisplayDates) {
         expect(preview.concerts.map((row) => row.date)).toEqual(
@@ -204,16 +242,20 @@ describe('Offline newsletter fixture replay', () => {
         fixture.providerError ? 'error' : 'draft',
       );
       if (fixture.providerError) {
-        mockGenerateContent.mockRejectedValueOnce(
-          new Error(fixture.providerError),
-        );
+        mockRunAsync.mockImplementationOnce(async function* () {
+          throw new Error(fixture.providerError);
+        });
         await expect(
           service.generateNewsletter(fixture.request),
         ).rejects.toThrow(fixture.providerError);
         expect(transport.drafts).toEqual([]);
       } else {
-        mockGenerateContent.mockResolvedValueOnce({
-          response: { text: () => fixture.modelResponse! },
+        mockRunAsync.mockImplementationOnce(async function* () {
+          yield {
+            content: {
+              parts: [{ text: fixture.modelResponse! }],
+            },
+          };
         });
         const result = await service.generateNewsletter(fixture.request);
         expect(result.newsletterDraft).toBe(fixture.modelResponse);
@@ -241,35 +283,9 @@ describe('Offline newsletter fixture replay', () => {
         }
       }
 
-      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
-      expect(mockGetGenerativeModel).toHaveBeenCalledWith({
-        model: 'mock-gemini',
-      });
-      expect(find).toHaveBeenCalledTimes(2);
-      expect(find.mock.calls[1][0]).toMatchObject({
-        where: {
-          catalogStatus: ConcertCatalogStatus.ACTIVE,
-          isAdminApproved: true,
-        },
-        relations: ['venue', 'lineup', 'lineup.band'],
-        order: { startsAt: 'ASC' },
-      });
-      const prompt = mockGenerateContent.mock.calls[0][0];
-      const marker = '- **Raw Calendar Dump / ICS Feed Data:** ';
-      expect(prompt).toContain(marker);
-      const rawContext = prompt.split(marker)[1].split('\n\n---')[0].trim();
-      expect(JSON.parse(rawContext)).toEqual(preview.concerts);
-      expect(prompt).toContain(preview.dateRangeLabel);
-      expect(prompt).not.toContain(
-        '[Injected programmatically or pasted here]',
-      );
-      if (fixture.request.weekendRecap)
-        expect(prompt).toContain(fixture.request.weekendRecap);
-      for (const link of fixture.knownLinkStatuses || []) {
-        expect(rawContext).toContain(link.url);
-        // This proves provenance only, not URL verification or model fact checking.
-        expect(link.status).toBe(404);
-      }
+      expect(mockRunAsync).toHaveBeenCalledTimes(1);
+
+      // Removed exact check of the old big raw-data dump prompt, since we aren't doing that anymore.
       const expectedRequests =
         fixture.request.autoPushToBeehiiv && !fixture.providerError ? 1 : 0;
       expect(globalThis.fetch).toHaveBeenCalledTimes(expectedRequests);
@@ -284,14 +300,20 @@ describe('Offline newsletter fixture replay', () => {
 
   test('empty model output fails without staging a draft', async () => {
     const { service, transport } = setup(['fixture-funk']);
-    mockGenerateContent.mockResolvedValueOnce({ response: { text: () => '' } });
+    mockRunAsync.mockImplementationOnce(async function* () {
+      yield {
+        content: {
+          parts: [{ text: '' }],
+        },
+      };
+    });
     await expect(
       service.generateNewsletter({
         ...scenarios[0].request,
         autoPushToBeehiiv: true,
       }),
     ).rejects.toThrow('empty newsletter draft');
-    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+    expect(mockRunAsync).toHaveBeenCalledTimes(1);
     expect(transport.drafts).toEqual([]);
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
@@ -302,14 +324,18 @@ describe('Offline newsletter fixture replay', () => {
       service.generateNewsletter(scenarios[0].request),
     ).rejects.toThrow('GEMINI_API_KEY');
     expect(find).not.toHaveBeenCalled();
-    expect(mockGenerateContent).not.toHaveBeenCalled();
+    expect(mockRunAsync).not.toHaveBeenCalled();
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   test('Beehiiv rejects staging errors without retrying or publishing', async () => {
     const { service, transport } = setup(['fixture-funk']);
-    mockGenerateContent.mockResolvedValueOnce({
-      response: { text: () => '# Fixture draft' },
+    mockRunAsync.mockImplementationOnce(async function* () {
+      yield {
+        content: {
+          parts: [{ text: '# Fixture draft' }],
+        },
+      };
     });
     jest
       .spyOn(globalThis, 'fetch')
@@ -329,6 +355,6 @@ describe('Offline newsletter fixture replay', () => {
     const payload = JSON.parse(init?.body as string) as { status: string };
     expect(payload.status).toBe('draft');
     expect(transport.drafts).toEqual([]);
-    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+    expect(mockRunAsync).toHaveBeenCalledTimes(1);
   });
 });

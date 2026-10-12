@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { FunctionTool } from '@google/adk';
 import { NewsletterCatalogService } from '../newsletter-catalog.service';
 import { NewsletterCoBillService } from '../newsletter-co-bill.service';
 import { BeehiivService } from '../beehiiv.service';
+import { BeehiivMcpService } from '../beehiiv-mcp.service';
 import { TicketUrlVerificationService } from '../ticket-url-verification.service';
 import { createFetchApprovedConcertsTool } from './tools/fetch-approved-concerts.tool';
 import { createGetCoBillRecommendationsTool } from './tools/get-co-bill-recommendations.tool';
@@ -18,12 +19,13 @@ export class NewsletterAgentToolRegistry {
     coBillService: NewsletterCoBillService,
     verificationService: TicketUrlVerificationService,
     beehiivService: BeehiivService,
+    @Optional() beehiivMcpService?: BeehiivMcpService,
   ) {
     this.tools = Object.freeze([
       createFetchApprovedConcertsTool(catalogService),
       createGetCoBillRecommendationsTool(coBillService),
       createVerifyTicketUrlTool(verificationService),
-      createStageBeehiivDraftTool(beehiivService),
+      createStageBeehiivDraftTool(beehiivService, beehiivMcpService),
     ]);
   }
 

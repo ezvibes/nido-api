@@ -4,10 +4,25 @@ import { ConfigService } from '@nestjs/config';
 import { NewsletterService } from './newsletter.service';
 import { NewsletterCatalogService } from './newsletter-catalog.service';
 import { BeehiivService } from './beehiiv.service';
+import { NewsletterAgentToolRegistry } from './agent/newsletter-agent-tool-registry.service';
+import { TypeOrmSessionService } from '../apis/agents/session/typeorm-session.service';
 import {
   Concert,
   ConcertCatalogStatus,
 } from '../apis/concerts/entities/concert.entity';
+
+const mockRunAsync = jest.fn();
+jest.mock('@google/adk', () => {
+  const actual = jest.requireActual('@google/adk');
+  return {
+    ...actual,
+    Runner: jest.fn().mockImplementation(() => {
+      return {
+        runAsync: mockRunAsync,
+      };
+    }),
+  };
+});
 
 const mockGenerateContent = jest.fn();
 const mockGetGenerativeModel = jest.fn();
@@ -57,11 +72,42 @@ describe('NewsletterService', () => {
         },
         {
           provide: ConfigService,
-          useValue: mockConfigService,
+          useValue: {
+            get: jest.fn((key: string) => {
+              if (key === 'GEMINI_API_KEY') return 'test-key';
+              if (key === 'GOOGLE_GENAI_API_KEY') return 'test-key';
+              if (key === 'GEMINI_MODEL') return 'gemini-3.6-flash';
+              return null;
+            }),
+          },
         },
         {
           provide: BeehiivService,
           useValue: mockBeehiivService,
+        },
+        {
+          provide: NewsletterAgentToolRegistry,
+          useValue: {
+            getTools: jest.fn().mockReturnValue([]),
+          },
+        },
+        {
+          provide: TypeOrmSessionService,
+          useValue: {
+            createSession: jest
+              .fn()
+              .mockResolvedValue({ id: 'test-session-id' }),
+            getSession: jest
+              .fn()
+              .mockResolvedValue({
+                id: 'test-session-id',
+                appName: 'nido-newsletter-agent',
+                userId: 'admin',
+                events: [],
+                state: {},
+              }),
+            appendEvent: jest.fn().mockResolvedValue({ id: 'mock-event-id' }),
+          },
         },
       ],
     }).compile();
@@ -155,11 +201,17 @@ describe('NewsletterService', () => {
 
     it('should generate newsletter draft and auto-push to Beehiiv when autoPushToBeehiiv is true', async () => {
       mockConcertRepository.find.mockResolvedValue(mockConcerts);
-      mockGenerateContent.mockResolvedValue({
-        response: {
-          text: () =>
-            '# EZ Vibes Weekly Top Picks\n\n## Quick Hits\n- Papadosio at Lincoln Theatre',
-        },
+
+      mockRunAsync.mockImplementation(async function* () {
+        yield {
+          content: {
+            parts: [
+              {
+                text: '# EZ Vibes Weekly Top Picks\n\n## Quick Hits\n- Papadosio at Lincoln Theatre',
+              },
+            ],
+          },
+        };
       });
 
       mockBeehiivService.createDraftFromHtml.mockResolvedValue({
@@ -193,10 +245,12 @@ describe('NewsletterService', () => {
         },
       ]);
 
-      mockGenerateContent.mockResolvedValue({
-        response: {
-          text: () => 'Weekly picks draft',
-        },
+      mockRunAsync.mockImplementation(async function* () {
+        yield {
+          content: {
+            parts: [{ text: 'Weekly picks draft' }],
+          },
+        };
       });
 
       const preview = await service.previewNewsletterSources({

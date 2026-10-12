@@ -16,6 +16,10 @@ editor owns selection, claims, voice, scheduling, publication, and sending.
 
 - Use this skill for newsletter selection rules, prompts, voice, source previews,
   generated drafts, editorial evaluation, and Beehiiv draft preparation.
+- For connected Beehiiv MCP creation, review, edits, subscriber gates and
+  venue-guide formatting, read the
+  [MCP draft playbook](references/beehiiv-mcp-playbook.md). This is a connected
+  editor workflow, not evidence of new Nido runtime capabilities.
 - Also use `gear-agent-flywheel` when changing Firenze's ADK orchestration or
   tool contracts.
 - Also use `nido-feature-flywheel` when changing NestJS, Vue, TypeORM,
@@ -72,8 +76,11 @@ catalog data, provider availability, or deployment health.
    fixture, application code, or documentation.
 5. Add or update a deterministic fixture when a failure can be reproduced without
    a live provider.
-6. Run focused newsletter tests and `npm run test:newsletter:harness`, then run
-   `npm run agent:gate` before handoff.
+6. For runtime or prompt behavior changes, run focused newsletter tests and
+   `npm run test:newsletter:harness`, then `npm run agent:gate` before handoff.
+   For editorial artifacts or documentation-only instructions, check the diff,
+   references and relevant saved/rendered output; explain why runtime checks
+   were skipped.
 7. Record skipped live-model, network, Beehiiv, authenticated, or deployment
    checks explicitly.
 

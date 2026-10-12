@@ -3,6 +3,12 @@
   "testEnvironment": "node",
   "testMatch": ["<rootDir>/test/agent-harness/**/*.spec.ts"],
   "transform": { "^.+\\.tsx?$": "ts-jest" },
+  "transformIgnorePatterns": [
+    "/node_modules/(?!lodash-es)/"
+  ],
+  "moduleNameMapper": {
+    "^lodash-es$": "lodash"
+  },
   "setupFilesAfterEnv": ["<rootDir>/test/agent-harness/offline.setup.ts"],
   "clearMocks": true
 }
