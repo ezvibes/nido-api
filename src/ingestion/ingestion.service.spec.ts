@@ -426,6 +426,48 @@ describe('IngestionService', () => {
     },
   );
 
+  it('falls back to concert title as primary band name when concertBandName is omitted on approval', async () => {
+    const createdAt = new Date('2026-06-07T17:30:54.784Z');
+    const upload = {
+      id: 'asset-1',
+      storageUri: 'gs://bucket/path/file.jpg',
+      objectName: 'path/file.jpg',
+      bucket: 'test-bucket',
+      mimeType: 'image/jpeg',
+      originalFilename: 'poster.jpg',
+      source: 'flyer_upload',
+      size: 12,
+      uploadedByUid: 'uid-1',
+      createdAt,
+      reviewStatus: 'submitted',
+    };
+
+    concertUploadRepository.findOne.mockResolvedValue(upload);
+    concertUploadRepository.save.mockImplementation(async (value) => value);
+    concertUploadRepository.findOneOrFail.mockResolvedValue({
+      ...upload,
+      reviewStatus: 'approved',
+      reviewedAt: new Date('2026-06-07T17:40:00.000Z'),
+      reviewedByUserId: 7,
+      concertId: 'new-concert-id',
+    });
+
+    await service.adminReviewConcertUpload(
+      'asset-1',
+      {
+        status: 'approved',
+        concertTitle: 'Poster Show Title',
+        concertStartsAt: '2026-07-10T23:00:00.000Z',
+        concertVenueName: 'The Venue',
+      },
+      7,
+    );
+
+    expect(bandService.findOrCreateManyByName).toHaveBeenCalledWith([
+      'Poster Show Title',
+    ]);
+  });
+
   it('reuses existing hinted venue and band when approval names match', async () => {
     const createdAt = new Date('2026-06-07T17:30:54.784Z');
     const existingVenue = {
