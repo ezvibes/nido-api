@@ -97,15 +97,13 @@ describe('NewsletterService', () => {
             createSession: jest
               .fn()
               .mockResolvedValue({ id: 'test-session-id' }),
-            getSession: jest
-              .fn()
-              .mockResolvedValue({
-                id: 'test-session-id',
-                appName: 'nido-newsletter-agent',
-                userId: 'admin',
-                events: [],
-                state: {},
-              }),
+            getSession: jest.fn().mockResolvedValue({
+              id: 'test-session-id',
+              appName: 'nido-newsletter-agent',
+              userId: 'admin',
+              events: [],
+              state: {},
+            }),
             appendEvent: jest.fn().mockResolvedValue({ id: 'mock-event-id' }),
           },
         },
