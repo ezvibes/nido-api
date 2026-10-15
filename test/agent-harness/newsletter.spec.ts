@@ -190,15 +190,13 @@ function setup(
 
   const sessionService = {
     createSession: jest.fn().mockResolvedValue({ id: 'fixture-session' }),
-    getSession: jest
-      .fn()
-      .mockResolvedValue({
-        id: 'fixture-session',
-        appName: 'nido-newsletter-agent',
-        userId: 'admin',
-        events: [],
-        state: {},
-      }),
+    getSession: jest.fn().mockResolvedValue({
+      id: 'fixture-session',
+      appName: 'nido-newsletter-agent',
+      userId: 'admin',
+      events: [],
+      state: {},
+    }),
     appendEvent: jest.fn(),
   } as unknown as TypeOrmSessionService;
 
