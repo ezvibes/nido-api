@@ -140,7 +140,7 @@ export class NewsletterService {
       let beehiivDraftInfo: any = undefined;
 
       const userMessageText = `Please draft the ${params.editionType || 'weekly'} newsletter for ${preview.dateRangeLabel}.
-Start by fetching the approved concerts.
+Start by fetching the approved concerts. Output the full newsletter draft in markdown according to the template instructions.
 ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehiiv as a draft using stageBeehiivDraftTool.` : ''}`;
 
       for await (const event of runner.runAsync({
@@ -155,6 +155,14 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
           for (const part of event.content.parts) {
             if (part.text) {
               text += part.text;
+            }
+            if ((part as any).functionCall) {
+              const fc = (part as any).functionCall;
+              if (fc.name === 'stageBeehiivDraft' && fc.args?.htmlContent) {
+                if (!text) {
+                  text = fc.args.htmlContent;
+                }
+              }
             }
             if ((part as any).functionResponse) {
               const fr = (part as any).functionResponse;
