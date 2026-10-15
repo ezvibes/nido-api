@@ -104,7 +104,7 @@ audience. A useful Bologna handoff should answer:
 
 ## Tool Framework & Bologna Extensibility
 
-Following the [Nido Unified ADK Tool Framework](adr-adk-agent-tool-framework.md), Bologna is equipped to transition from a manual documentation role to an interactive, tool-driven teaching agent. 
+Following the [Nido Unified ADK Tool Framework](adr-adk-agent-tool-framework.md), Bologna is equipped to transition from a manual documentation role to an interactive, tool-driven teaching agent.
 
 Just as Firenze queries the live catalog and stages drafts via `NewsletterAgentToolRegistry`, Bologna utilizes a dedicated **Documentation Tool Registry** (`DocAgentToolRegistry`):
 

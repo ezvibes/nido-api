@@ -4,7 +4,7 @@
 **Accepted & Implemented (Core Foundation)**
 
 ## Context
-Nido has transitioned from static prompt-stuffing to autonomous ReAct agent execution powered by **Google's Agent Development Kit (ADK v2.1)** and **Gemini 3.6/3.8 Flash**. 
+Nido has transitioned from static prompt-stuffing to autonomous ReAct agent execution powered by **Google's Agent Development Kit (ADK v2.1)** and **Gemini 3.6/3.8 Flash**.
 
 Initially, agent tools were scoped narrowly to newsletter draft generation in **Firenze**. However, as Nido expands to multi-channel operations (social media generation, catalog search, subscriber engagement analytics) and specialized agents like **Bologna** (Documentation and Teaching Agent) and **Munchen** (Venue Scout Agent), the system requires a **solidified, uniform tool framework**.
 
