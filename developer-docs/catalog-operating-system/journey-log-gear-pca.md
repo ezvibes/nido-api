@@ -74,6 +74,52 @@ Copy this template for every training session:
 
 ## 📖 Session Logs
 
+### October 15, 2026 | Week 3: Autonomous ReAct Agents, Guarded Terraform IaC & Universal Tool Framework
+
+- **1. Breakthrough (The Concept):**
+  - **The ReAct Paradigm Shift:** Eliminated fragile 30,000-character "prompt-stuffing" (querying 150+ raw database rows and praying for valid HTML/dates). Shifted to Google's Agent Development Kit (ADK) `Runner` with Agent "Firenze", running an autonomous ReAct (Reason + Act) loop that dynamically decides which tools to invoke for data fetching, URL verification, and draft staging.
+  - **Durable Multi-Turn Memory:** Transitioned from stateless prompts to `TypeOrmSessionService` backed by Cloud SQL PostgreSQL (`agent_sessions` table), enabling multi-turn editorial refinement without re-querying catalog state.
+  - **Deterministic Code vs. Probabilistic LLMs:** Models are inherently probabilistic; runtime tools must be strictly deterministic. Offloaded date arithmetic and text normalization into dedicated code tools (`dateArithmeticTool`, `textFormatterTool`), eliminating date/day-of-week hallucinations.
+  - **Guarded Single-Writer IaC:** Shifted from manual `gcloud run deploy` to Terraform 1.5+ with remote GCS state locking, immutable container digest pinning (`@sha256`), and a custom plan validator gate (`validate-terraform-plan.mjs`) ensuring zero silent infrastructure drift during deployments.
+
+- **2. Build (The Code & PRs):**
+  - **PR #125 & #126 (Beehiiv MCP Integration):** Built dual-transport driver (`BeehiivMcpService`) with remote Streamable HTTP, automated session lifecycle management, and deterministic offline mock fallback (`BEEHIIV_MOCK_STAGING=true`). Authored `beehiiv-mcp-playbook.md`.
+  - **PR #124 & #128 (Guarded Cloud Run IaC):** Formalized Cloud Run v2 HCL module with deletion protection, strict regex variable bounds, and CI plan inspection gate.
+  - **PR #129 (ADK ReAct Agent & Session Memory):** Replaced static newsletter generator with ADK `Runner`, Firenze editorial persona, and PostgreSQL `TypeOrmSessionService`.
+  - **PR #134 & #135 (5-Layer Universal Tool Framework):** Standardized tool lifecycle (Fail-closed Zod validation $\rightarrow$ ADK `FunctionTool` wrapper $\rightarrow$ Frozen agent registries $\rightarrow$ Common utilities $\rightarrow$ NestJS structured logging).
+  - **PR #137 (Structured GCP Logging & Distributed Cloud Trace):** Implemented zero-dependency `GcpStructuredLogger` extending `ConsoleLogger`, `TraceContextMiddleware` extracting `x-cloud-trace-context` via `AsyncLocalStorage`, and automatic Error Reporting grouping for Cloud Run.
+  - **Quality Gates:** Expanded test suite to **35 test suites, 220 unit/contract tests (100% green)** and built a zero-token synthetic evaluation harness (`npm run test:newsletter:harness`).
+
+- **3. Boundary / Bug (The Real-World Lesson):**
+  - **Fail-Closed Model Boundary:** LLM tool arguments must always be treated as untrusted user input. Strict Zod schemas prevent prompt injection and bound query limits before database queries execute.
+  - **Non-Negotiable Human-In-The-Loop Gate:** Agents must never hold direct broadcast/send authority. Firenze is hard-coded and contract-enforced to `status: "draft"`, preserving human editorial supremacy.
+  - **Offline Evaluation Drives Velocity:** Mocking external providers and running local synthetic harnesses enabled merging 4+ PRs in one evening without incurring API costs or rate-limit friction.
+
+- **4. Broadcast (Content Hook for LinkedIn / X):**
+  > "Stop stuffing 30k characters into prompts and hoping your LLM gets dates right. We migrated Nido's newsletter from static text generation to an autonomous Google ADK ReAct agent with Cloud SQL persistent memory, guarded Terraform deployments, and a 5-layer deterministic tool framework. Models reason; code enforces boundaries. #GoogleCloud #AIagents #Terraform #ADK #SoftwareArchitecture #BuildInPublic"
+
+### October 11, 2026 | Week 2: Model Context Protocol (MCP) in Production & Remote Streamable Transport
+
+- **1. Breakthrough (The Concept):**
+  - **SaaS API Paywalling vs. Protocol Arbitrage:** Beehiiv's REST API gates programmatic post creation (`POST /v2/publications/.../posts`) behind Enterprise-tier plans, returning `403/422` on standard accounts. However, their official hosted Model Context Protocol (MCP) endpoint (`https://mcp.beehiiv.com/mcp`) specifically permits connected AI agents to create and edit post drafts without an enterprise upgrade.
+  - **Remote Streamable HTTP Transport:** Unlike desktop MCP tools executing local child processes via `stdio`, server-side agent runtimes connect via `@modelcontextprotocol/sdk` and Google ADK's `StreamableHTTPConnectionParams` over HTTP/SSE.
+  - **Dual-Transport Fallback Architecture:** Tiered failover pattern: Primary (Remote Beehiiv MCP) $\rightarrow$ Secondary (REST BeehiivService) $\rightarrow$ Fallback (Deterministic In-Memory Staging via `BEEHIIV_MOCK_STAGING=true`) ensures CI/CD evaluation harnesses run deterministically with zero cost and zero network egress.
+  - **Defensive Session Lifecycle Governance:** Programmatic MCP execution outside autonomous agent loops requires strict session cleanup (`mcpSessionManager.createSession()` $\rightarrow$ `try/finally` $\rightarrow$ `closeSession()`) to avoid socket leaks and hung sessions on Cloud Run.
+  - **Human-In-The-Loop (HITL) Guardrails:** Declaratively enforced via Google ADK (`requireConfirmation: true`) and Zod contract validation enforcing strictly `status: "draft"` with zero registration of automated publishing, scheduling, or subscriber-sending tools.
+
+- **2. Build (The Code & Configuration):**
+  - Created GitHub Issue [#125](https://github.com/ezvibes/nido-api/issues/125): `feat(newsletter): Implement Beehiiv MCP Connector for Draft Staging in Firenze Agent`.
+  - Configured Beehiiv remote MCP server (`https://mcp.beehiiv.com/mcp`) in Antigravity global configuration (`~/.gemini/config/mcp_config.json`).
+  - Structured ADK `MCPToolset` session lifecycle integration pattern for Firenze's `stageBeehiivDraft` tool.
+  - Queried and analyzed historical newsletter engagement and open metrics to inform Firenze's editorial tone and subject line generation.
+
+- **3. Boundary / Bug (The Real-World Lesson):**
+  - **Static API Keys vs. OAuth Delegation:** Remote SaaS MCP servers frequently enforce OAuth 2.0 user authorization rather than raw static API keys, requiring client-side session authentication.
+  - **Stateful Socket Management:** Unlike stateless REST calls, streaming MCP sessions maintain persistent stream connections; unclosed sessions leak file descriptors and memory in containerized microservices.
+
+- **4. Broadcast (Content Hook for LinkedIn / X):**
+  > "Why pay an enterprise tier just to let an AI agent stage a draft? We connected Google's Agent Development Kit (ADK) directly to Beehiiv's Model Context Protocol (MCP) server over remote Streamable HTTP—keeping editorial humans in the loop while bypassing REST paywalls with open protocols. #ADK #ModelContextProtocol #AIagents #BuildInPublic #GEAR"
+
 ### October 9, 2026 | Week 2: Naming The Complete Agent Network
 
 - **1. Breakthrough (The Concept):**
