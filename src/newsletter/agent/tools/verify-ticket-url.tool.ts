@@ -1,4 +1,3 @@
-import { Logger } from '@nestjs/common';
 import { FunctionTool } from '@google/adk';
 import { TicketUrlVerificationService } from '../../ticket-url-verification.service';
 import {
@@ -7,8 +6,6 @@ import {
 } from '../contracts/verify-ticket-url.schema';
 
 export const VERIFY_TICKET_URL_TOOL_NAME = 'verifyTicketUrl';
-
-const logger = new Logger('VerifyTicketUrlTool');
 
 export function createVerifyTicketUrlTool(
   verificationService: TicketUrlVerificationService,
@@ -19,9 +16,6 @@ export function createVerifyTicketUrlTool(
       'Checks a bounded batch of public ticket URLs and classifies each as reachable, unreachable, blocked by network policy, or indeterminate.',
     parameters: verifyTicketUrlInputSchema,
     execute: async ({ urls }) => {
-      logger.log(
-        `[ADK Tool Executed] verifyTicketUrl({ urlsCount: ${urls.length} })`,
-      );
       const results = await verificationService.verifyUrls(urls);
       const summary = {
         reachable: results.filter(({ status }) => status === 'reachable')

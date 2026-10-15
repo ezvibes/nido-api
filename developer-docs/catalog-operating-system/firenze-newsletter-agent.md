@@ -137,10 +137,9 @@ choose and call tools. A tool is a narrow capability, such as fetching approved
 concerts or checking a ticket URL. ADK does not replace Nido's business rules;
 it coordinates calls to services that already enforce those rules.
 
-The autonomous ADK orchestration loop is fully implemented in production via
-`NewsletterService.generateNewsletter`. Firenze executes via `@google/adk`'s `Runner`
-with persistent session memory provided by `TypeOrmSessionService`, dynamically
-invoking tools from `NewsletterAgentToolRegistry`.
+The full autonomous ADK orchestration loop is planned work. The current
+implementation establishes the tool registry and safety contracts that the
+future Firenze agent will use.
 
 ### Zod
 
@@ -218,33 +217,30 @@ Automation can make preparation faster; it cannot take publication authority.
   catalog service;
 - query bounded PostgreSQL co-bill evidence through TypeORM and return the
   historical connection plus an eligible upcoming concert;
-- run autonomous multi-turn ReAct loops via ADK `Runner` and Gemini;
-- persist session history and conversational state in PostgreSQL via `TypeOrmSessionService`;
-- stage drafts directly into Beehiiv via `BeehiivMcpService` with fallback to REST;
 - validate tool inputs and outputs with strict Zod schemas;
 - check bounded batches of public ticket URLs with network safety controls;
-- request creation of a Beehiiv draft after explicit confirmation;
+- request creation of a Beehiiv draft after explicit human confirmation;
 - reject a Beehiiv result that is not still a draft;
 - run deterministic tests without calling a live model or provider.
 
 ### Firenze cannot do now
 
-- publish, schedule, or send a Beehiiv newsletter without human action;
-- approve concerts or change the public Nido catalog;
+- run the complete autonomous curation and critique workflow;
+- learn automatically from an editor's changes;
 - guarantee that a reachable ticket link contains correct event information;
-- make commercial sponsor or pricing commitments.
+- publish, schedule, or send a Beehiiv newsletter;
+- approve concerts or change the public Nido catalog.
 
-### Tool Framework & Extensibility Roadmap
+### Planned capabilities
 
-Firenze's toolset is built on the [Nido Unified ADK Tool Framework](adr-adk-agent-tool-framework.md).
-New tools plug directly into `NewsletterAgentToolRegistry`:
+- ADK orchestration that combines the tools into a reviewable editorial run;
+- structured Beehiiv content blocks instead of fragile text conversion;
+- better observability, cost limits, and authenticated scheduled execution;
+- editorial evaluation against representative EZ Vibes examples;
+- carefully governed feedback that helps future drafts reflect human edits.
 
-1. **Multi-Facet Catalog Search (`searchCatalogConcertsTool`):**
-   Allows Firenze to query concerts by genre, venue, city, and price ceiling without scanning full date dumps.
-2. **Multi-Platform Social Media Pack (`generateSocialPackTool`):**
-   Transforms selected top picks into Instagram carousel copy, Discord alerts, and X/Twitter threads for human review.
-3. **Newsletter Engagement Analytics (`analyzeNewsletterEngagementTool`):**
-   Queries Beehiiv's MCP `get_posts` endpoint to evaluate historical open rates, CTRs, and link engagement, proposing data-driven subject line and layout enhancements.
+Planned capabilities are not promises of current behavior. They require their
+own implementation, tests, review, and deployment evidence.
 
 ## Safe Use Checklist
 
