@@ -102,6 +102,46 @@ audience. A useful Bologna handoff should answer:
 - What remains intentionally out of scope?
 - Where should a reader go next?
 
+## Tool Framework & Bologna Extensibility
+
+Following the [Nido Unified ADK Tool Framework](adr-adk-agent-tool-framework.md), Bologna is equipped to transition from a manual documentation role to an interactive, tool-driven teaching agent.
+
+Just as Firenze queries the live catalog and stages drafts via `NewsletterAgentToolRegistry`, Bologna utilizes a dedicated **Documentation Tool Registry** (`DocAgentToolRegistry`):
+
+```typescript
+export class DocAgentToolRegistry {
+  private readonly tools: readonly FunctionTool[];
+
+  constructor(
+    docService: DocumentationService,
+    evalHarnessService: EvalHarnessService,
+    boundaryAuditorService: BoundaryAuditorService,
+  ) {
+    this.tools = Object.freeze([
+      createReadArchitectureDocTool(docService),
+      createInspectTestEvidenceTool(evalHarnessService),
+      createGenerateContributorGuideTool(docService),
+      createAuditAgentBoundariesTool(boundaryAuditorService),
+    ]);
+  }
+
+  getTools(): FunctionTool[] {
+    return [...this.tools];
+  }
+}
+```
+
+### Bologna's Standard Tool Capabilities:
+
+1. **`readArchitectureDocTool`:**
+   Queries approved ADRs, system sitemaps, and architecture diagrams to ensure all explanations reflect established system contracts.
+2. **`inspectTestEvidenceTool`:**
+   Inspects automated test results (`test/agent-harness/reports/latest.json`) and CI status, guaranteeing Bologna cites real verification rather than speculative behavior.
+3. **`generateContributorGuideTool`:**
+   Synthesizes onboarding guides, architecture walkthroughs, and developer runbooks matched to specific contributor skill levels (e.g. junior devs or support engineers).
+4. **`auditAgentBoundariesTool`:**
+   Scans agent skills and tool definitions to confirm human-in-the-loop boundaries (e.g. `status: "draft"` requirements, read-only permissions, zero direct publication) are documented and enforced across the network.
+
 ## Learning More
 
 - [Firenze: the Newsletter and Editorial Agent](firenze-newsletter-agent.md)
