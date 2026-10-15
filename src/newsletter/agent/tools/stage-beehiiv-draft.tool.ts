@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { FunctionTool } from '@google/adk';
 import { BeehiivService } from '../../beehiiv.service';
 import { BeehiivMcpService } from '../../beehiiv-mcp.service';
@@ -7,6 +8,8 @@ import {
 } from '../contracts/stage-beehiiv-draft.schema';
 
 export const STAGE_BEEHIIV_DRAFT_TOOL_NAME = 'stageBeehiivDraft';
+
+const logger = new Logger('StageBeehiivDraftTool');
 
 export function createStageBeehiivDraftTool(
   beehiivService: BeehiivService,
@@ -19,6 +22,9 @@ export function createStageBeehiivDraftTool(
     parameters: stageBeehiivDraftInputSchema,
     requireConfirmation: true,
     execute: async ({ title, htmlContent, postTemplateId }) => {
+      logger.log(
+        `[ADK Tool Executed] stageBeehiivDraft({ title: "${title}" })`,
+      );
       // 1. Try MCP Staging first if service is provided
       if (beehiivMcpService) {
         try {
