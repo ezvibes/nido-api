@@ -11,6 +11,7 @@ import { IngestionModule } from './ingestion/ingestion.module';
 import { ConcertSyncModule } from './concert-sync/concert-sync.module';
 import { HealthModule } from './health/health.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
+import { GcpLoggingModule } from './common/logging/gcp-logging.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { NewsletterModule } from './newsletter/newsletter.module';
     ConcertSyncModule,
     HealthModule,
     NewsletterModule,
+    GcpLoggingModule,
   ],
   controllers: [],
   providers: [],
