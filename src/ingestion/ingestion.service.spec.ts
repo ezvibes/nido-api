@@ -115,6 +115,48 @@ describe('IngestionService', () => {
     service = module.get<IngestionService>(IngestionService);
   });
 
+  it('should use NestJS logger.debug and not console.log when uploading an image', async () => {
+    const file = {
+      originalname: 'poster.jpg',
+      mimetype: 'image/jpeg',
+      buffer: Buffer.from('image'),
+      size: 5,
+    } as UploadableFile;
+
+    concertUploadRepository.create.mockImplementation((value) => value);
+    concertUploadRepository.save.mockResolvedValue({
+      id: 'asset-1',
+      ...concertUploadRepository.create.mock.calls[0]?.[0],
+    });
+
+    const objectSave = jest.fn().mockResolvedValue(undefined);
+    const bucketMock = {
+      file: jest.fn().mockReturnValue({ save: objectSave }),
+    };
+
+    Object.defineProperty(service as object, 'storage', {
+      value: { bucket: jest.fn().mockReturnValue(bucketMock) },
+    });
+
+    const loggerDebugSpy = jest
+      .spyOn(
+        (service as unknown as { logger: { debug: () => void } }).logger,
+        'debug',
+      )
+      .mockImplementation();
+    const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+
+    await service.uploadImage(file, {}, 'uid-1');
+
+    expect(loggerDebugSpy).toHaveBeenCalledWith(
+      'Attempting to upload to bucket: "test-bucket"',
+    );
+    expect(consoleLogSpy).not.toHaveBeenCalled();
+
+    loggerDebugSpy.mockRestore();
+    consoleLogSpy.mockRestore();
+  });
+
   it('should trim, persist, copy, and return a selected upload genre', async () => {
     const file = {
       originalname: 'poster.jpg',
