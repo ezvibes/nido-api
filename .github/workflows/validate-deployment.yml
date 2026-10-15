@@ -112,6 +112,9 @@ jobs:
               : "${FIREBASE_PRIVATE_KEY_SECRET:?Missing FIREBASE_PRIVATE_KEY_SECRET in $config}"
               : "${GEMINI_API_KEY_SECRET:?Missing GEMINI_API_KEY_SECRET in $config}"
               : "${GOOGLE_CALENDAR_PRIVATE_KEY_SECRET:?Missing GOOGLE_CALENDAR_PRIVATE_KEY_SECRET in $config}"
+              : "${BEEHIIV_PUBLICATION_ID:?Missing BEEHIIV_PUBLICATION_ID in $config}"
+              : "${INTERNAL_SCHEDULER_SECRET_NAME:?Missing INTERNAL_SCHEDULER_SECRET_NAME in $config}"
+              : "${BEEHIIV_API_KEY_SECRET:?Missing BEEHIIV_API_KEY_SECRET in $config}"
 
               case "$DB_MIGRATION_TRANSACTION_MODE" in
                 all|each|none) ;;
