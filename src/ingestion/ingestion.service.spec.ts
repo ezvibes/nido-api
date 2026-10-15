@@ -115,6 +115,48 @@ describe('IngestionService', () => {
     service = module.get<IngestionService>(IngestionService);
   });
 
+  it('should use NestJS logger.debug and not console.log when uploading an image', async () => {
+    const file = {
+      originalname: 'poster.jpg',
+      mimetype: 'image/jpeg',
+      buffer: Buffer.from('image'),
+      size: 5,
+    } as UploadableFile;
+
+    concertUploadRepository.create.mockImplementation((value) => value);
+    concertUploadRepository.save.mockResolvedValue({
+      id: 'asset-1',
+      ...concertUploadRepository.create.mock.calls[0]?.[0],
+    });
+
+    const objectSave = jest.fn().mockResolvedValue(undefined);
+    const bucketMock = {
+      file: jest.fn().mockReturnValue({ save: objectSave }),
+    };
+
+    Object.defineProperty(service as object, 'storage', {
+      value: { bucket: jest.fn().mockReturnValue(bucketMock) },
+    });
+
+    const loggerDebugSpy = jest
+      .spyOn(
+        (service as unknown as { logger: { debug: () => void } }).logger,
+        'debug',
+      )
+      .mockImplementation();
+    const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+
+    await service.uploadImage(file, {}, 'uid-1');
+
+    expect(loggerDebugSpy).toHaveBeenCalledWith(
+      'Attempting to upload to bucket: "test-bucket"',
+    );
+    expect(consoleLogSpy).not.toHaveBeenCalled();
+
+    loggerDebugSpy.mockRestore();
+    consoleLogSpy.mockRestore();
+  });
+
   it('should trim, persist, copy, and return a selected upload genre', async () => {
     const file = {
       originalname: 'poster.jpg',
@@ -425,6 +467,48 @@ describe('IngestionService', () => {
       }
     },
   );
+
+  it('falls back to concert title as primary band name when concertBandName is omitted on approval', async () => {
+    const createdAt = new Date('2026-06-07T17:30:54.784Z');
+    const upload = {
+      id: 'asset-1',
+      storageUri: 'gs://bucket/path/file.jpg',
+      objectName: 'path/file.jpg',
+      bucket: 'test-bucket',
+      mimeType: 'image/jpeg',
+      originalFilename: 'poster.jpg',
+      source: 'flyer_upload',
+      size: 12,
+      uploadedByUid: 'uid-1',
+      createdAt,
+      reviewStatus: 'submitted',
+    };
+
+    concertUploadRepository.findOne.mockResolvedValue(upload);
+    concertUploadRepository.save.mockImplementation(async (value) => value);
+    concertUploadRepository.findOneOrFail.mockResolvedValue({
+      ...upload,
+      reviewStatus: 'approved',
+      reviewedAt: new Date('2026-06-07T17:40:00.000Z'),
+      reviewedByUserId: 7,
+      concertId: 'new-concert-id',
+    });
+
+    await service.adminReviewConcertUpload(
+      'asset-1',
+      {
+        status: 'approved',
+        concertTitle: 'Poster Show Title',
+        concertStartsAt: '2026-07-10T23:00:00.000Z',
+        concertVenueName: 'The Venue',
+      },
+      7,
+    );
+
+    expect(bandService.findOrCreateManyByName).toHaveBeenCalledWith([
+      'Poster Show Title',
+    ]);
+  });
 
   it('reuses existing hinted venue and band when approval names match', async () => {
     const createdAt = new Date('2026-06-07T17:30:54.784Z');

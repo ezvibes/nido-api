@@ -77,15 +77,6 @@ export class ReviewConcertUploadDto {
   concertBandName?: string;
 
   @ApiPropertyOptional({
-    description: 'Deprecated compatibility alias for concertBandName.',
-    deprecated: true,
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  concertArtistName?: string;
-
-  @ApiPropertyOptional({
     description: 'Public description to publish when approving the upload.',
     example: 'Uploaded flyer approved by admin review.',
   })

@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -34,6 +35,7 @@ import {
 
 @Injectable()
 export class IngestionService {
+  private readonly logger = new Logger(IngestionService.name);
   private readonly defaultOcrProvider = 'google_vision';
   private readonly parserVersion = 'phase1-skeleton';
   private readonly bucketName?: string;
@@ -219,7 +221,7 @@ export class IngestionService {
     const bucket = this.storage.bucket(this.bucketName);
     const object = bucket.file(objectName);
 
-    console.log(`[DEBUG] Attempting to upload to bucket: "${this.bucketName}"`);
+    this.logger.debug(`Attempting to upload to bucket: "${this.bucketName}"`);
 
     const parsedConcertDate = dto.concertDate
       ? new Date(dto.concertDate)
@@ -534,8 +536,7 @@ export class IngestionService {
             upload.state || undefined,
           );
 
-    const primaryBandName =
-      dto.concertBandName?.trim() || dto.concertArtistName?.trim() || title;
+    const primaryBandName = dto.concertBandName?.trim() || title;
     const resolvedBands =
       upload.band &&
       upload.bandId &&

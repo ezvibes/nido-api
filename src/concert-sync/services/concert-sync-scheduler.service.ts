@@ -96,24 +96,28 @@ export class ConcertSyncSchedulerService
       'https://www.jambase.com/calendar/8540E6A6-9ED5-43D6-A7C9-A442AF57E0F0/ical.ics',
     ];
 
-    for (const calendarId of calendars) {
-      try {
-        this.logger.log(`Starting scheduled sync for calendar: ${calendarId}`);
-        await this.syncService.createJobForOwner(owner, {
-          calendarId,
-          fromDate: fromDate.toISOString(),
-          toDate: toDate.toISOString(),
-          maxEvents: 50,
-          dryRun: false,
-          refreshTopPicks: true,
-        });
-      } catch (err) {
-        this.logger.error(
-          `Failed to start scheduled sync job for calendar ${calendarId}: ${err.message}`,
-          err.stack,
-        );
-      }
-    }
+    await Promise.all(
+      calendars.map(async (calendarId) => {
+        try {
+          this.logger.log(
+            `Starting scheduled sync for calendar: ${calendarId}`,
+          );
+          await this.syncService.createJobForOwner(owner, {
+            calendarId,
+            fromDate: fromDate.toISOString(),
+            toDate: toDate.toISOString(),
+            maxEvents: 50,
+            dryRun: false,
+            refreshTopPicks: true,
+          });
+        } catch (err) {
+          this.logger.error(
+            `Failed to start scheduled sync job for calendar ${calendarId}: ${err.message}`,
+            err.stack,
+          );
+        }
+      }),
+    );
   }
 
   private async resolveSyncUser(): Promise<User | null> {
