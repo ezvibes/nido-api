@@ -534,8 +534,7 @@ export class IngestionService {
             upload.state || undefined,
           );
 
-    const primaryBandName =
-      dto.concertBandName?.trim() || dto.concertArtistName?.trim() || title;
+    const primaryBandName = dto.concertBandName?.trim() || title;
     const resolvedBands =
       upload.band &&
       upload.bandId &&
