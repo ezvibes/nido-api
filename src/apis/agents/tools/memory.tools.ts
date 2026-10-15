@@ -1,7 +1,10 @@
+import { Logger } from '@nestjs/common';
 import { FunctionTool } from '@google/adk';
 import { z } from 'zod';
 import { DataSource } from 'typeorm';
 import { AgentMemory } from '../entities/agent-memory.entity';
+
+const logger = new Logger('EditorialMemoryTools');
 
 export function createStoreMemoryTool(dataSource: DataSource) {
   return new FunctionTool({
@@ -22,8 +25,8 @@ export function createStoreMemoryTool(dataSource: DataSource) {
       value: z.any().describe('The JSON payload of the memory to store.'),
     }),
     execute: async ({ scope, key, value }) => {
-      console.log(
-        `\n  ⚙️  [ADK Tool Executed] storeEditorialMemory({ scope: "${scope}", key: "${key}" })`,
+      logger.log(
+        `[ADK Tool Executed] storeEditorialMemory({ scope: "${scope}", key: "${key}" })`,
       );
       const repo = dataSource.getRepository(AgentMemory);
 
@@ -53,8 +56,8 @@ export function createRetrieveMemoryTool(dataSource: DataSource) {
       key: z.string().describe('The identifier for the memory.'),
     }),
     execute: async ({ scope, key }) => {
-      console.log(
-        `\n  ⚙️  [ADK Tool Executed] retrieveEditorialMemory({ scope: "${scope}", key: "${key}" })`,
+      logger.log(
+        `[ADK Tool Executed] retrieveEditorialMemory({ scope: "${scope}", key: "${key}" })`,
       );
       const repo = dataSource.getRepository(AgentMemory);
 
