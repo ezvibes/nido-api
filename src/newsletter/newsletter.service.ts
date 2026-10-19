@@ -137,11 +137,13 @@ export class NewsletterService {
       });
 
       let text = '';
+      let stagedHtml = '';
+      let stagedTitle = '';
       let beehiivDraftInfo: any = undefined;
 
       const userMessageText = `Please draft the ${params.editionType || 'weekly'} newsletter for ${preview.dateRangeLabel}.
-Start by fetching the approved concerts.
-${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehiiv as a draft using stageBeehiivDraftTool.` : ''}`;
+Start by fetching the approved concerts and verifying ticket URLs.
+${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehiiv as a draft using stageBeehiivDraftTool.` : `Format and output the complete drafted newsletter text in your response. Do not call stageBeehiivDraftTool.`}`;
 
       for await (const event of runner.runAsync({
         userId: 'admin',
@@ -156,6 +158,22 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
             if (part.text) {
               text += part.text;
             }
+
+            // Extract content if the model embedded the newsletter in stageBeehiivDraft arguments
+            const fc = (part as any).functionCall;
+            if (fc) {
+              if (fc.name === 'stageBeehiivDraft' && fc.args?.htmlContent) {
+                stagedHtml = fc.args.htmlContent;
+                stagedTitle = fc.args.title || '';
+              } else if (fc.name === 'adk_request_confirmation') {
+                const orig = fc.args?.originalFunctionCall;
+                if (orig?.name === 'stageBeehiivDraft' && orig.args?.htmlContent) {
+                  stagedHtml = orig.args.htmlContent;
+                  stagedTitle = orig.args.title || '';
+                }
+              }
+            }
+
             if ((part as any).functionResponse) {
               const fr = (part as any).functionResponse;
               if (fr.name === 'stageBeehiivDraft' && fr.response?.success) {
@@ -168,6 +186,14 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
             }
           }
         }
+      }
+
+      // If text was empty but model staged the content into stageBeehiivDraft tool call, recover it
+      if (!text && stagedHtml) {
+        this.logger.log(
+          `Recovered newsletter draft from staged tool call payload ("${stagedTitle}").`,
+        );
+        text = stagedHtml;
       }
 
       if (!text) {
@@ -186,7 +212,8 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
           );
           beehiivDraft = beehiivDraftInfo;
         } else {
-          const postTitle = `EZ Vibes Top Picks: ${preview.dateRangeLabel}`;
+          const postTitle =
+            stagedTitle || `EZ Vibes Top Picks: ${preview.dateRangeLabel}`;
           const htmlContent = this.convertMarkdownToHtml(text);
 
           this.logger.log(
@@ -329,6 +356,9 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
   }
 
   public convertMarkdownToHtml(markdown: string): string {
+    if (markdown.trim().startsWith('<')) {
+      return markdown;
+    }
     let html = markdown
       .replace(/^### (.*$)/gim, '<h3>$1</h3>')
       .replace(/^## (.*$)/gim, '<h2>$1</h2>')
