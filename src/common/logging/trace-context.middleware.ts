@@ -18,7 +18,7 @@ export class TraceContextMiddleware implements NestMiddleware {
 
     let context: TraceContext = {};
     if (headerValue && typeof headerValue === 'string') {
-      const match = headerValue.match(/^([a-f0-9]+)(?:\/([0-9]+))?(?:;o=([01]))?$/i);
+      const match = headerValue.match(/^([a-f0-9]+)(?:\/([a-f0-9]+))?(?:;o=([01]))?$/i);
       if (match) {
         context = {
           traceId: match[1],

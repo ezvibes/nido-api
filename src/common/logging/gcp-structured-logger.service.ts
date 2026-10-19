@@ -1,4 +1,4 @@
-import { ConsoleLogger, Injectable, Scope } from '@nestjs/common';
+import { ConsoleLogger, Injectable, Optional } from '@nestjs/common';
 import { traceContextStorage } from './trace-context.storage';
 
 export type GcpLogSeverity =
@@ -18,6 +18,7 @@ export interface GcpLogEntry {
   timestamp: string;
   'logging.googleapis.com/trace'?: string;
   'logging.googleapis.com/spanId'?: string;
+  '@type'?: string;
   serviceContext?: {
     service: string;
     version: string;
@@ -26,14 +27,54 @@ export interface GcpLogEntry {
   [key: string]: unknown;
 }
 
-@Injectable({ scope: Scope.TRANSIENT })
+/**
+ * Safely serializes any value to single-line JSON, replacing circular
+ * references with `"[Circular]"` and converting `BigInt` values to strings.
+ */
+export function safeStringify(value: unknown, rootAlias?: unknown): string {
+  const ancestors: unknown[] = [];
+  try {
+    return JSON.stringify(value, function (this: unknown, _key: string, val: unknown): unknown {
+      if (typeof val === 'bigint') {
+        return val.toString();
+      }
+      if (typeof val !== 'object' || val === null) {
+        return val;
+      }
+      // Pop ancestors that are no longer in the current property path
+      while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
+        ancestors.pop();
+      }
+      if (ancestors.includes(val) || (ancestors.length > 0 && rootAlias !== undefined && val === rootAlias)) {
+        return '[Circular]';
+      }
+      ancestors.push(val);
+      if (val instanceof Error) {
+        return {
+          name: val.name,
+          message: val.message,
+          stack: val.stack,
+        };
+      }
+      return val;
+    });
+  } catch {
+    return JSON.stringify({
+      severity: 'ERROR',
+      message: '[Unserializable log payload]',
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+
+@Injectable()
 export class GcpStructuredLogger extends ConsoleLogger {
   private readonly isProduction: boolean;
   private readonly projectId: string;
   private readonly serviceName: string;
   private readonly serviceVersion: string;
 
-  constructor(context?: string) {
+  constructor(@Optional() context?: string) {
     super(context ?? '');
     this.isProduction =
       process.env.NODE_ENV === 'production' ||
@@ -49,7 +90,11 @@ export class GcpStructuredLogger extends ConsoleLogger {
 
   override log(message: unknown, context?: string): void {
     if (!this.isProduction) {
-      super.log(message, context);
+      if (context !== undefined) {
+        super.log(message, context);
+      } else {
+        super.log(message);
+      }
       return;
     }
     this.emitGcpLog('INFO', message, context);
@@ -57,23 +102,64 @@ export class GcpStructuredLogger extends ConsoleLogger {
 
   override warn(message: unknown, context?: string): void {
     if (!this.isProduction) {
-      super.warn(message, context);
+      if (context !== undefined) {
+        super.warn(message, context);
+      } else {
+        super.warn(message);
+      }
       return;
     }
     this.emitGcpLog('WARNING', message, context);
   }
 
-  override error(message: unknown, stack?: string, context?: string): void {
+  override error(message: unknown, stackOrContext?: string, context?: string): void {
     if (!this.isProduction) {
-      super.error(message, stack, context);
+      if (context !== undefined) {
+        super.error(message, stackOrContext, context);
+      } else if (stackOrContext !== undefined) {
+        super.error(message, stackOrContext);
+      } else {
+        super.error(message);
+      }
       return;
     }
-    this.emitGcpLog('ERROR', message, context, stack);
+
+    let resolvedStack: string | undefined;
+    let resolvedContext: string | undefined;
+
+    if (context !== undefined) {
+      resolvedStack = stackOrContext;
+      resolvedContext = context;
+    } else if (stackOrContext !== undefined) {
+      if (this.isStackLike(stackOrContext)) {
+        resolvedStack = stackOrContext;
+      } else {
+        resolvedContext = stackOrContext;
+      }
+    }
+
+    this.emitGcpLog('ERROR', message, resolvedContext, resolvedStack);
+  }
+
+  override fatal(message: unknown, context?: string): void {
+    if (!this.isProduction) {
+      if (context !== undefined) {
+        super.fatal(message, context);
+      } else {
+        super.fatal(message);
+      }
+      return;
+    }
+    this.emitGcpLog('CRITICAL', message, context);
   }
 
   override debug(message: unknown, context?: string): void {
     if (!this.isProduction) {
-      super.debug(message, context);
+      if (context !== undefined) {
+        super.debug(message, context);
+      } else {
+        super.debug(message);
+      }
       return;
     }
     this.emitGcpLog('DEBUG', message, context);
@@ -81,10 +167,18 @@ export class GcpStructuredLogger extends ConsoleLogger {
 
   override verbose(message: unknown, context?: string): void {
     if (!this.isProduction) {
-      super.verbose(message, context);
+      if (context !== undefined) {
+        super.verbose(message, context);
+      } else {
+        super.verbose(message);
+      }
       return;
     }
     this.emitGcpLog('DEBUG', message, context);
+  }
+
+  private isStackLike(value: string): boolean {
+    return value.includes('\n') || /^(Error|TypeError|ReferenceError|SyntaxError|RangeError):/.test(value);
   }
 
   /**
@@ -109,13 +203,19 @@ export class GcpStructuredLogger extends ConsoleLogger {
       stack = stack || message.stack;
     } else if (typeof message === 'object' && message !== null) {
       const { msg, message: objMsg, ...rest } = message as Record<string, unknown>;
-      formattedMessage = (typeof msg === 'string' ? msg : typeof objMsg === 'string' ? objMsg : JSON.stringify(message));
+      formattedMessage =
+        typeof msg === 'string'
+          ? msg
+          : typeof objMsg === 'string'
+            ? objMsg
+            : safeStringify(message);
       additionalProps = rest;
     } else {
       formattedMessage = String(message);
     }
 
     const entry: GcpLogEntry = {
+      ...additionalProps,
       severity,
       message: formattedMessage,
       context,
@@ -124,12 +224,15 @@ export class GcpStructuredLogger extends ConsoleLogger {
         service: this.serviceName,
         version: this.serviceVersion,
       },
-      ...additionalProps,
     };
 
     // Attach error stack trace if available (required for GCP Error Reporting automatic grouping)
     if (stack) {
       entry.stack_trace = stack;
+      if (severity === 'ERROR' || severity === 'CRITICAL') {
+        entry['@type'] =
+          'type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent';
+      }
       // In GCP Error Reporting, if message doesn't contain stack, appending stack ensures grouping
       if (!entry.message.includes(stack)) {
         entry.message = `${entry.message}\n${stack}`;
@@ -145,7 +248,8 @@ export class GcpStructuredLogger extends ConsoleLogger {
       }
     }
 
-    const jsonLine = JSON.stringify(entry) + '\n';
+    const rootAlias = typeof message === 'object' && message !== null ? message : undefined;
+    const jsonLine = safeStringify(entry, rootAlias) + '\n';
     if (severity === 'ERROR' || severity === 'CRITICAL') {
       process.stderr.write(jsonLine);
     } else {
