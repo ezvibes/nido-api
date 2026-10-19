@@ -88,6 +88,9 @@ jobs:
               : "${FIREBASE_PROJECT_ID:?Missing FIREBASE_PROJECT_ID in $config}"
               : "${FIREBASE_HOSTING_SITE:?Missing FIREBASE_HOSTING_SITE in $config}"
               : "${RUNTIME_SERVICE_ACCOUNT:?Missing RUNTIME_SERVICE_ACCOUNT in $config}"
+              : "${VPC_NETWORK:?Missing VPC_NETWORK in $config}"
+              : "${VPC_SUBNET:?Missing VPC_SUBNET in $config}"
+              : "${VPC_EGRESS:?Missing VPC_EGRESS in $config}"
               : "${CLOUD_RUN_MEMORY:?Missing CLOUD_RUN_MEMORY in $config}"
               : "${CLOUD_RUN_CPU:?Missing CLOUD_RUN_CPU in $config}"
               : "${CLOUD_RUN_CONCURRENCY:?Missing CLOUD_RUN_CONCURRENCY in $config}"
@@ -119,6 +122,11 @@ jobs:
               case "$DB_MIGRATION_TRANSACTION_MODE" in
                 all|each|none) ;;
                 *) echo "Invalid DB_MIGRATION_TRANSACTION_MODE in $config" >&2; exit 1 ;;
+              esac
+
+              case "$VPC_EGRESS" in
+                private-ranges-only|PRIVATE_RANGES_ONLY|all-traffic|ALL_TRAFFIC) ;;
+                *) echo "Invalid VPC_EGRESS in $config" >&2; exit 1 ;;
               esac
             )
           done

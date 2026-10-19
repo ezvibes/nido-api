@@ -45,6 +45,34 @@ export function renderTerraformVars(env) {
     throw new Error('CLOUD_RUN_MIN_INSTANCES cannot exceed CLOUD_RUN_MAX_INSTANCES');
   }
 
+  const rawVpcNetwork = env.VPC_NETWORK?.trim();
+  const rawVpcSubnet = env.VPC_SUBNET?.trim();
+  let vpcNetwork = null;
+  let vpcSubnet = null;
+  let vpcEgress = null;
+
+  if (rawVpcNetwork || rawVpcSubnet) {
+    const nameRegex = /^[a-z][a-z0-9-]{0,62}$/;
+    if (!rawVpcNetwork || !nameRegex.test(rawVpcNetwork)) {
+      throw new Error('Invalid or missing VPC_NETWORK name');
+    }
+    if (!rawVpcSubnet || !nameRegex.test(rawVpcSubnet)) {
+      throw new Error('Invalid or missing VPC_SUBNET name');
+    }
+
+    const egressMode = env.VPC_EGRESS?.trim() || 'private-ranges-only';
+    if (egressMode === 'private-ranges-only' || egressMode === 'PRIVATE_RANGES_ONLY') {
+      vpcEgress = 'PRIVATE_RANGES_ONLY';
+    } else if (egressMode === 'all-traffic' || egressMode === 'ALL_TRAFFIC') {
+      vpcEgress = 'ALL_TRAFFIC';
+    } else {
+      throw new Error(`Invalid VPC_EGRESS mode: ${egressMode}`);
+    }
+
+    vpcNetwork = rawVpcNetwork;
+    vpcSubnet = rawVpcSubnet;
+  }
+
   return {
     project_id: projectId,
     region: required(env, 'REGION'),
@@ -58,6 +86,9 @@ export function renderTerraformVars(env) {
     cloud_run_timeout: positiveInteger(env, 'CLOUD_RUN_TIMEOUT', 1),
     cloud_run_min_instances: minInstances,
     cloud_run_max_instances: maxInstances,
+    vpc_network: vpcNetwork,
+    vpc_subnet: vpcSubnet,
+    vpc_egress: vpcEgress,
     runtime_env: {
       NODE_ENV: 'production',
       DB_HOST: `/cloudsql/${sqlConnection}`,
