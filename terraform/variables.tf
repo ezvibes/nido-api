@@ -170,7 +170,7 @@ variable "vpc_egress" {
   default     = "PRIVATE_RANGES_ONLY"
 
   validation {
-    condition     = contains(["PRIVATE_RANGES_ONLY", "ALL_TRAFFIC"], var.vpc_egress)
-    error_message = "The vpc_egress must be either PRIVATE_RANGES_ONLY or ALL_TRAFFIC."
+    condition     = var.vpc_egress == null || contains(["PRIVATE_RANGES_ONLY", "ALL_TRAFFIC"], var.vpc_egress)
+    error_message = "The vpc_egress must be null, PRIVATE_RANGES_ONLY, or ALL_TRAFFIC."
   }
 }

@@ -158,6 +158,10 @@ jobs:
           : "${GOOGLE_CALENDAR_PRIVATE_KEY_SECRET:?Missing GOOGLE_CALENDAR_PRIVATE_KEY_SECRET in deployment config}"
           : "${INTERNAL_SCHEDULER_SECRET_NAME:?Missing INTERNAL_SCHEDULER_SECRET_NAME in deployment config}"
           : "${BEEHIIV_API_KEY_SECRET:?Missing BEEHIIV_API_KEY_SECRET in deployment config}"
+          case "$VPC_EGRESS" in
+            private-ranges-only|PRIVATE_RANGES_ONLY|all-traffic|ALL_TRAFFIC) ;;
+            *) echo "Invalid VPC_EGRESS in deployment config: $VPC_EGRESS" >&2; exit 1 ;;
+          esac
           case "$TF_API_DEPLOY_ENABLED" in
             true|false) ;;
             *) echo "TF_API_DEPLOY_ENABLED must be true or false" >&2; exit 1 ;;

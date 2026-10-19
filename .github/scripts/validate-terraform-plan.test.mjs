@@ -28,12 +28,47 @@ test('accepts the built digest as the only service change or a no-op', () => {
     };
     validateTerraformPlan(plan(before, after), newImage);
   });
+  assert.doesNotThrow(() => {
+    const vpcAccess = [
+      {
+        egress: 'PRIVATE_RANGES_ONLY',
+        network_interfaces: [{ network: 'default', subnetwork: 'default' }],
+      },
+    ];
+    const before = {
+      ...service(oldImage),
+      template: [{ ...service(oldImage).template[0], vpc_access: vpcAccess }],
+    };
+    const after = {
+      ...service(newImage),
+      template: [{ ...service(newImage).template[0], vpc_access: vpcAccess }],
+    };
+    validateTerraformPlan(plan(before, after), newImage);
+  });
 });
 
 test('rejects configuration drift, unexpected resources, and other plans', () => {
   assert.throws(() => validateTerraformPlan(plan(service(oldImage), service(newImage, 'INGRESS_TRAFFIC_INTERNAL_ONLY')), newImage));
   assert.throws(() => validateTerraformPlan(plan(service(oldImage), service(oldImage)), newImage));
   assert.throws(() => validateTerraformPlan(plan(service(oldImage), service(newImage), ['delete', 'create']), newImage));
+  assert.throws(() => {
+    const before = service(oldImage);
+    const after = {
+      ...service(newImage),
+      template: [
+        {
+          ...service(newImage).template[0],
+          vpc_access: [
+            {
+              egress: 'PRIVATE_RANGES_ONLY',
+              network_interfaces: [{ network: 'default', subnetwork: 'default' }],
+            },
+          ],
+        },
+      ],
+    };
+    validateTerraformPlan(plan(before, after), newImage);
+  });
   assert.throws(() => validateTerraformPlan({ resource_changes: [] }, newImage));
   assert.throws(() => validateTerraformPlan({ resource_changes: [
     ...plan(service(oldImage), service(newImage)).resource_changes,
