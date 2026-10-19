@@ -171,4 +171,72 @@ describe('GcpStructuredLogger', () => {
       }
     });
   });
+
+  describe('NestJS DI & Logger Delegation Compatibility', () => {
+    it('should resolve via moduleRef.get(GcpStructuredLogger) without throwing InvalidClassScopeException', async () => {
+      const { Test } = await import('@nestjs/testing');
+      const { GcpLoggingModule } = await import('./gcp-logging.module');
+      const moduleRef = await Test.createTestingModule({
+        imports: [GcpLoggingModule],
+      }).compile();
+
+      const logger = moduleRef.get(GcpStructuredLogger);
+      expect(logger).toBeInstanceOf(GcpStructuredLogger);
+    });
+
+    it('should treat 2nd argument in error(message, context) as context when called via NestJS Logger without stack', () => {
+      const logger = new GcpStructuredLogger();
+      logger.error('Beehiiv API returned 429', 'BeehiivService');
+
+      expect(stderrSpy).toHaveBeenCalledTimes(1);
+      const json = getLastWrittenJson(stderrSpy);
+      expect(json.severity).toBe('ERROR');
+      expect(json.message).toBe('Beehiiv API returned 429');
+      expect(json.context).toBe('BeehiivService');
+      expect(json.stack_trace).toBeUndefined();
+    });
+
+    it('should format fatal() as severity: CRITICAL to stderr', () => {
+      const logger = new GcpStructuredLogger('Bootstrap');
+      logger.fatal('Unrecoverable database initialization failure');
+
+      expect(stderrSpy).toHaveBeenCalledTimes(1);
+      const json = getLastWrittenJson(stderrSpy);
+      expect(json.severity).toBe('CRITICAL');
+      expect(json.message).toBe('Unrecoverable database initialization failure');
+      expect(json.context).toBe('Bootstrap');
+    });
+  });
+
+  describe('Circular Reference & BigInt Resilience', () => {
+    it('should safely serialize objects with circular references without throwing', () => {
+      const logger = new GcpStructuredLogger('HttpFilter');
+      const circularPayload: Record<string, unknown> = {
+        message: 'Upstream request failed',
+        statusCode: 502,
+      };
+      circularPayload.self = circularPayload;
+
+      expect(() => logger.log(circularPayload)).not.toThrow();
+
+      const json = getLastWrittenJson(stdoutSpy);
+      expect(json.severity).toBe('INFO');
+      expect(json.message).toBe('Upstream request failed');
+      expect(json.statusCode).toBe(502);
+      expect(json.self).toBe('[Circular]');
+    });
+
+    it('should safely serialize BigInt values inside structured log metadata', () => {
+      const logger = new GcpStructuredLogger('Metrics');
+      expect(() =>
+        logger.log({
+          message: 'Processed batch',
+          durationNs: BigInt('9007199254740993'),
+        }),
+      ).not.toThrow();
+
+      const json = getLastWrittenJson(stdoutSpy);
+      expect(json.durationNs).toBe('9007199254740993');
+    });
+  });
 });

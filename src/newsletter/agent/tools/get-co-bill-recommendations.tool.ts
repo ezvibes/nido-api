@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { FunctionTool } from '@google/adk';
 import { NewsletterCoBillService } from '../../newsletter-co-bill.service';
 import {
@@ -6,6 +7,8 @@ import {
 } from '../contracts/get-co-bill-recommendations.schema';
 
 export const GET_CO_BILL_RECOMMENDATIONS_TOOL_NAME = 'getCoBillRecommendations';
+
+const logger = new Logger('GetCoBillRecommendationsTool');
 
 export function createGetCoBillRecommendationsTool(
   coBillService: NewsletterCoBillService,
@@ -16,6 +19,9 @@ export function createGetCoBillRecommendationsTool(
       'Finds artists with historical shared bills with trusted anchor bands who also have active, admin-approved upcoming concerts. Every result includes the catalog evidence behind the recommendation.',
     parameters: getCoBillRecommendationsInputSchema,
     execute: async (input) => {
+      logger.log(
+        `[ADK Tool Executed] getCoBillRecommendations({ anchorBandIds: [${input.anchorBandIds.join(', ')}], limit: ${input.limit} })`,
+      );
       const recommendations = await coBillService.findRecommendations({
         anchorBandIds: input.anchorBandIds,
         targetStart: new Date(input.targetDateRange.start),
