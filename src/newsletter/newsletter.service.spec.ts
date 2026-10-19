@@ -231,6 +231,73 @@ describe('NewsletterService', () => {
       expect(result.beehiivDraft?.id).toBe('post_beehiiv_123');
       expect(mockBeehiivService.createDraftFromHtml).toHaveBeenCalled();
     });
+
+    it('should recover newsletter draft from stageBeehiivDraft tool call arguments when text is empty', async () => {
+      mockConcertRepository.find.mockResolvedValue(mockConcerts);
+
+      mockRunAsync.mockImplementation(async function* () {
+        yield {
+          content: {
+            parts: [
+              {
+                functionCall: {
+                  name: 'stageBeehiivDraft',
+                  args: {
+                    title: 'EZ Vibes Top Picks: Tuesday, Sep 8 - Sunday, Sep 13, 2026',
+                    htmlContent: '<h1>EZ Vibes Weekly Top Picks</h1><p>Recovered HTML</p>',
+                  },
+                },
+              },
+            ],
+          },
+        };
+      });
+
+      const result = await service.generateNewsletter({
+        startDate: '2026-09-08T00:00:00.000Z',
+        endDate: '2026-09-13T23:59:59.999Z',
+        editionType: 'weekly',
+        autoPushToBeehiiv: false,
+      });
+
+      expect(result.newsletterDraft).toBe('<h1>EZ Vibes Weekly Top Picks</h1><p>Recovered HTML</p>');
+    });
+
+    it('should recover newsletter draft from adk_request_confirmation wrapped tool call arguments', async () => {
+      mockConcertRepository.find.mockResolvedValue(mockConcerts);
+
+      mockRunAsync.mockImplementation(async function* () {
+        yield {
+          content: {
+            parts: [
+              {
+                functionCall: {
+                  name: 'adk_request_confirmation',
+                  args: {
+                    originalFunctionCall: {
+                      name: 'stageBeehiivDraft',
+                      args: {
+                        title: 'EZ Vibes Top Picks: Tuesday, Sep 8 - Sunday, Sep 13, 2026',
+                        htmlContent: '<h1>ADK Confirmation Wrapped</h1>',
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        };
+      });
+
+      const result = await service.generateNewsletter({
+        startDate: '2026-09-08T00:00:00.000Z',
+        endDate: '2026-09-13T23:59:59.999Z',
+        editionType: 'weekly',
+        autoPushToBeehiiv: false,
+      });
+
+      expect(result.newsletterDraft).toBe('<h1>ADK Confirmation Wrapped</h1>');
+    });
   });
 
   describe('parseCalendarData', () => {
