@@ -7,6 +7,9 @@ description: Use when implementing or reviewing a Nido GitHub feature issue that
 
 Deliver one issue through a repeatable chain: contract, implementation, evidence,
 independent review, and deployment handoff.
+For a multi-issue outcome, this issue is one slice of Frankfurt's
+[mission record](../../../developer-docs/catalog-operating-system/mission-template.md);
+the issue PR alone does not establish mission completion.
 
 ## Start
 
@@ -58,6 +61,9 @@ dev smoke path and rollback target.
 
 - Summarize files and behavior changed.
 - Include the evidence table from `references/execution-contract.md`.
+- If the issue is a mission slice, update the linked mission's acceptance evidence
+  with verified results and gaps; do not mark the mission complete based on this
+  PR alone.
 - State migration, API, security, privacy, cost, and deployment impact.
 - Record independent findings and any fixes made.
 - Prepare the branch/PR only when requested or when the active workflow explicitly

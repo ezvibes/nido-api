@@ -10,8 +10,10 @@ and the [learning guide](agent-learning-guide.md) for retaining useful findings.
 
 Nido uses city names for recurring agent responsibilities:
 
-- [Innsbruck](innsbruck-coordinator-agent.md) coordinates scope, specialists,
-  evidence, and release recommendations.
+- [Frankfurt](frankfurt-mission-orchestrator.md) coordinates scope, specialists,
+  mission evidence, and acceptance recommendations.
+- [Innsbruck](innsbruck-integration-specialist.md) reviews integration and
+  connectivity contracts across services and providers.
 - [Venezia](venezia-ingestion-agent.md) is the partially implemented poster and
   concert ingestion workflow, with multimodal agent capabilities still proposed.
 - [Munchen](munchen-venue-scout-agent.md) is the venue scout experiment.

@@ -116,13 +116,14 @@ Applying these patterns to the active Nido agent roadmap:
 
 | Canonical name | Functional label                 | Current capability                                                                                                                                                                                    | Plain-English guide                               |
 | :------------- | :------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------ |
-| **Innsbruck**  | Coordinator and Orchestrator     | Operating identity for the lead coding agent; it routes work and synthesizes evidence but is not a deployed ADK runtime                                                                               | [Innsbruck guide](innsbruck-coordinator-agent.md) |
+| **Frankfurt**  | Mission Coordinator             | Lead coding-agent role for mission scope and acceptance evidence; not a deployed ADK runtime                                                                                                          | [Frankfurt guide](frankfurt-mission-orchestrator.md) |
+| **Innsbruck**  | Integration Specialist          | Reviews contracts between services and providers; not a mandatory runtime hop                                                                                                                          | [Innsbruck guide](innsbruck-integration-specialist.md) |
 | **Firenze**    | Newsletter and Editorial Agent   | Four registered, tested tools for approved-catalog retrieval, PostgreSQL co-bill discovery, ticket URL verification, and confirmation-gated Beehiiv draft staging; full orchestration remains planned | [Firenze guide](firenze-newsletter-agent.md)      |
 | **Munchen**    | Venue Scout Agent                | Local ADK learning spike over seeded venue and show data; it is not yet backed by the live Nido catalog                                                                                               | [Munchen guide](munchen-venue-scout-agent.md)     |
 | **Venezia**    | Multimodal Ingestion Agent       | Partial upload and admin-review workflow; multimodal extraction, entity resolution, durable worker execution, and agent orchestration remain proposed                                                 | [Venezia guide](venezia-ingestion-agent.md)       |
 | **Bologna**    | Documentation and Teaching Agent | Explains implemented behavior, evidence, boundaries, and project history; it does not establish runtime proof or approve product decisions                                                            | [Bologna guide](bologna-documentation-agent.md)   |
 
-Use **Innsbruck**, **Venezia**, **Munchen**, **Firenze**, and **Bologna** as the
+Use **Frankfurt**, **Innsbruck**, **Venezia**, **Munchen**, **Firenze**, and **Bologna** as the
 durable agent names. Use the functional labels on first mention when writing for
 readers who may not know the project. TPS2 remains the newsletter program and is
 not a separate agent. The reference snippets below illustrate architecture and
@@ -156,8 +157,9 @@ large autonomous system:
    review-gated ingestion journey a durable identity without claiming its
    proposed multimodal runtime is already built.
 
-The next phase is connection, not uncontrolled autonomy. Innsbruck can coordinate
-bounded work across the network. Firenze can gain
+The next phase is connection, not uncontrolled autonomy. Frankfurt can coordinate
+bounded work across the network, while Innsbruck reviews integration contracts.
+Firenze can gain
 reviewable orchestration, structured newsletter output, authenticated cloud
 execution, and live quality evaluation. Munchen can graduate from seeded data to
 reviewed catalog evidence. Venezia can replace placeholder OCR with tested,

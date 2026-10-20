@@ -1,5 +1,10 @@
 # 8-Week GEAR 2 & Google Cloud Architect Journey Log
 
+Historical entries below retain the names and responsibilities used when they
+were written. For current roles, see [Frankfurt](frankfurt-mission-orchestrator.md)
+for mission coordination and [Innsbruck](innsbruck-integration-specialist.md)
+for integration contracts.
+
 > **Mission:** Master the Google Agent Development Kit (ADK), achieve the **Google Cloud Professional Cloud Architect (PCA)** & **GEAR 2 Skill Badge**, and build an enterprise multi-agent catalog operating system for **Nido / EZ Vibes**.
 >
 > **Format:** "Learn by Building in Public." Each entry captures the technical breakthrough, the code shipped, real-world failure boundaries, and a ready-to-publish content snippet.

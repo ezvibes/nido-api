@@ -32,8 +32,11 @@ explains how useful findings become tests, runbooks, and better instructions.
 
 ## Named Agent Network
 
-- **Innsbruck** is the Coordinator and Orchestrator. It is the lead coding-agent
-  role for the active task, not a standing cloud service.
+- **Frankfurt** is the [Mission Control and Orchestrator](../developer-docs/catalog-operating-system/frankfurt-mission-orchestrator.md).
+  It keeps a human-defined outcome and its evidence connected across sessions
+  and PRs; it is not a standing cloud service.
+- **Innsbruck** is the [Integration and Connectivity Specialist](../developer-docs/catalog-operating-system/innsbruck-integration-specialist.md).
+  It reviews cross-service contracts and handoffs, not global mission routing.
 - **Munchen** is the Venue Scout Agent. Its current implementation is a seeded
   local ADK experiment.
 - **Venezia** is the Multimodal Poster and Concert Ingestion Agent. Its runtime
@@ -46,6 +49,8 @@ explains how useful findings become tests, runbooks, and better instructions.
 
 Use the [context map](../developer-docs/catalog-operating-system/agent-context-map.md)
 to distinguish implemented, partial, proposed, and verified capabilities.
+Use the [mission template](../developer-docs/catalog-operating-system/mission-template.md)
+only for outcomes that need continuity beyond a single issue or PR.
 
 ## Frontend Work
 
