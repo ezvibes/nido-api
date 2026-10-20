@@ -10,7 +10,7 @@ of a much larger engineering organization.
 ```text
 Maintainer defines the outcome and approval boundaries
                          |
-Innsbruck, the coordinator, scopes and implements the change
+Frankfurt coordinates the outcome and its bounded delivery slices
                          |
 Local deterministic gate tests API, client, and production builds
                          |
@@ -28,9 +28,10 @@ paid-service limits, merge, production deployment, and destructive operations.
 
 ## Model And Agent Policy
 
-Innsbruck is the durable name for the coordinator role. The current preferred
-model is GPT-5.6 SOL because feature delivery benefits
-from strong repository reasoning, cross-layer implementation, and review judgment.
+Frankfurt is the durable name for mission coordination; Innsbruck reviews
+integration contracts when a slice crosses boundaries. The current preferred
+model is GPT-5.6 SOL because feature delivery benefits from strong repository
+reasoning, cross-layer implementation, and review judgment.
 The workflow is not coupled to a model name; a future model can replace it without
 changing the issue, test, GitHub, or GCP contracts.
 
@@ -53,6 +54,10 @@ Use model compute deliberately:
 The GitHub issue defines the user outcome, acceptance criteria, and non-goals. The
 coordinator may exceed the issue through safety, accessibility, or maintainability,
 but must not silently expand it into a platform redesign.
+
+When an outcome spans issues or PRs, a [mission record](mission-template.md)
+tracks its demonstration and acceptance evidence. An issue remains a bounded
+delivery slice; a merged PR alone does not complete the mission.
 
 ### 2. Code Contract
 

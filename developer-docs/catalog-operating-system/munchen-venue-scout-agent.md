@@ -184,7 +184,8 @@ Agent. Bologna records how Munchen works, which evidence it uses, and where
 human investigation is still required. It does not verify venues or turn seeded
 examples into catalog facts.
 
-[Innsbruck](innsbruck-coordinator-agent.md) coordinates cross-agent work.
+[Frankfurt](frankfurt-mission-orchestrator.md) coordinates cross-agent work.
+[Innsbruck](innsbruck-integration-specialist.md) checks venue-evidence handoffs.
 [Venezia](venezia-ingestion-agent.md) may eventually ask bounded venue-resolution
 services for evidence while processing a poster, but Munchen cannot approve a
 venue match or turn a candidate into a public concert.
@@ -200,7 +201,8 @@ venue match or turn a candidate into a public concert.
 | **Firenze**          | The canonical name of Nido's Newsletter and Editorial Agent.                              |
 | **Function tool**    | A narrowly scoped operation an agent can request using validated data.                    |
 | **Munchen**          | The canonical name of Nido's Venue Scout Agent.                                           |
-| **Innsbruck**        | The canonical name of Nido's Coordinator and Orchestrator.                                |
+| **Frankfurt**        | Nido's mission coordinator for scope and acceptance evidence.                            |
+| **Innsbruck**        | Nido's integration specialist for cross-service and provider contracts.                   |
 | **Venezia**          | The canonical name of Nido's Multimodal Poster and Concert Ingestion Agent.               |
 | **Seeded data**      | Fixed example records included in a development script; not live catalog data.            |
 | **Stable venue ID**  | A durable identifier used to connect one venue record to its concerts and aliases.        |
@@ -212,7 +214,8 @@ venue match or turn a candidate into a public concert.
 
 - [Firenze: the Newsletter and Editorial Agent](firenze-newsletter-agent.md)
 - [Bologna: the Documentation and Teaching Agent](bologna-documentation-agent.md)
-- [Innsbruck: the Coordinator and Orchestrator](innsbruck-coordinator-agent.md)
+- [Frankfurt: Mission Control](frankfurt-mission-orchestrator.md)
+- [Innsbruck: Integration Specialist](innsbruck-integration-specialist.md)
 - [Venezia: the Ingestion Agent](venezia-ingestion-agent.md)
 - [ADK architecture guide](gear-adk-agent-guide.md)
 - [Agent context map](agent-context-map.md)

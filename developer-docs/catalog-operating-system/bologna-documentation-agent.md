@@ -56,19 +56,20 @@ The cities are distinct homes for different kinds of work:
 
 | City          | Role                                          | Primary output                                        |
 | ------------- | --------------------------------------------- | ----------------------------------------------------- |
-| **Innsbruck** | Coordinator and Orchestrator                  | Bounded plans, routing, evidence, and recommendations |
+| **Frankfurt** | Mission Coordinator                           | Outcomes, delivery slices, and acceptance evidence    |
+| **Innsbruck** | Integration Specialist                        | Cross-service and provider contracts                  |
 | **Venezia**   | Multimodal Poster and Concert Ingestion Agent | Reviewable concert candidates and provenance          |
 | **Munchen**   | Venue Scout Agent                             | Venue identity, evidence, and research context        |
 | **Firenze**   | Newsletter and Editorial Agent                | Evidence-backed editorial selections and drafts       |
 | **Bologna**   | Documentation and Teaching Agent              | Clear guides, decision history, and learning paths    |
 
 They are connected through Nido's reviewed catalog, explicit tool contracts, and
-human approval boundaries. Innsbruck scopes and synthesizes work across the
+human approval boundaries. Frankfurt scopes and synthesizes work across the
 network; maintainers decide priorities, approve durable architecture, and
 control publication and deployment.
 
 ```text
-Innsbruck coordinates scope, specialists, and evidence
+Frankfurt coordinates scope, specialists, and evidence
                     |
                     v
 Venezia prepares reviewable candidates from source evidence
@@ -146,7 +147,8 @@ export class DocAgentToolRegistry {
 
 - [Firenze: the Newsletter and Editorial Agent](firenze-newsletter-agent.md)
 - [Munchen: the Venue Scout Agent](munchen-venue-scout-agent.md)
-- [Innsbruck: the Coordinator and Orchestrator](innsbruck-coordinator-agent.md)
+- [Frankfurt: Mission Control](frankfurt-mission-orchestrator.md)
+- [Innsbruck: Integration Specialist](innsbruck-integration-specialist.md)
 - [Venezia: the Ingestion Agent](venezia-ingestion-agent.md)
 - [ADK architecture guide](gear-adk-agent-guide.md)
 - [Agent context map](agent-context-map.md)

@@ -64,8 +64,8 @@ rollback path.
 
 ## Relationship To Other Agents
 
-- **Innsbruck** coordinates the implementation and evidence needed to advance
-  Venezia safely.
+- **Frankfurt** coordinates the implementation and evidence needed to advance
+  Venezia safely. **Innsbruck** checks its integration contracts.
 - **Munchen** may eventually provide venue identity evidence through reviewed
   catalog services; it does not approve Venezia's match.
 - **Firenze** may use only approved catalog records that emerge from ingestion,

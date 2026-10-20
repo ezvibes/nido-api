@@ -29,6 +29,9 @@ Codex, Claude, Antigravity, GitHub, and local developer workflows.
 - Keep deployment, feature, curation, and infrastructure skills clearly separated.
 - Update adapter files when root `AGENTS.md` or skill names change.
 - Check that agent instructions preserve maintainer approval boundaries.
+- Keep Frankfurt's mission coordination and Innsbruck's integration role
+  consistent across active guides; preserve historical links with a forwarding
+  note instead of rewriting past accounts.
 - Recommend improvements that increase reliability without making the workflow
   harder for a two-developer team.
 
@@ -40,6 +43,7 @@ When editing or reviewing agent files, verify:
 - Tool-specific adapter files do not duplicate the full operating contract.
 - Skill names and folder names match.
 - References point to files that exist.
+- Mission records distinguish proposed scope from verified acceptance evidence.
 - Dangerous actions still require explicit maintainer approval.
 - The workflow still ends with evidence: tests, gate output, deployment checks,
   rollback target, or a clear reason a check was skipped.

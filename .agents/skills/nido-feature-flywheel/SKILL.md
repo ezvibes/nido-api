@@ -7,6 +7,9 @@ description: Use when implementing or reviewing a Nido GitHub feature issue that
 
 Deliver one issue through a repeatable chain: contract, implementation, evidence,
 independent review, and deployment handoff.
+For a multi-issue outcome, this issue is one slice of Frankfurt's
+[mission record](../../../developer-docs/catalog-operating-system/mission-template.md);
+the issue PR alone does not establish mission completion.
 
 ## Start
 

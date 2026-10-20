@@ -10,8 +10,13 @@ preserving the longer-term ingestion, catalog, public API, and partner vision.
 
 - Maintainers own product priority, architecture approval, merge, production
   deployment, destructive data operations, IAM, secrets, and paid-service limits.
-- The coordinator, canonically named **Innsbruck**, owns task scope, delegation,
-  synthesis, and the final release recommendation.
+- **Frankfurt** is the mission coordinator. It owns outcome scope, cross-session
+  continuity, delegation, evidence synthesis, and the final acceptance
+  recommendation. A merged PR is a change-control checkpoint, not proof that
+  the user outcome is complete.
+- **Innsbruck** owns integration and connectivity contracts across services,
+  providers, and specialists. It does not route the overall mission or become
+  a mandatory runtime hop.
 - An implementation agent may edit only the approved scope and must preserve
   unrelated working-tree changes.
 - A verifier reviews the completed diff and evidence independently for substantial
@@ -25,6 +30,11 @@ preserving the longer-term ingestion, catalog, public API, and partner vision.
 - For relevant code, decisions, and verification entry points, use
   `developer-docs/catalog-operating-system/agent-context-map.md`. Recheck cited
   sources; proposed designs and old evidence do not establish current readiness.
+- For a user outcome spanning issues, PRs, or sessions, use
+  `developer-docs/catalog-operating-system/frankfurt-mission-orchestrator.md`
+  and `developer-docs/catalog-operating-system/mission-template.md`. For typed
+  cross-service contracts and handoffs, use
+  `developer-docs/catalog-operating-system/innsbruck-integration-specialist.md`.
 - Feature work across NestJS, Vue, migrations, admin behavior, or public API
   behavior: use `.agents/skills/nido-feature-flywheel/SKILL.md`.
 - Deployment, GCP/Firebase operations, production-readiness, rollback, IAM,
@@ -68,6 +78,9 @@ preserving the longer-term ingestion, catalog, public API, and partner vision.
 9. Prepare a PR evidence table. Do not merge.
 10. After an approved merge, verify the dev deployment and record the revision,
     behavior, remaining risk, and rollback target.
+11. For a linked mission, update its evidence and next step. Mark it complete
+    only after the user-visible outcome and required verification are demonstrated;
+    record an observation window when success depends on later user behavior.
 
 Capture reusable findings using
 `developer-docs/catalog-operating-system/agent-learning-guide.md`. Prefer a

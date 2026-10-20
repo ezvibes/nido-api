@@ -15,7 +15,8 @@ into lasting improvements.
 | Role                                     | Responsibility                                                                                 | How it operates                                                            |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | Maintainer                               | Product priority, architecture decisions, merge and production approval, sensitive operations  | Human owner of the project                                                 |
-| Innsbruck (Coordinator and Orchestrator) | Scope, context gathering, routing, implementation ownership, synthesis, release recommendation | The lead coding agent for the active task; not a separate deployed service |
+| Frankfurt (Mission Coordinator)         | Mission scope, routing, evidence continuity, acceptance recommendation                     | Lead coding-agent role; not a separately deployed service                    |
+| Innsbruck (Integration Specialist)      | Integration contracts, provider boundaries, and handoff verification                        | Specialist guidance; not a required runtime hop                               |
 | Implementation owner                     | Changes within the agreed file and behavior boundaries                                         | Usually the coordinator; a delegated agent when authorized                 |
 | Verifier                                 | Independent review of substantial changes and raw evidence                                     | A separate reviewer when available and justified by risk                   |
 | Domain specialist                        | Feature, deployment, instruction maintenance, or curation guidance                             | A skill loaded for the relevant task                                       |
@@ -33,7 +34,8 @@ procedure into another autonomous service.
 
 | Name                                        | Formal role                                   | Current state                                                                              | Use it for                                                                    |
 | ------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| [Innsbruck](innsbruck-coordinator-agent.md) | Coordinator and Orchestrator                  | Operating identity for the lead coding agent; not a deployed runtime                       | Scope, routing, evidence synthesis, and release recommendations               |
+| [Frankfurt](frankfurt-mission-orchestrator.md) | Mission Coordinator                         | Operating identity for the lead coding agent; not a deployed runtime                       | Scope, routing, evidence continuity, and acceptance recommendations           |
+| [Innsbruck](innsbruck-integration-specialist.md) | Integration Specialist                     | Documented specialist role; not a deployed runtime or mandatory hop                        | Typed contracts, provider boundaries, retries, and handoff verification       |
 | [Venezia](venezia-ingestion-agent.md)       | Multimodal Poster and Concert Ingestion Agent | Partial upload/review foundation; multimodal agent runtime is proposed                     | Turning poster evidence into human-reviewable concert candidates              |
 | [Munchen](munchen-venue-scout-agent.md)     | Venue Scout Agent                             | Local ADK experiment over seeded data                                                      | Venue identity and scene research experiments                                 |
 | [Firenze](firenze-newsletter-agent.md)      | Newsletter and Editorial Agent                | Tested tool foundation and existing newsletter workflow; full ADK orchestration is planned | Approved-catalog curation, link checks, editorial drafting, and draft staging |
@@ -43,6 +45,10 @@ TPS2 is the Weekly Top Picks newsletter program and workflow operated by
 Firenze. It is not a separate agent. Skills such as the feature flywheel,
 deployment manager, GEAR flywheel, and verifier remain capabilities used by the
 coordinator and specialists; they do not need city identities.
+
+For outcomes spanning multiple issues or PRs, Frankfurt keeps a lightweight
+[mission record](mission-template.md). [NIDO-001](missions/NIDO-001.md) is a
+proposed example, not evidence of completed ingestion or deployment.
 
 ## Instruction Structure
 
