@@ -22,14 +22,20 @@ export const textFormatterOutputSchema = z.object({
 
 export type TextFormatterOutput = z.infer<typeof textFormatterOutputSchema>;
 
-export function createTextFormatterTool(): FunctionTool<typeof textFormatterInputSchema> {
+export function createTextFormatterTool(): FunctionTool<
+  typeof textFormatterInputSchema
+> {
   return new FunctionTool({
     name: TEXT_FORMATTER_TOOL_NAME,
     description:
       'Normalizes and formats editorial copy, concert summaries, venue slugs, and markdown bullet lists across agents.',
     parameters: textFormatterInputSchema,
-    execute: async (input: TextFormatterInput): Promise<TextFormatterOutput> => {
-      logger.log(`[ADK Tool Executed] formatEditorialText({ operation: "${input.operation}" })`);
+    execute: async (
+      input: TextFormatterInput,
+    ): Promise<TextFormatterOutput> => {
+      logger.log(
+        `[ADK Tool Executed] formatEditorialText({ operation: "${input.operation}" })`,
+      );
 
       let formattedText = input.text;
 
@@ -39,7 +45,11 @@ export function createTextFormatterTool(): FunctionTool<typeof textFormatterInpu
             .split('\n')
             .map((line) => line.trim())
             .filter((line) => line.length > 0)
-            .map((line) => (line.startsWith('* ') || line.startsWith('- ') ? line : `* ${line}`));
+            .map((line) =>
+              line.startsWith('* ') || line.startsWith('- ')
+                ? line
+                : `* ${line}`,
+            );
           formattedText = lines.join('\n');
           break;
         }
@@ -64,7 +74,29 @@ export function createTextFormatterTool(): FunctionTool<typeof textFormatterInpu
         }
 
         case 'title_case': {
-          const minorWords = new Set(['and', 'as', 'but', 'for', 'if', 'nor', 'or', 'so', 'yet', 'a', 'an', 'the', 'at', 'by', 'for', 'in', 'of', 'on', 'per', 'to', 'with']);
+          const minorWords = new Set([
+            'and',
+            'as',
+            'but',
+            'for',
+            'if',
+            'nor',
+            'or',
+            'so',
+            'yet',
+            'a',
+            'an',
+            'the',
+            'at',
+            'by',
+            'for',
+            'in',
+            'of',
+            'on',
+            'per',
+            'to',
+            'with',
+          ]);
           formattedText = input.text
             .toLowerCase()
             .split(' ')

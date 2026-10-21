@@ -10,15 +10,25 @@ export const dateArithmeticInputSchema = z.object({
   referenceDate: z
     .string()
     .optional()
-    .describe('ISO-8601 reference date string. Defaults to current date if omitted.'),
+    .describe(
+      'ISO-8601 reference date string. Defaults to current date if omitted.',
+    ),
   mode: z
-    .enum(['this_weekend', 'next_weekend', 'this_week', 'next_week', 'days_offset'])
+    .enum([
+      'this_weekend',
+      'next_weekend',
+      'this_week',
+      'next_week',
+      'days_offset',
+    ])
     .describe('The date calculation mode to execute.'),
   daysOffset: z
     .number()
     .int()
     .optional()
-    .describe('Number of days to offset when mode is "days_offset". Positive for future, negative for past.'),
+    .describe(
+      'Number of days to offset when mode is "days_offset". Positive for future, negative for past.',
+    ),
 });
 
 export type DateArithmeticInput = z.infer<typeof dateArithmeticInputSchema>;
@@ -31,18 +41,24 @@ export const dateArithmeticOutputSchema = z.object({
 
 export type DateArithmeticOutput = z.infer<typeof dateArithmeticOutputSchema>;
 
-export function createDateArithmeticTool(): FunctionTool<typeof dateArithmeticInputSchema> {
+export function createDateArithmeticTool(): FunctionTool<
+  typeof dateArithmeticInputSchema
+> {
   return new FunctionTool({
     name: DATE_ARITHMETIC_TOOL_NAME,
     description:
       'Performs deterministic date arithmetic for live music schedules (calculating weekend ranges, upcoming weeks, or relative day offsets).',
     parameters: dateArithmeticInputSchema,
-    execute: async (input: DateArithmeticInput): Promise<DateArithmeticOutput> => {
+    execute: async (
+      input: DateArithmeticInput,
+    ): Promise<DateArithmeticOutput> => {
       logger.log(
         `[ADK Tool Executed] dateArithmetic({ mode: "${input.mode}", referenceDate: "${input.referenceDate || 'now'}" })`,
       );
 
-      const ref = input.referenceDate ? new Date(input.referenceDate) : new Date();
+      const ref = input.referenceDate
+        ? new Date(input.referenceDate)
+        : new Date();
       if (isNaN(ref.getTime())) {
         throw new Error(`Invalid referenceDate: "${input.referenceDate}"`);
       }
@@ -57,7 +73,9 @@ export function createDateArithmeticTool(): FunctionTool<typeof dateArithmeticIn
         case 'this_weekend': {
           // Friday to Sunday of the current week
           const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
-          start.setUTCDate(ref.getUTCDate() + (dayOfWeek === 0 ? -2 : daysUntilFriday));
+          start.setUTCDate(
+            ref.getUTCDate() + (dayOfWeek === 0 ? -2 : daysUntilFriday),
+          );
           start.setUTCHours(0, 0, 0, 0);
 
           end = new Date(start);
@@ -68,8 +86,10 @@ export function createDateArithmeticTool(): FunctionTool<typeof dateArithmeticIn
         }
 
         case 'next_weekend': {
-          const daysUntilFriday = ((5 - dayOfWeek + 7) % 7) || 7;
-          start.setUTCDate(ref.getUTCDate() + (dayOfWeek === 0 ? 5 : daysUntilFriday + 7));
+          const daysUntilFriday = (5 - dayOfWeek + 7) % 7 || 7;
+          start.setUTCDate(
+            ref.getUTCDate() + (dayOfWeek === 0 ? 5 : daysUntilFriday + 7),
+          );
           start.setUTCHours(0, 0, 0, 0);
 
           end = new Date(start);

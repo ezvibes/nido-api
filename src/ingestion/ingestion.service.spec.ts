@@ -328,7 +328,7 @@ describe('IngestionService', () => {
       id: 'job-1',
       concertUploadId: 'asset-1',
       status: 'queued',
-      stage: 'enqueued',
+      stage: 'queued',
       ocrProvider: 'google_vision',
       parserVersion: 'phase1-skeleton',
       createdAt: new Date(),
@@ -346,7 +346,8 @@ describe('IngestionService', () => {
       expect.objectContaining({
         concertUploadId: 'asset-1',
         status: 'queued',
-        stage: 'enqueued',
+        stage: 'queued',
+        idempotencyKey: 'asset-1',
         ocrProvider: 'google_vision',
         parserVersion: 'phase1-skeleton',
       }),
@@ -387,9 +388,9 @@ describe('IngestionService', () => {
   });
 
   it.each([
-    ['approved', 'admin_approved'],
-    ['rejected', 'admin_rejected'],
-    ['past', 'admin_marked_past'],
+    ['approved', 'completed'],
+    ['rejected', 'completed'],
+    ['past', 'completed'],
   ] as const)(
     'should complete needs_review jobs when an admin marks an upload %s',
     async (reviewStatus, expectedStage) => {

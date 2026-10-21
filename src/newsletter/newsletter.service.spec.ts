@@ -243,8 +243,10 @@ describe('NewsletterService', () => {
                 functionCall: {
                   name: 'stageBeehiivDraft',
                   args: {
-                    title: 'EZ Vibes Top Picks: Tuesday, Sep 8 - Sunday, Sep 13, 2026',
-                    htmlContent: '<h1>EZ Vibes Weekly Top Picks</h1><p>Recovered HTML</p>',
+                    title:
+                      'EZ Vibes Top Picks: Tuesday, Sep 8 - Sunday, Sep 13, 2026',
+                    htmlContent:
+                      '<h1>EZ Vibes Weekly Top Picks</h1><p>Recovered HTML</p>',
                   },
                 },
               },
@@ -260,7 +262,9 @@ describe('NewsletterService', () => {
         autoPushToBeehiiv: false,
       });
 
-      expect(result.newsletterDraft).toBe('<h1>EZ Vibes Weekly Top Picks</h1><p>Recovered HTML</p>');
+      expect(result.newsletterDraft).toBe(
+        '<h1>EZ Vibes Weekly Top Picks</h1><p>Recovered HTML</p>',
+      );
     });
 
     it('should recover newsletter draft from adk_request_confirmation wrapped tool call arguments', async () => {
@@ -277,7 +281,8 @@ describe('NewsletterService', () => {
                     originalFunctionCall: {
                       name: 'stageBeehiivDraft',
                       args: {
-                        title: 'EZ Vibes Top Picks: Tuesday, Sep 8 - Sunday, Sep 13, 2026',
+                        title:
+                          'EZ Vibes Top Picks: Tuesday, Sep 8 - Sunday, Sep 13, 2026',
                         htmlContent: '<h1>ADK Confirmation Wrapped</h1>',
                       },
                     },

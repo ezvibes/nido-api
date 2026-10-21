@@ -61,7 +61,8 @@ describe('TraceContextMiddleware', () => {
   it('should parse hexadecimal span IDs from OpenTelemetry/W3C bridges', (done) => {
     const req = {
       headers: {
-        'x-cloud-trace-context': '105445aa7843bc8bf206b12000100000/000000000000004a;o=1',
+        'x-cloud-trace-context':
+          '105445aa7843bc8bf206b12000100000/000000000000004a;o=1',
       },
     } as unknown as Request;
     const res = {} as Response;
@@ -76,10 +77,14 @@ describe('TraceContextMiddleware', () => {
 
   it('should isolate trace contexts across concurrent asynchronous requests without leaking', async () => {
     const reqA = {
-      headers: { 'x-cloud-trace-context': 'aaaa1111aaaa1111aaaa1111aaaa1111/101;o=1' },
+      headers: {
+        'x-cloud-trace-context': 'aaaa1111aaaa1111aaaa1111aaaa1111/101;o=1',
+      },
     } as unknown as Request;
     const reqB = {
-      headers: { 'x-cloud-trace-context': 'bbbb2222bbbb2222bbbb2222bbbb2222/202;o=1' },
+      headers: {
+        'x-cloud-trace-context': 'bbbb2222bbbb2222bbbb2222bbbb2222/202;o=1',
+      },
     } as unknown as Request;
     const res = {} as Response;
 

@@ -167,7 +167,10 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
                 stagedTitle = fc.args.title || '';
               } else if (fc.name === 'adk_request_confirmation') {
                 const orig = fc.args?.originalFunctionCall;
-                if (orig?.name === 'stageBeehiivDraft' && orig.args?.htmlContent) {
+                if (
+                  orig?.name === 'stageBeehiivDraft' &&
+                  orig.args?.htmlContent
+                ) {
                   stagedHtml = orig.args.htmlContent;
                   stagedTitle = orig.args.title || '';
                 }

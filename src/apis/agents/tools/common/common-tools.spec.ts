@@ -13,7 +13,9 @@ describe('Common Agent Tools', () => {
     it('creates a tool with the expected name and description', () => {
       const tool = createDateArithmeticTool();
       expect(tool.name).toBe('dateArithmetic');
-      expect(tool.description).toContain('Performs deterministic date arithmetic');
+      expect(tool.description).toContain(
+        'Performs deterministic date arithmetic',
+      );
     });
 
     it('calculates this_weekend starting from a Wednesday', async () => {
@@ -80,7 +82,9 @@ describe('Common Agent Tools', () => {
     it('creates a tool with the expected name and description', () => {
       const tool = createTextFormatterTool();
       expect(tool.name).toBe('formatEditorialText');
-      expect(tool.description).toContain('Normalizes and formats editorial copy');
+      expect(tool.description).toContain(
+        'Normalizes and formats editorial copy',
+      );
     });
 
     it('formats unbulleted lines into clean markdown bullets', async () => {
@@ -93,7 +97,9 @@ describe('Common Agent Tools', () => {
         toolContext: {} as Context,
       })) as TextFormatterOutput;
 
-      expect(result.formattedText).toBe('* First line\n* Second line\n* Already bulleted');
+      expect(result.formattedText).toBe(
+        '* First line\n* Second line\n* Already bulleted',
+      );
       expect(result.operation).toBe('bullet_list');
     });
 
@@ -107,7 +113,9 @@ describe('Common Agent Tools', () => {
         toolContext: {} as Context,
       })) as TextFormatterOutput;
 
-      expect(result.formattedText).toBe('cats-cradle-back-room-the-haw-river-ballroom');
+      expect(result.formattedText).toBe(
+        'cats-cradle-back-room-the-haw-river-ballroom',
+      );
       expect(result.operation).toBe('slugify');
     });
 
@@ -121,7 +129,9 @@ describe('Common Agent Tools', () => {
         toolContext: {} as Context,
       })) as TextFormatterOutput;
 
-      expect(result.formattedText).toBe('"EZ Vibes" presents \'Top Picks\'--live in Durham-NC');
+      expect(result.formattedText).toBe(
+        '"EZ Vibes" presents \'Top Picks\'--live in Durham-NC',
+      );
     });
 
     it('converts titles to title case handling minor words', async () => {

@@ -8,9 +8,12 @@ import { BandModule } from '../apis/bands/band.module';
 import { Concert } from '../apis/concerts/entities/concert.entity';
 import { IngestionJob } from './entities/ingestion-job.entity';
 import { ConcertUpload } from './entities/concert-upload.entity';
+import { IngestionCandidate } from './entities/ingestion-candidate.entity';
+import { IngestionOutbox } from './entities/ingestion-outbox.entity';
 import { AdminIngestionController } from './admin-ingestion.controller';
 import { IngestionController } from './ingestion.controller';
 import { IngestionService } from './ingestion.service';
+import { IngestionStateMachineService } from './services/ingestion-state-machine.service';
 
 @Module({
   imports: [
@@ -19,10 +22,16 @@ import { IngestionService } from './ingestion.service';
     UserModule,
     VenueModule,
     BandModule,
-    TypeOrmModule.forFeature([Concert, ConcertUpload, IngestionJob]),
+    TypeOrmModule.forFeature([
+      Concert,
+      ConcertUpload,
+      IngestionJob,
+      IngestionCandidate,
+      IngestionOutbox,
+    ]),
   ],
   controllers: [IngestionController, AdminIngestionController],
-  providers: [IngestionService],
-  exports: [IngestionService],
+  providers: [IngestionService, IngestionStateMachineService],
+  exports: [IngestionService, IngestionStateMachineService],
 })
 export class IngestionModule {}
