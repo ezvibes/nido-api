@@ -1,0 +1,65 @@
+[
+  {
+    "id": "clean_single_event",
+    "difficulty_class": "clean_single_event",
+    "title": "Summer Jazz Night",
+    "performers": ["The Blue Notes", "Sarah Vaughn Quartet"],
+    "venue": "Downtown Jazz Club",
+    "date": "2026-08-15",
+    "start_time": "20:00:00",
+    "timezone": "America/New_York",
+    "genre": "Jazz",
+    "uploader_hints": {}
+  },
+  {
+    "id": "stylized_typography",
+    "difficulty_class": "stylized_typography",
+    "title": "Metal Mayhem",
+    "performers": ["Skull Crusher", "Death Bringer"],
+    "venue": "The Warehouse",
+    "date": "2026-10-31",
+    "start_time": "19:30:00",
+    "timezone": "America/Los_Angeles",
+    "genre": "Metal",
+    "uploader_hints": {}
+  },
+  {
+    "id": "multi_event_lineup",
+    "difficulty_class": "multi_event_lineup",
+    "title": "Spring Indie Fest",
+    "performers": ["The Shins", "Modest Mouse", "Death Cab for Cutie"],
+    "venue": "City Park",
+    "date": "2026-05-01",
+    "start_time": "12:00:00",
+    "timezone": "America/Chicago",
+    "genre": "Indie",
+    "uploader_hints": {}
+  },
+  {
+    "id": "missing_hints",
+    "difficulty_class": "missing_hints",
+    "title": "Underground Tech House",
+    "performers": ["DJ Smith", "MC Jones"],
+    "venue": "Secret Location",
+    "date": "2026-11-20",
+    "start_time": "23:00:00",
+    "timezone": "Europe/London",
+    "genre": "Electronic",
+    "uploader_hints": {}
+  },
+  {
+    "id": "conflicting_hints",
+    "difficulty_class": "conflicting_hints",
+    "title": "Pop Explosion",
+    "performers": ["Pop Star"],
+    "venue": "Grand Arena",
+    "date": "2026-12-01",
+    "start_time": "19:00:00",
+    "timezone": "America/New_York",
+    "genre": "Pop",
+    "uploader_hints": {
+      "venue": "Wrong Arena",
+      "date": "2026-12-02"
+    }
+  }
+]

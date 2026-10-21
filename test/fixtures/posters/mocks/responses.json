@@ -1,0 +1,62 @@
+{
+  "clean_single_event": {
+    "vision": "Summer Jazz Night\\nThe Blue Notes\\nSarah Vaughn Quartet\\nDowntown Jazz Club\\nAugust 15, 2026\\n8:00 PM",
+    "gemini": {
+      "title": "Summer Jazz Night",
+      "performers": ["The Blue Notes", "Sarah Vaughn Quartet"],
+      "venue": "Downtown Jazz Club",
+      "date": "2026-08-15",
+      "start_time": "20:00:00",
+      "timezone": "America/New_York",
+      "genre": "Jazz"
+    }
+  },
+  "stylized_typography": {
+    "vision": "METAL MAYHEM\\nSKULL CRUSHER\\nDEATH BRINGER\\nTHE WAREHOUSE\\nOCT 31\\n7:30 PM",
+    "gemini": {
+      "title": "Metal Mayhem",
+      "performers": ["Skull Crusher", "Death Bringer"],
+      "venue": "The Warehouse",
+      "date": "2026-10-31",
+      "start_time": "19:30:00",
+      "timezone": "America/Los_Angeles",
+      "genre": "Metal"
+    }
+  },
+  "multi_event_lineup": {
+    "vision": "Spring Indie Fest\\nThe Shins\\nModest Mouse\\nDeath Cab for Cutie\\nCity Park\\nMay 1\\nNoon",
+    "gemini": {
+      "title": "Spring Indie Fest",
+      "performers": ["The Shins", "Modest Mouse", "Death Cab for Cutie"],
+      "venue": "City Park",
+      "date": "2026-05-01",
+      "start_time": "12:00:00",
+      "timezone": "America/Chicago",
+      "genre": "Indie"
+    }
+  },
+  "missing_hints": {
+    "vision": "Underground Tech House\\nDJ Smith\\nMC Jones\\nSecret Location\\nNov 20\\n11 PM",
+    "gemini": {
+      "title": "Underground Tech House",
+      "performers": ["DJ Smith", "MC Jones"],
+      "venue": "Secret Location",
+      "date": "2026-11-20",
+      "start_time": "23:00:00",
+      "timezone": "Europe/London",
+      "genre": "Electronic"
+    }
+  },
+  "conflicting_hints": {
+    "vision": "Pop Explosion\\nPop Star\\nGrand Arena\\nDec 1, 2026\\n7:00 PM",
+    "gemini": {
+      "title": "Pop Explosion",
+      "performers": ["Pop Star"],
+      "venue": "Grand Arena",
+      "date": "2026-12-01",
+      "start_time": "19:00:00",
+      "timezone": "America/New_York",
+      "genre": "Pop"
+    }
+  }
+}
