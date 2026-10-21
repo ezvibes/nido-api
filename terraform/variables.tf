@@ -141,3 +141,36 @@ variable "labels" {
     environment = "dev"
   }
 }
+
+variable "vpc_network" {
+  type        = string
+  description = "VPC network name or self_link for Cloud Run Direct VPC Egress (empty/null when disabled)."
+  default     = null
+
+  validation {
+    condition     = var.vpc_network == null || can(regex("^[a-z][a-z0-9-]{0,62}$", var.vpc_network))
+    error_message = "The vpc_network must be null or a valid GCP VPC network name."
+  }
+}
+
+variable "vpc_subnet" {
+  type        = string
+  description = "VPC subnetwork name for Cloud Run Direct VPC Egress (empty/null when disabled)."
+  default     = null
+
+  validation {
+    condition     = var.vpc_subnet == null || can(regex("^[a-z][a-z0-9-]{0,62}$", var.vpc_subnet))
+    error_message = "The vpc_subnet must be null or a valid GCP VPC subnetwork name."
+  }
+}
+
+variable "vpc_egress" {
+  type        = string
+  description = "VPC egress routing mode for Cloud Run Direct VPC Egress."
+  default     = "PRIVATE_RANGES_ONLY"
+
+  validation {
+    condition     = var.vpc_egress == null || contains(["PRIVATE_RANGES_ONLY", "ALL_TRAFFIC"], var.vpc_egress)
+    error_message = "The vpc_egress must be null, PRIVATE_RANGES_ONLY, or ALL_TRAFFIC."
+  }
+}

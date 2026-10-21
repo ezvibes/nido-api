@@ -21,6 +21,17 @@ resource "google_cloud_run_v2_service" "nido_api" {
       max_instance_count = var.cloud_run_max_instances
     }
 
+    dynamic "vpc_access" {
+      for_each = var.vpc_network != null && var.vpc_subnet != null ? [1] : []
+      content {
+        egress = var.vpc_egress
+        network_interfaces {
+          network    = var.vpc_network
+          subnetwork = var.vpc_subnet
+        }
+      }
+    }
+
     containers {
       image = var.container_image
 

@@ -49,6 +49,31 @@ test('uses the existing deployment config without embedding secret values', () =
     version: 'latest',
   });
   assert.equal(vars.cloud_run_max_instances, 20);
+  assert.equal(vars.vpc_network, null);
+  assert.equal(vars.vpc_subnet, null);
+  assert.equal(vars.vpc_egress, null);
+});
+
+test('renders Direct VPC Egress variables when configured', () => {
+  const vars = renderTerraformVars({
+    ...deploymentEnv,
+    VPC_NETWORK: 'default',
+    VPC_SUBNET: 'default',
+    VPC_EGRESS: 'private-ranges-only',
+  });
+  assert.equal(vars.vpc_network, 'default');
+  assert.equal(vars.vpc_subnet, 'default');
+  assert.equal(vars.vpc_egress, 'PRIVATE_RANGES_ONLY');
+
+  const allTrafficVars = renderTerraformVars({
+    ...deploymentEnv,
+    VPC_NETWORK: 'my-vpc',
+    VPC_SUBNET: 'my-subnet',
+    VPC_EGRESS: 'all-traffic',
+  });
+  assert.equal(allTrafficVars.vpc_network, 'my-vpc');
+  assert.equal(allTrafficVars.vpc_subnet, 'my-subnet');
+  assert.equal(allTrafficVars.vpc_egress, 'ALL_TRAFFIC');
 });
 
 test('rejects startup migrations, placeholders, and malformed secret refs', () => {
@@ -57,4 +82,15 @@ test('rejects startup migrations, placeholders, and malformed secret refs', () =
   assert.throws(() => renderTerraformVars({ ...deploymentEnv, DB_PASSWORD_SECRET: 'db-password' }));
   assert.throws(() => renderTerraformVars({ ...deploymentEnv, TERRAFORM_API_IMAGE: 'image:latest' }));
   assert.throws(() => renderTerraformVars({ ...deploymentEnv, CLOUD_RUN_MIN_INSTANCES: '21' }));
+  assert.throws(() => renderTerraformVars({ ...deploymentEnv, VPC_NETWORK: 'Invalid_Network', VPC_SUBNET: 'default' }));
+  assert.throws(() => renderTerraformVars({ ...deploymentEnv, VPC_NETWORK: 'default', VPC_SUBNET: 'Invalid_Subnet' }));
+  assert.throws(() =>
+    renderTerraformVars({
+      ...deploymentEnv,
+      VPC_NETWORK: 'default',
+      VPC_SUBNET: 'default',
+      VPC_EGRESS: 'invalid-egress',
+    }),
+  );
+  assert.throws(() => renderTerraformVars({ ...deploymentEnv, VPC_NETWORK: 'default' }));
 });
