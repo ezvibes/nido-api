@@ -18,6 +18,7 @@ import { CreateIngestionUploadDto } from './dto/create-ingestion-upload.dto';
 import { ReviewConcertUploadDto } from './dto/review-concert-upload.dto';
 import { IngestionJob } from './entities/ingestion-job.entity';
 import { ConcertUpload } from './entities/concert-upload.entity';
+import { IngestionStage } from './interfaces/ingestion-enums';
 import { IngestionJobResponse } from './interfaces/ingestion-job-response.interface';
 import { IngestionUploadResult } from './interfaces/ingestion-upload-result.interface';
 import type {
@@ -325,7 +326,8 @@ export class IngestionService {
       this.ingestionJobRepository.create({
         concertUploadId: concertUpload.id,
         status: 'queued',
-        stage: 'enqueued',
+        stage: IngestionStage.QUEUED,
+        idempotencyKey: concertUpload.id,
         ocrProvider: this.defaultOcrProvider,
         parserVersion: this.parserVersion,
       }),
@@ -333,10 +335,12 @@ export class IngestionService {
 
     void this.runJobSkeleton(ingestionJob.id);
 
-    return this.mapJobResponse({
-      ...ingestionJob,
-      concertUpload,
-    } as IngestionJob);
+    return this.mapJobResponse(
+      Object.assign(new IngestionJob(), {
+        ...ingestionJob,
+        concertUpload,
+      }),
+    );
   }
 
   async getConcertUpload(
@@ -444,7 +448,7 @@ export class IngestionService {
             { concertUploadId: saved.id, status: 'needs_review' },
             {
               status: 'completed',
-              stage: terminalReviewStage,
+              stage: IngestionStage.COMPLETED, // placeholder mapping
             },
           );
         }
@@ -732,13 +736,13 @@ export class IngestionService {
       await this.delay(25);
       await this.ingestionJobRepository.update(jobId, {
         status: 'processing',
-        stage: 'ocr_started',
+        stage: IngestionStage.OCR_COMPLETED,
       });
 
       await this.delay(75);
       await this.ingestionJobRepository.update(jobId, {
         status: 'needs_review',
-        stage: 'candidate_pending',
+        stage: IngestionStage.NEEDS_REVIEW,
         ocrText: 'Phase 1 skeleton: OCR pending integration.',
         ocrConfidence: 0,
         parseConfidence: 0,
@@ -750,7 +754,7 @@ export class IngestionService {
           : 'Unknown ingestion worker error';
       await this.ingestionJobRepository.update(jobId, {
         status: 'failed',
-        stage: 'worker_failed',
+        stage: IngestionStage.QUEUED, // placeholder for failed
         errorMessage,
       });
     }

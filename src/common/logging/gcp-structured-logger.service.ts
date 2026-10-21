@@ -34,30 +34,39 @@ export interface GcpLogEntry {
 export function safeStringify(value: unknown, rootAlias?: unknown): string {
   const ancestors: unknown[] = [];
   try {
-    return JSON.stringify(value, function (this: unknown, _key: string, val: unknown): unknown {
-      if (typeof val === 'bigint') {
-        return val.toString();
-      }
-      if (typeof val !== 'object' || val === null) {
+    return JSON.stringify(
+      value,
+      function (this: unknown, _key: string, val: unknown): unknown {
+        if (typeof val === 'bigint') {
+          return val.toString();
+        }
+        if (typeof val !== 'object' || val === null) {
+          return val;
+        }
+        // Pop ancestors that are no longer in the current property path
+        while (
+          ancestors.length > 0 &&
+          ancestors[ancestors.length - 1] !== this
+        ) {
+          ancestors.pop();
+        }
+        if (
+          ancestors.includes(val) ||
+          (ancestors.length > 0 && rootAlias !== undefined && val === rootAlias)
+        ) {
+          return '[Circular]';
+        }
+        ancestors.push(val);
+        if (val instanceof Error) {
+          return {
+            name: val.name,
+            message: val.message,
+            stack: val.stack,
+          };
+        }
         return val;
-      }
-      // Pop ancestors that are no longer in the current property path
-      while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
-        ancestors.pop();
-      }
-      if (ancestors.includes(val) || (ancestors.length > 0 && rootAlias !== undefined && val === rootAlias)) {
-        return '[Circular]';
-      }
-      ancestors.push(val);
-      if (val instanceof Error) {
-        return {
-          name: val.name,
-          message: val.message,
-          stack: val.stack,
-        };
-      }
-      return val;
-    });
+      },
+    );
   } catch {
     return JSON.stringify({
       severity: 'ERROR',
@@ -112,7 +121,11 @@ export class GcpStructuredLogger extends ConsoleLogger {
     this.emitGcpLog('WARNING', message, context);
   }
 
-  override error(message: unknown, stackOrContext?: string, context?: string): void {
+  override error(
+    message: unknown,
+    stackOrContext?: string,
+    context?: string,
+  ): void {
     if (!this.isProduction) {
       if (context !== undefined) {
         super.error(message, stackOrContext, context);
@@ -178,7 +191,10 @@ export class GcpStructuredLogger extends ConsoleLogger {
   }
 
   private isStackLike(value: string): boolean {
-    return value.includes('\n') || /^(Error|TypeError|ReferenceError|SyntaxError|RangeError):/.test(value);
+    return (
+      value.includes('\n') ||
+      /^(Error|TypeError|ReferenceError|SyntaxError|RangeError):/.test(value)
+    );
   }
 
   /**
@@ -202,7 +218,11 @@ export class GcpStructuredLogger extends ConsoleLogger {
       formattedMessage = message.message;
       stack = stack || message.stack;
     } else if (typeof message === 'object' && message !== null) {
-      const { msg, message: objMsg, ...rest } = message as Record<string, unknown>;
+      const {
+        msg,
+        message: objMsg,
+        ...rest
+      } = message as Record<string, unknown>;
       formattedMessage =
         typeof msg === 'string'
           ? msg
@@ -242,13 +262,15 @@ export class GcpStructuredLogger extends ConsoleLogger {
     // Attach Google Cloud Trace context if active in the current AsyncLocalStorage execution context
     const traceContext = traceContextStorage.getStore();
     if (traceContext?.traceId) {
-      entry['logging.googleapis.com/trace'] = `projects/${this.projectId}/traces/${traceContext.traceId}`;
+      entry['logging.googleapis.com/trace'] =
+        `projects/${this.projectId}/traces/${traceContext.traceId}`;
       if (traceContext.spanId) {
         entry['logging.googleapis.com/spanId'] = traceContext.spanId;
       }
     }
 
-    const rootAlias = typeof message === 'object' && message !== null ? message : undefined;
+    const rootAlias =
+      typeof message === 'object' && message !== null ? message : undefined;
     const jsonLine = safeStringify(entry, rootAlias) + '\n';
     if (severity === 'ERROR' || severity === 'CRITICAL') {
       process.stderr.write(jsonLine);

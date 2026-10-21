@@ -7,9 +7,17 @@ describe('GcpStructuredLogger', () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
-    stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    process.env = { ...originalEnv, NODE_ENV: 'production', LOG_FORMAT: 'json' };
+    stdoutSpy = jest
+      .spyOn(process.stdout, 'write')
+      .mockImplementation(() => true);
+    stderrSpy = jest
+      .spyOn(process.stderr, 'write')
+      .mockImplementation(() => true);
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: 'production',
+      LOG_FORMAT: 'json',
+    };
   });
 
   afterEach(() => {
@@ -68,7 +76,8 @@ describe('GcpStructuredLogger', () => {
 
     it('should format error() with stack trace as severity: ERROR to stderr', () => {
       const logger = new GcpStructuredLogger('TestContext');
-      const fakeStack = 'Error: Connection timeout\n    at Database.connect (/src/db.ts:42:15)';
+      const fakeStack =
+        'Error: Connection timeout\n    at Database.connect (/src/db.ts:42:15)';
       logger.error('Database query timed out', fakeStack);
 
       expect(stderrSpy).toHaveBeenCalledTimes(1);
@@ -101,7 +110,10 @@ describe('GcpStructuredLogger', () => {
       const logger = new GcpStructuredLogger('FirenzeEditorialAgent');
 
       traceContextStorage.run(
-        { traceId: 'c735d472b534438b8ff75949d0124f92', spanId: '000000000000004a' },
+        {
+          traceId: 'c735d472b534438b8ff75949d0124f92',
+          spanId: '000000000000004a',
+        },
         () => {
           logger.log('Firenze staged draft');
         },
@@ -144,7 +156,10 @@ describe('GcpStructuredLogger', () => {
       expect(json.context).toBe('FirenzeRunner');
       expect(json.agent).toBe('Firenze');
       expect(json.turn).toBe(3);
-      expect(json.toolsCalled).toEqual(['fetchApprovedConcerts', 'verifyTicketUrl']);
+      expect(json.toolsCalled).toEqual([
+        'fetchApprovedConcerts',
+        'verifyTicketUrl',
+      ]);
     });
   });
 
@@ -203,7 +218,9 @@ describe('GcpStructuredLogger', () => {
       expect(stderrSpy).toHaveBeenCalledTimes(1);
       const json = getLastWrittenJson(stderrSpy);
       expect(json.severity).toBe('CRITICAL');
-      expect(json.message).toBe('Unrecoverable database initialization failure');
+      expect(json.message).toBe(
+        'Unrecoverable database initialization failure',
+      );
       expect(json.context).toBe('Bootstrap');
     });
   });
