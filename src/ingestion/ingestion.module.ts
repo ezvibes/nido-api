@@ -14,6 +14,7 @@ import { AdminIngestionController } from './admin-ingestion.controller';
 import { IngestionController } from './ingestion.controller';
 import { IngestionService } from './ingestion.service';
 import { IngestionStateMachineService } from './services/ingestion-state-machine.service';
+import { GeminiExtractionAdapter } from './services/extraction/gemini-extraction.adapter';
 
 @Module({
   imports: [
@@ -31,7 +32,15 @@ import { IngestionStateMachineService } from './services/ingestion-state-machine
     ]),
   ],
   controllers: [IngestionController, AdminIngestionController],
-  providers: [IngestionService, IngestionStateMachineService],
-  exports: [IngestionService, IngestionStateMachineService],
+  providers: [
+    IngestionService,
+    IngestionStateMachineService,
+    GeminiExtractionAdapter,
+  ],
+  exports: [
+    IngestionService,
+    IngestionStateMachineService,
+    GeminiExtractionAdapter,
+  ],
 })
 export class IngestionModule {}
