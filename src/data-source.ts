@@ -8,6 +8,8 @@ import { ConcertUpvote } from './apis/concerts/entities/concert-upvote.entity';
 import { User } from './apis/users/entities/user.entity';
 import { ConcertUpload } from './ingestion/entities/concert-upload.entity';
 import { IngestionJob } from './ingestion/entities/ingestion-job.entity';
+import { IngestionCandidate } from './ingestion/entities/ingestion-candidate.entity';
+import { IngestionOutbox } from './ingestion/entities/ingestion-outbox.entity';
 import { Venue } from './apis/venues/entities/venue.entity';
 import { Band } from './apis/bands/entities/band.entity';
 import { ConcertBandLineup } from './apis/concerts/entities/concert-band-lineup.entity';
@@ -28,6 +30,8 @@ export default new DataSource({
     ConcertUpvote,
     ConcertUpload,
     IngestionJob,
+    IngestionCandidate,
+    IngestionOutbox,
     Venue,
     Band,
     ConcertBandLineup,

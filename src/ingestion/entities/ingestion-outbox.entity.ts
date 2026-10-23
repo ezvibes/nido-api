@@ -19,7 +19,7 @@ export class IngestionOutbox {
   @Column({ type: 'jsonb' })
   payload: Record<string, any>;
 
-  @Column({ default: 'pending' })
+  @Column({ type: 'varchar', default: 'pending' })
   status: 'pending' | 'dispatched' | 'failed';
 
   @Column({ name: 'retry_count', default: 0 })

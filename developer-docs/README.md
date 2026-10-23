@@ -63,5 +63,6 @@ If a doc helps operate a specific private environment, it belongs in `docs/`.
 - `future-vision/public-api-decision-backlog.md`: unresolved ADR, governance, and developer-experience questions to settle before activating detailed public API work.
 - `api-docs-security.md`: guidance for safely publishing API docs, schema references, and diagrams while protecting production systems.
 - `CONTRIBUTING.md`: contributor workflow, development standards, and pull request expectations.
+- `architecture-and-serverless-runtime.md`: cloud architecture, networking topology, Direct VPC Egress, the "Box Office" security boundary, and serverless runtime model.
 - `DEPLOYMENT.md`: public deployment architecture, validation, and production-readiness overview.
 - `deployment-pipeline.md`: public overview of the deployment pipeline pattern, quality gates, and release philosophy.

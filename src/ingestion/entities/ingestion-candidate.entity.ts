@@ -48,7 +48,7 @@ export class IngestionCandidate {
   @Column({ type: 'jsonb', nullable: true })
   provenance: CandidateProvenance | null;
 
-  @Column({ name: 'suggested_venue_id', nullable: true })
+  @Column({ name: 'suggested_venue_id', type: 'varchar', nullable: true })
   suggestedVenueId: string | null;
 
   @Column({ name: 'suggested_band_ids', type: 'jsonb', nullable: true })
@@ -60,7 +60,7 @@ export class IngestionCandidate {
   @Column({ default: 'pending' })
   status: string;
 
-  @Column({ name: 'published_concert_id', nullable: true })
+  @Column({ name: 'published_concert_id', type: 'varchar', nullable: true })
   publishedConcertId: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })

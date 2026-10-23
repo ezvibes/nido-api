@@ -292,6 +292,12 @@ For Codex or another implementation agent:
 - Update public docs only with sanitized patterns.
 - Keep private runbooks in ignored local docs.
 
+## Related Documentation
+
+- [Cloud Architecture & Serverless Runtime](./architecture-and-serverless-runtime.md) — deep dive into serverless compute vs. managed state, Direct VPC Egress, and the application software gateway boundary.
+- [Deployment Overview](./DEPLOYMENT.md) — high-level CI/CD release workflow and PR validation rules.
+- [Terraform Infrastructure Review](./catalog-operating-system/terraform-infrastructure-review.md) — detailed review of the single-writer guarded Terraform deployment pattern.
+
 ## Future Improvements
 
 Useful next steps:
