@@ -31,6 +31,8 @@
     "migration:show": "npm run typeorm -- -d src/data-source.ts migration:show",
     "adk:venue-scout": "ts-node -r tsconfig-paths/register src/scripts/test-adk-venue-scout.ts",
     "seed:dev:concerts": "ts-node -r tsconfig-paths/register src/scripts/seed-dev-concerts.ts",
+    "test:extraction": "jest src/ingestion/services/extraction/gemini-extraction.adapter.spec.ts",
+    "test:benchmark": "jest --config test/agent-harness/jest.config.json test/agent-harness/ocr-benchmark.spec.ts",
     "test": "jest",
     "test:newsletter:harness": "node scripts/eval-newsletter-harness.mjs",
     "test:terraform-config": "node --test .github/scripts/*terraform*.test.mjs",
@@ -42,6 +44,7 @@
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",
     "@google/adk": "^2.1.0",
+    "@google/genai": "^2.31.0",
     "@google/generative-ai": "^0.24.1",
     "@grpc/grpc-js": "^1.14.5",
     "@grpc/proto-loader": "^0.8.1",

@@ -7,6 +7,7 @@ import {
   IngestionTerminalStatus,
 } from '../interfaces/ingestion-enums';
 import { IngestionOutbox } from '../entities/ingestion-outbox.entity';
+import { IngestionCandidate } from '../entities/ingestion-candidate.entity';
 
 @Injectable()
 export class IngestionStateMachineService {
@@ -117,6 +118,27 @@ export class IngestionStateMachineService {
         payload,
       });
       await manager.save(outbox);
+    });
+  }
+
+  async persistCandidates(
+    jobId: string,
+    candidatesData: Partial<IngestionCandidate>[],
+  ): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const job = await manager.findOne(IngestionJob, {
+        where: { id: jobId },
+      });
+
+      if (!job) {
+        throw new Error(`Job ${jobId} not found`);
+      }
+
+      const candidates = candidatesData.map((data) =>
+        manager.create(IngestionCandidate, { ...data, ingestionJobId: jobId }),
+      );
+
+      await manager.save(candidates);
     });
   }
 }
