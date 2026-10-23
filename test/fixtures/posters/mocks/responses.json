@@ -1,4 +1,63 @@
 {
+  "test-single": {
+    "title": "Test Title",
+    "venue": {
+      "name": "Test Venue",
+      "address": "123 Test St",
+      "city": "Test City",
+      "state": "TS"
+    },
+    "performers": [
+      {
+        "name": "Headliner",
+        "isHeadliner": true
+      },
+      {
+        "name": "Support",
+        "isHeadliner": false
+      }
+    ],
+    "dates": [
+      {
+        "date": "2026-10-31",
+        "startTime": "20:00:00",
+        "timezone": "America/New_York"
+      }
+    ],
+    "genre": "Rock"
+  },
+  "test-multi": {
+    "title": "Test Festival",
+    "venue": {
+      "name": "Test Venue",
+      "address": "123 Test St",
+      "city": "Test City",
+      "state": "TS"
+    },
+    "performers": [
+      {
+        "name": "Headliner 1",
+        "isHeadliner": true
+      },
+      {
+        "name": "Headliner 2",
+        "isHeadliner": true
+      }
+    ],
+    "dates": [
+      {
+        "date": "2026-10-31",
+        "startTime": "20:00:00",
+        "timezone": "America/New_York"
+      },
+      {
+        "date": "2026-11-01",
+        "startTime": "20:00:00",
+        "timezone": "America/New_York"
+      }
+    ],
+    "genre": "Electronic"
+  },
   "clean_single_event": {
     "vision": "Summer Jazz Night\\nThe Blue Notes\\nSarah Vaughn Quartet\\nDowntown Jazz Club\\nAugust 15, 2026\\n8:00 PM",
     "gemini": {
