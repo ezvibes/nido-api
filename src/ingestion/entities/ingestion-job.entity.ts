@@ -54,10 +54,10 @@ export class IngestionJob {
   @Index()
   idempotencyKey: string;
 
-  @Column({ name: 'task_name', nullable: true })
+  @Column({ name: 'task_name', type: 'varchar', nullable: true })
   taskName: string | null;
 
-  @Column({ name: 'lease_owner', nullable: true })
+  @Column({ name: 'lease_owner', type: 'varchar', nullable: true })
   leaseOwner: string | null;
 
   @Column({ name: 'lease_expires_at', type: 'timestamptz', nullable: true })
@@ -66,16 +66,16 @@ export class IngestionJob {
   @Column({ default: true })
   retryable: boolean;
 
-  @Column({ name: 'error_code', nullable: true })
+  @Column({ name: 'error_code', type: 'varchar', nullable: true })
   errorCode: string | null;
 
-  @Column({ name: 'ocr_provider', nullable: true })
+  @Column({ name: 'ocr_provider', type: 'varchar', nullable: true })
   ocrProvider?: string;
 
   @Column({ name: 'ocr_confidence', type: 'real', nullable: true })
   ocrConfidence?: number;
 
-  @Column({ name: 'parser_version', nullable: true })
+  @Column({ name: 'parser_version', type: 'varchar', nullable: true })
   parserVersion?: string;
 
   @Column({ name: 'parse_confidence', type: 'real', nullable: true })
