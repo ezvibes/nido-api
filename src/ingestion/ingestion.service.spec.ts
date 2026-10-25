@@ -14,6 +14,8 @@ import { UploadableFile } from './interfaces/uploadable-file.interface';
 import { Concert } from '../apis/concerts/entities/concert.entity';
 import { VenueService } from '../apis/venues/venue.service';
 import { BandService } from '../apis/bands/band.service';
+import { IngestionStateMachineService } from './services/ingestion-state-machine.service';
+import { GeminiExtractionAdapter } from './services/extraction/gemini-extraction.adapter';
 
 describe('IngestionService', () => {
   let service: IngestionService;
@@ -102,12 +104,28 @@ describe('IngestionService', () => {
           useValue: concertRepository,
         },
         {
+          provide: IngestionStateMachineService,
+          useValue: { transitionTo: jest.fn(), persistCandidates: jest.fn() },
+        },
+        {
+          provide: GeminiExtractionAdapter,
+          useValue: { extract: jest.fn().mockResolvedValue([]) },
+        },
+        {
           provide: VenueService,
           useValue: venueService,
         },
         {
           provide: BandService,
           useValue: bandService,
+        },
+        {
+          provide: IngestionStateMachineService,
+          useValue: { transitionTo: jest.fn(), persistCandidates: jest.fn() },
+        },
+        {
+          provide: GeminiExtractionAdapter,
+          useValue: { extract: jest.fn().mockResolvedValue([]) },
         },
       ],
     }).compile();
@@ -335,7 +353,9 @@ describe('IngestionService', () => {
       updatedAt: new Date(),
     });
 
-    jest.spyOn(service as any, 'runJobSkeleton').mockResolvedValue(undefined);
+    jest
+      .spyOn(service as any, 'runExtractionPipeline')
+      .mockResolvedValue(undefined);
 
     const result = await service.createJob('asset-1', 'uid-1');
 
@@ -694,6 +714,14 @@ describe('IngestionService', () => {
               .fn()
               .mockResolvedValue([{ id: 'band-uuid', name: 'Mock Band' }]),
           },
+        },
+        {
+          provide: IngestionStateMachineService,
+          useValue: { transitionTo: jest.fn(), persistCandidates: jest.fn() },
+        },
+        {
+          provide: GeminiExtractionAdapter,
+          useValue: { extract: jest.fn().mockResolvedValue([]) },
         },
       ],
     }).compile();
