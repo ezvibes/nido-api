@@ -1,3 +1,5 @@
+import { IngestionOutbox } from './entities/ingestion-outbox.entity';
+import { IngestionTasksDispatcherService } from './services/ingestion-tasks-dispatcher.service';
 import {
   BadRequestException,
   ConflictException,
@@ -57,6 +59,7 @@ export class IngestionService {
     private readonly venueService: VenueService,
     private readonly bandService: BandService,
     private readonly stateMachine: IngestionStateMachineService,
+    private readonly tasksDispatcher: IngestionTasksDispatcherService,
     private readonly extractor: GeminiExtractionAdapter,
   ) {
     this.bucketName =
@@ -328,18 +331,31 @@ export class IngestionService {
       );
     }
 
-    const ingestionJob = await this.ingestionJobRepository.save(
-      this.ingestionJobRepository.create({
+    let ingestionJob!: IngestionJob;
+    await this.concertUploadRepository.manager.transaction(async (manager) => {
+      ingestionJob = manager.create(IngestionJob, {
         concertUploadId: concertUpload.id,
         status: 'queued',
         stage: IngestionStage.QUEUED,
         idempotencyKey: concertUpload.id,
         ocrProvider: this.defaultOcrProvider,
         parserVersion: this.parserVersion,
-      }),
-    );
+      });
+      await manager.save(ingestionJob);
 
-    void this.runExtractionPipeline(ingestionJob.id);
+      // Create outbox entry for Cloud Tasks dispatch atomically
+      const outbox = manager.create(IngestionOutbox, {
+        jobId: ingestionJob.id,
+        destination: 'ingestion_worker',
+        payload: { jobId: ingestionJob.id },
+      });
+      await manager.save(outbox);
+    });
+
+    // Dispatch job to Cloud Tasks asynchronously without awaiting
+    void this.tasksDispatcher.dispatchJob(ingestionJob!.id).catch((err) => {
+      this.logger.error(`Failed to trigger async dispatch for job ${ingestionJob!.id}: ${err.message}`);
+    });
 
     return this.mapJobResponse(
       Object.assign(new IngestionJob(), {
@@ -737,7 +753,7 @@ export class IngestionService {
     };
   }
 
-  private async runExtractionPipeline(jobId: string) {
+  public async runExtractionPipeline(jobId: string) {
     try {
       // Load job & upload
       const job = await this.ingestionJobRepository.findOne({
