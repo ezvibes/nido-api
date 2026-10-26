@@ -6,7 +6,7 @@ import { GoogleOidcGuard } from '../../auth/guards/google-oidc.guard';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { IngestionJob } from '../entities/ingestion-job.entity';
 import { Repository } from 'typeorm';
-import { InternalServerErrorException } from '@nestjs/common';
+import { InternalServerErrorException, ServiceUnavailableException } from '@nestjs/common';
 import { IngestionTerminalStatus } from '../interfaces/ingestion-enums';
 
 describe('IngestionWorkerController', () => {
@@ -55,7 +55,7 @@ describe('IngestionWorkerController', () => {
   it('should skip execution and return OK if lease cannot be claimed', async () => {
     (stateMachineService.claimJob as jest.Mock).mockResolvedValue(false);
 
-    await expect(controller.processJob({ jobId: 'job-1' })).rejects.toThrow(InternalServerErrorException);
+    await expect(controller.processJob({ jobId: 'job-1' })).rejects.toThrow(ServiceUnavailableException);
   });
 
   it('should execute pipeline and return OK if lease is claimed', async () => {

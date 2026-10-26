@@ -55,8 +55,8 @@ The system enforces strict boundaries:
 
 We recommend configuring the Cloud Tasks queue with the following defaults for safe, resilient throughput:
 
-- **Max Dispatch Rate:** 5-10 dispatches/sec.
-- **Max Concurrent Tasks:** 50.
+- **Max Dispatch Rate:** 1 dispatches/sec.
+- **Max Concurrent Tasks:** 2.
 - **Max Attempts:** 5.
 - **Exponential Backoff:** Min backoff 2s, Max backoff 300s, Doubling multiplier.
 

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Logger, HttpCode, HttpStatus, InternalServerErrorException } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Logger, HttpCode, HttpStatus, InternalServerErrorException, ServiceUnavailableException } from '@nestjs/common';
 import { GoogleOidcGuard } from '../../auth/guards/google-oidc.guard';
 import { IngestionStateMachineService } from '../services/ingestion-state-machine.service';
 import { IngestionService } from '../ingestion.service';
@@ -51,7 +51,7 @@ export class IngestionWorkerController {
 
       if (!leaseClaimed) {
         this.logger.log(`Job ${jobId} lease is busy, triggering retry.`);
-        throw new InternalServerErrorException(`Lease busy for job ${jobId}`);
+        throw new ServiceUnavailableException(`Lease busy for job ${jobId}`);
       }
 
       try {
@@ -69,7 +69,10 @@ export class IngestionWorkerController {
         await this.jobRepository.update(jobId, { leaseOwner: null, leaseExpiresAt: null });
         throw pipelineError; // propagate to outer catch
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error instanceof ServiceUnavailableException || error.status === 503) {
+         throw error;
+      }
       const msg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error processing job ${jobId}: ${msg}`, error instanceof Error ? error.stack : undefined);
 
