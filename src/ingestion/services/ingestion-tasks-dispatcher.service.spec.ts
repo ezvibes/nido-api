@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { IngestionTasksDispatcherService } from './ingestion-tasks-dispatcher.service';
 import { IngestionOutbox } from '../entities/ingestion-outbox.entity';
 
@@ -19,7 +19,6 @@ describe('IngestionTasksDispatcherService', () => {
   let service: IngestionTasksDispatcherService;
   let mockConfigService: Partial<ConfigService>;
   let mockDataSource: Partial<DataSource>;
-  let mockManager: Partial<EntityManager>;
   let mockOutboxRepository: Partial<Repository<IngestionOutbox>>;
 
   beforeEach(async () => {
@@ -27,24 +26,23 @@ describe('IngestionTasksDispatcherService', () => {
       get: jest.fn((key: string) => {
         if (key === 'INGESTION_ASYNC_DISPATCH_ENABLED') return 'true';
         if (key === 'CLOUD_TASKS_QUEUE_PATH') return 'projects/test-project/locations/test-location/queues/test-queue';
-        if (key === 'INGESTION_WORKER_URL') return 'https://test-worker-url/process';
+        if (key === 'INGESTION_WORKER_URL') return 'https://test-worker-url/internal/ingestion/process-job';
+        if (key === 'INGESTION_WORKER_AUDIENCE') return 'https://test-worker-url';
         if (key === 'CLOUD_TASKS_INVOKER_SA') return 'test-sa@test-project.iam.gserviceaccount.com';
         return undefined;
       }),
     };
 
-    mockManager = {
+    mockDataSource = {
+      transaction: jest.fn(),
+    };
+
+    mockOutboxRepository = {
       findOne: jest.fn(),
+      find: jest.fn(),
+      update: jest.fn(),
       save: jest.fn(),
     };
-
-    mockDataSource = {
-      transaction: jest.fn().mockImplementation(async (cb) => {
-        return cb(mockManager);
-      }),
-    };
-
-    mockOutboxRepository = {};
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -77,8 +75,9 @@ describe('IngestionTasksDispatcherService', () => {
       mockOutboxRepository as any,
     );
 
-    await newService.dispatchJob('job-1');
-    expect(mockDataSource.transaction).not.toHaveBeenCalled();
+    const result = await newService.dispatchJob('job-1');
+    expect(result).toBe(false);
+    expect(mockOutboxRepository.findOne).not.toHaveBeenCalled();
   });
 
   it('should dispatch successfully and update outbox to dispatched', async () => {
@@ -88,34 +87,60 @@ describe('IngestionTasksDispatcherService', () => {
       status: 'pending',
       retryCount: 0,
     };
-    (mockManager.findOne as jest.Mock).mockResolvedValue(mockOutbox);
+    (mockOutboxRepository.findOne as jest.Mock).mockResolvedValue(mockOutbox);
 
-    // We already mocked CloudTasksClient in jest.mock above
     const clientInstance = (service as any).tasksClient;
     const createTaskSpy = jest.spyOn(clientInstance, 'createTask').mockResolvedValue([{ name: 'test' }]);
 
-    await service.dispatchJob('job-1');
+    const result = await service.dispatchJob('job-1');
 
+    expect(result).toBe(true);
     expect(createTaskSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         parent: 'projects/test-project/locations/test-location/queues/test-queue',
         task: expect.objectContaining({
-          name: 'projects/test-project/locations/test-location/queues/test-queue/tasks/job-job-1-attempt-0',
+          name: 'projects/test-project/locations/test-location/queues/test-queue/tasks/job-job-1',
           httpRequest: expect.objectContaining({
-            url: 'https://test-worker-url/process',
+            url: 'https://test-worker-url/internal/ingestion/process-job',
             oidcToken: {
               serviceAccountEmail: 'test-sa@test-project.iam.gserviceaccount.com',
-              audience: 'https://test-worker-url/process',
+              audience: 'https://test-worker-url',
             },
           }),
         }),
-      })
+      }),
     );
 
-    expect(mockManager.save).toHaveBeenCalledWith(
+    expect(mockOutboxRepository.update).toHaveBeenCalledWith(
+      'outbox-1',
       expect.objectContaining({
         status: 'dispatched',
-      })
+      }),
+    );
+  });
+
+  it('should treat ALREADY_EXISTS code as success (deduplication)', async () => {
+    const mockOutbox = {
+      id: 'outbox-dup',
+      jobId: 'job-dup',
+      status: 'pending',
+      retryCount: 0,
+    };
+    (mockOutboxRepository.findOne as jest.Mock).mockResolvedValue(mockOutbox);
+
+    const clientInstance = (service as any).tasksClient;
+    const alreadyExistsError: any = new Error('Task already exists');
+    alreadyExistsError.code = 6;
+    jest.spyOn(clientInstance, 'createTask').mockRejectedValue(alreadyExistsError);
+
+    const result = await service.dispatchJob('job-dup');
+
+    expect(result).toBe(true);
+    expect(mockOutboxRepository.update).toHaveBeenCalledWith(
+      'outbox-dup',
+      expect.objectContaining({
+        status: 'dispatched',
+      }),
     );
   });
 
@@ -126,18 +151,40 @@ describe('IngestionTasksDispatcherService', () => {
       status: 'pending',
       retryCount: 0,
     };
-    (mockManager.findOne as jest.Mock).mockResolvedValue(mockOutbox);
+    (mockOutboxRepository.findOne as jest.Mock).mockResolvedValue(mockOutbox);
 
     const clientInstance = (service as any).tasksClient;
-    const createTaskSpy = jest.spyOn(clientInstance, 'createTask').mockRejectedValue(new Error('Network Error'));
+    jest.spyOn(clientInstance, 'createTask').mockRejectedValue(new Error('Network Error'));
 
-    await service.dispatchJob('job-2');
+    const result = await service.dispatchJob('job-2');
 
-    expect(mockManager.save).toHaveBeenCalledWith(
+    expect(result).toBe(false);
+    expect(mockOutboxRepository.update).toHaveBeenCalledWith(
+      'outbox-2',
       expect.objectContaining({
         retryCount: 1,
         lastAttemptAt: expect.any(Date),
-      })
+        status: 'pending',
+      }),
     );
+  });
+
+  it('should redrive pending outbox entries', async () => {
+    const pendingEntries = [
+      { id: 'outbox-1', jobId: 'job-1', status: 'pending', retryCount: 0 },
+      { id: 'outbox-2', jobId: 'job-2', status: 'pending', retryCount: 1 },
+    ];
+    (mockOutboxRepository.find as jest.Mock).mockResolvedValue(pendingEntries);
+    (mockOutboxRepository.findOne as jest.Mock)
+      .mockResolvedValueOnce(pendingEntries[0])
+      .mockResolvedValueOnce(pendingEntries[1]);
+
+    const clientInstance = (service as any).tasksClient;
+    jest.spyOn(clientInstance, 'createTask').mockResolvedValue([{ name: 'test' }]);
+
+    const count = await service.redrivePendingOutbox(10);
+
+    expect(count).toBe(2);
+    expect(mockOutboxRepository.find).toHaveBeenCalled();
   });
 });

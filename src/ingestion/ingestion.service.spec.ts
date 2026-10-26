@@ -2,6 +2,7 @@ import { IngestionTasksDispatcherService } from './services/ingestion-tasks-disp
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 import {
   BadRequestException,
   ConflictException,
@@ -59,6 +60,15 @@ describe('IngestionService', () => {
       .mockResolvedValue([{ id: 'band-uuid', name: 'Mock Band' }]),
   };
 
+  const mockManager = {
+    create: jest.fn().mockImplementation((entity, val) => val),
+    save: jest.fn().mockImplementation(async (val) => ({ id: 'job-1', ...val })),
+  };
+
+  const mockDataSource = {
+    transaction: jest.fn().mockImplementation(async (cb) => cb(mockManager)),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     venueService.findOrCreateByName.mockResolvedValue({
@@ -68,6 +78,9 @@ describe('IngestionService', () => {
     bandService.findOrCreateManyByName.mockResolvedValue([
       { id: 'band-uuid', name: 'Mock Band' },
     ]);
+    mockManager.create.mockImplementation((entity, val) => val);
+    mockManager.save.mockImplementation(async (val) => ({ id: 'job-1', ...val }));
+    mockDataSource.transaction.mockImplementation(async (cb) => cb(mockManager));
     concertUploadRepository.manager.transaction.mockImplementation(
       async (callback) =>
         callback({
@@ -83,7 +96,8 @@ describe('IngestionService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IngestionService,
-        { provide: IngestionTasksDispatcherService, useValue: { dispatchJob: jest.fn().mockResolvedValue(undefined) } },
+        { provide: DataSource, useValue: mockDataSource },
+        { provide: IngestionTasksDispatcherService, useValue: { dispatchJob: jest.fn().mockResolvedValue(true) } },
         {
           provide: ConfigService,
           useValue: {
@@ -355,24 +369,11 @@ describe('IngestionService', () => {
       updatedAt: new Date(),
     });
 
-    const stateMachineMock = (service as any).stateMachine;
-    stateMachineMock.dispatchTask = jest.fn().mockResolvedValue(undefined);
-
     const result = await service.createJob('asset-1', 'uid-1');
 
     expect(concertUploadRepository.findOne).toHaveBeenCalledWith({
       where: { id: 'asset-1', uploadedByUid: 'uid-1' },
     });
-    expect(ingestionJobRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        concertUploadId: 'asset-1',
-        status: 'queued',
-        stage: 'queued',
-        idempotencyKey: 'asset-1',
-        ocrProvider: 'google_vision',
-        parserVersion: 'phase1-skeleton',
-      }),
-    );
     expect(result.id).toBe('job-1');
     expect(result.concertUpload.id).toBe('asset-1');
     expect(result.concertUpload.genre).toBe('Electronic');
@@ -682,7 +683,8 @@ describe('IngestionService', () => {
     const missingBucketModule: TestingModule = await Test.createTestingModule({
       providers: [
         IngestionService,
-        { provide: IngestionTasksDispatcherService, useValue: { dispatchJob: jest.fn().mockResolvedValue(undefined) } },
+        { provide: DataSource, useValue: mockDataSource },
+        { provide: IngestionTasksDispatcherService, useValue: { dispatchJob: jest.fn().mockResolvedValue(true) } },
         {
           provide: ConfigService,
           useValue: {

@@ -12,13 +12,14 @@ import { Storage } from '@google-cloud/storage';
 import { randomUUID } from 'crypto';
 import { readFileSync } from 'fs';
 import { extname } from 'path';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Response } from 'express';
 import { CreateIngestionUploadDto } from './dto/create-ingestion-upload.dto';
 import { ReviewConcertUploadDto } from './dto/review-concert-upload.dto';
 import { IngestionJob } from './entities/ingestion-job.entity';
 import { ConcertUpload } from './entities/concert-upload.entity';
+import { IngestionOutbox } from './entities/ingestion-outbox.entity';
 import { IngestionStage } from './interfaces/ingestion-enums';
 import { IngestionJobResponse } from './interfaces/ingestion-job-response.interface';
 import { IngestionUploadResult } from './interfaces/ingestion-upload-result.interface';
@@ -60,6 +61,7 @@ export class IngestionService {
     private readonly stateMachine: IngestionStateMachineService,
     private readonly tasksDispatcher: IngestionTasksDispatcherService,
     private readonly extractor: GeminiExtractionAdapter,
+    private readonly dataSource: DataSource,
   ) {
     this.bucketName =
       this.configService.get<string>('GCS_INGESTION_BUCKET')?.trim() ||
@@ -330,24 +332,42 @@ export class IngestionService {
       );
     }
 
-    const ingestionJob = await this.ingestionJobRepository.save(
-      this.ingestionJobRepository.create({
-        concertUploadId: concertUpload.id,
-        status: 'queued',
-        stage: IngestionStage.QUEUED,
-        idempotencyKey: concertUpload.id,
-        ocrProvider: this.defaultOcrProvider,
-        parserVersion: this.parserVersion,
-      }),
-    );
+    // Atomically persist both IngestionJob and IngestionOutbox in a single transaction
+    const ingestionJob = await this.dataSource.transaction(async (manager) => {
+      const job = await manager.save(
+        manager.create(IngestionJob, {
+          concertUploadId: concertUpload.id,
+          status: 'queued',
+          stage: IngestionStage.QUEUED,
+          idempotencyKey: concertUpload.id,
+          ocrProvider: this.defaultOcrProvider,
+          parserVersion: this.parserVersion,
+        }),
+      );
 
-    // Create outbox entry for Cloud Tasks dispatch
-    await this.stateMachine.dispatchTask(ingestionJob.id, 'ingestion_worker', { jobId: ingestionJob.id });
+      const outbox = manager.create(IngestionOutbox, {
+        jobId: job.id,
+        destination: 'ingestion_worker',
+        payload: { jobId: job.id },
+        status: 'pending',
+      });
+      await manager.save(outbox);
 
-    // Dispatch job to Cloud Tasks asynchronously without awaiting
-    void this.tasksDispatcher.dispatchJob(ingestionJob.id).catch((err) => {
-      this.logger.error(`Failed to trigger async dispatch for job ${ingestionJob.id}: ${err.message}`);
+      return job;
     });
+
+    // Attempt async Cloud Tasks dispatch; if disabled or unconfigured, execute in-process fallback
+    const dispatched = await this.tasksDispatcher.dispatchJob(ingestionJob.id);
+    if (!dispatched) {
+      this.logger.log(
+        `Async queue dispatch inactive for job ${ingestionJob.id}; executing synchronous in-process fallback`,
+      );
+      void this.runExtractionPipeline(ingestionJob.id).catch((err) => {
+        this.logger.error(
+          `Synchronous extraction fallback error for job ${ingestionJob.id}: ${err.message}`,
+        );
+      });
+    }
 
     return this.mapJobResponse(
       Object.assign(new IngestionJob(), {
@@ -907,6 +927,7 @@ export class IngestionService {
         stage: IngestionStage.QUEUED,
         errorMessage,
       });
+      throw error;
     }
   }
 

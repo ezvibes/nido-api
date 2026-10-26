@@ -53,10 +53,10 @@ The system enforces strict boundaries:
 
 ## Queue Configuration Defaults
 
-We recommend configuring the Cloud Tasks queue with the following defaults for safe, resilient throughput:
+We recommend configuring the Cloud Tasks queue with the following bounded defaults for safe, resilient throughput (aligned with Issue #62):
 
-- **Max Dispatch Rate:** 5-10 dispatches/sec.
-- **Max Concurrent Tasks:** 50.
+- **Max Dispatch Rate:** 1 dispatch/sec.
+- **Max Concurrent Tasks:** 2.
 - **Max Attempts:** 5.
 - **Exponential Backoff:** Min backoff 2s, Max backoff 300s, Doubling multiplier.
 
@@ -67,11 +67,14 @@ Use the `gcloud` CLI to pause the queue if workers are failing globally:
 `gcloud tasks queues pause [QUEUE_NAME] --location [LOCATION]`
 `gcloud tasks queues resume [QUEUE_NAME] --location [LOCATION]`
 
-### Recovering Stranded Outbox Jobs
-If a transient network error prevents the API from creating the Cloud Task, the `IngestionOutbox` record will remain in the `pending` state (or `failed` if retries were exhausted on the client side). A simple cron or administrative script can periodically poll `IngestionOutbox` where `status = 'pending' AND created_at < NOW() - 5 minutes` and re-dispatch them via `IngestionTasksDispatcherService.dispatchJob`.
+### Recovering Stranded Outbox Jobs & Redrive
+If a transient network error prevents the API from creating the Cloud Task, the `IngestionOutbox` record will remain in the `pending` state. The system provides an automated redrive mechanism:
+1. `IngestionTasksDispatcherService.redrivePendingOutbox(limit)` scans pending outbox records and attempts re-dispatch.
+2. An authorized operator or Cloud Scheduler job can trigger `POST /internal/ingestion/redrive-outbox`.
+3. In-process synchronous fallback: If `INGESTION_ASYNC_DISPATCH_ENABLED=false` or unconfigured, `IngestionService.createJob` immediately falls back to in-process extraction so jobs are never queued indefinitely when worker infrastructure is not active.
 
 ### Replay Procedures
-Because Cloud Tasks HTTP requests are idempotent based on the `jobId` and lease status, an operator can safely hit the private `/internal/ingestion/process-job` endpoint manually (with an appropriate token), or forcefully reset the job stage in the `IngestionJob` table and enqueue a new task. The deterministic Cloud Task naming (`job-{jobId}-attempt-{retryCount}`) avoids queue-level duplication for the same attempt.
+Because Cloud Tasks HTTP requests are idempotent based on the `jobId` and lease status, an operator can safely hit the private `/internal/ingestion/process-job` endpoint manually (with an appropriate token), or forcefully reset the job stage in the `IngestionJob` table and enqueue a new task. The deterministic Cloud Task naming (`job-{jobId}`) avoids queue-level duplication for the same job.
 
 ### Rollback Checklist
 1. Revert deployment (disable Cloud Run routing to new revision).

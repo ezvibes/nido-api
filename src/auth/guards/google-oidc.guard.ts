@@ -33,11 +33,13 @@ export class GoogleOidcGuard implements CanActivate {
       throw new UnauthorizedException('Token missing');
     }
 
-    const expectedAudience = this.configService.get<string>('INGESTION_WORKER_URL');
+    const expectedAudience =
+      this.configService.get<string>('INGESTION_WORKER_AUDIENCE') ||
+      this.configService.get<string>('INGESTION_WORKER_URL')?.replace(/\/internal\/.*$/, '');
     const expectedServiceAccount = this.configService.get<string>('CLOUD_TASKS_INVOKER_SA');
 
     if (!expectedAudience || !expectedServiceAccount) {
-      this.logger.error('OIDC Guard misconfigured: Missing INGESTION_WORKER_URL or CLOUD_TASKS_INVOKER_SA');
+      this.logger.error('OIDC Guard misconfigured: Missing INGESTION_WORKER_AUDIENCE/INGESTION_WORKER_URL or CLOUD_TASKS_INVOKER_SA');
       throw new ForbiddenException('Guard misconfigured');
     }
 

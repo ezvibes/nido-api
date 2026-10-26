@@ -22,6 +22,7 @@ describe('GoogleOidcGuard', () => {
   beforeEach(async () => {
     mockConfigService = {
       get: jest.fn((key: string) => {
+        if (key === 'INGESTION_WORKER_AUDIENCE') return 'https://test-worker-url';
         if (key === 'INGESTION_WORKER_URL') return 'https://test-worker-url/process';
         if (key === 'CLOUD_TASKS_INVOKER_SA') return 'test-sa@test-project.iam.gserviceaccount.com';
         return undefined;
@@ -87,7 +88,7 @@ describe('GoogleOidcGuard', () => {
     expect(result).toBe(true);
     expect(mockVerifyIdToken).toHaveBeenCalledWith({
       idToken: 'valid-token',
-      audience: 'https://test-worker-url/process',
+      audience: 'https://test-worker-url',
     });
   });
 
