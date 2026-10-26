@@ -70,8 +70,9 @@ export class IngestionPublicationService {
 
       // 3. Create canonical Concert entity
       const concertRepository = manager.getRepository(Concert);
+
       const newConcert = concertRepository.create({
-        owner: { id: reviewedByUserId } as any, // assuming owner relationship needs user id
+        owner: { id: job.concertUpload?.uploadedByUserId || reviewedByUserId } as any, // requested by code review
         title: dto.title,
         genre: 'Live Music', // We don't have a genre table relation here, normally it's a string, we might need mapping
         venue: dto.venueId ? { id: dto.venueId } as any : null,
@@ -96,9 +97,15 @@ export class IngestionPublicationService {
         await lineupRepo.save(lineups);
       }
 
-      // Update Candidate
+      // Update Candidate (reviewAudit requested by Code Review)
       candidate.status = 'published';
       candidate.publishedConcertId = savedConcert.id;
+      if (!candidate.provenance) candidate.provenance = {};
+      (candidate.provenance as any).reviewAudit = {
+         reviewDurationMs: dto.reviewDurationMs,
+         reviewedAt: new Date().toISOString(),
+         reviewedByUserId
+      };
       await manager.save(candidate);
 
       // Update Upload
@@ -115,8 +122,6 @@ export class IngestionPublicationService {
       job.stage = IngestionStage.COMPLETED;
       job.status = IngestionStage.COMPLETED;
       await manager.save(job);
-
-      // Audit Log could go here.
 
       return { publishedConcertId: savedConcert.id };
     });
@@ -155,6 +160,13 @@ export class IngestionPublicationService {
 
       if (dto.decision === 'reject') {
         candidate.status = 'rejected';
+        if (!candidate.provenance) candidate.provenance = {};
+        (candidate.provenance as any).reviewAudit = {
+           reviewDurationMs: dto.reviewDurationMs,
+           rejectReason: dto.rejectReason,
+           reviewedAt: new Date().toISOString(),
+           reviewedByUserId
+        };
         await manager.save(candidate);
 
         if (job.concertUpload) {
@@ -183,12 +195,40 @@ export class IngestionPublicationService {
         }
 
         if (dto.decision === 'merge' && dto.publishData) {
-            // merge data into concert
-            // (omitting for brevity, we could update the concert fields if they are missing)
+            // merge data into concert requested by Code review
+            const startsAt = new Date(`${dto.publishData.date}T${dto.publishData.time}:00Z`);
+            concert.title = dto.publishData.title || concert.title;
+            concert.startsAt = startsAt || concert.startsAt;
+            if (dto.publishData.venueId) {
+                concert.venue = { id: dto.publishData.venueId } as any;
+            }
+            await manager.save(concert);
+
+            // Re-create lineup
+            if (dto.publishData.bandIds && dto.publishData.bandIds.length > 0) {
+              const lineupRepo = manager.getRepository(ConcertBandLineup);
+              await lineupRepo.delete({ concertId: concert.id });
+              const lineups = dto.publishData.bandIds.map((bandId, index) => {
+                 return lineupRepo.create({
+                   concertId: concert.id,
+                   bandId: bandId,
+                   performanceOrder: index,
+                   performanceRole: index === 0 ? PerformanceRole.HEADLINER : PerformanceRole.SUPPORT,
+                 });
+              });
+              await lineupRepo.save(lineups);
+            }
         }
 
         candidate.status = 'published';
         candidate.publishedConcertId = concert.id;
+        if (!candidate.provenance) candidate.provenance = {};
+        (candidate.provenance as any).reviewAudit = {
+           reviewDurationMs: dto.reviewDurationMs,
+           decision: dto.decision,
+           reviewedAt: new Date().toISOString(),
+           reviewedByUserId
+        };
         await manager.save(candidate);
 
         if (job.concertUpload) {
