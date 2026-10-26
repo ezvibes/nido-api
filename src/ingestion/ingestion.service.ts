@@ -1,3 +1,4 @@
+import { IngestionTasksDispatcherService } from './services/ingestion-tasks-dispatcher.service';
 import {
   BadRequestException,
   ConflictException,
@@ -57,6 +58,7 @@ export class IngestionService {
     private readonly venueService: VenueService,
     private readonly bandService: BandService,
     private readonly stateMachine: IngestionStateMachineService,
+    private readonly tasksDispatcher: IngestionTasksDispatcherService,
     private readonly extractor: GeminiExtractionAdapter,
   ) {
     this.bucketName =
@@ -339,7 +341,13 @@ export class IngestionService {
       }),
     );
 
-    void this.runExtractionPipeline(ingestionJob.id);
+    // Create outbox entry for Cloud Tasks dispatch
+    await this.stateMachine.dispatchTask(ingestionJob.id, 'ingestion_worker', { jobId: ingestionJob.id });
+
+    // Dispatch job to Cloud Tasks asynchronously without awaiting
+    void this.tasksDispatcher.dispatchJob(ingestionJob.id).catch((err) => {
+      this.logger.error(`Failed to trigger async dispatch for job ${ingestionJob.id}: ${err.message}`);
+    });
 
     return this.mapJobResponse(
       Object.assign(new IngestionJob(), {
@@ -737,7 +745,7 @@ export class IngestionService {
     };
   }
 
-  private async runExtractionPipeline(jobId: string) {
+  public async runExtractionPipeline(jobId: string) {
     try {
       // Load job & upload
       const job = await this.ingestionJobRepository.findOne({

@@ -1,3 +1,4 @@
+import { IngestionTasksDispatcherService } from './services/ingestion-tasks-dispatcher.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -82,6 +83,7 @@ describe('IngestionService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IngestionService,
+        { provide: IngestionTasksDispatcherService, useValue: { dispatchJob: jest.fn().mockResolvedValue(undefined) } },
         {
           provide: ConfigService,
           useValue: {
@@ -353,9 +355,8 @@ describe('IngestionService', () => {
       updatedAt: new Date(),
     });
 
-    jest
-      .spyOn(service as any, 'runExtractionPipeline')
-      .mockResolvedValue(undefined);
+    const stateMachineMock = (service as any).stateMachine;
+    stateMachineMock.dispatchTask = jest.fn().mockResolvedValue(undefined);
 
     const result = await service.createJob('asset-1', 'uid-1');
 
@@ -681,6 +682,7 @@ describe('IngestionService', () => {
     const missingBucketModule: TestingModule = await Test.createTestingModule({
       providers: [
         IngestionService,
+        { provide: IngestionTasksDispatcherService, useValue: { dispatchJob: jest.fn().mockResolvedValue(undefined) } },
         {
           provide: ConfigService,
           useValue: {

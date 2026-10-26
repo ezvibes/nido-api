@@ -1,3 +1,5 @@
+import { IngestionWorkerController } from './controllers/ingestion-worker.controller';
+import { IngestionTasksDispatcherService } from './services/ingestion-tasks-dispatcher.service';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -31,8 +33,8 @@ import { GeminiExtractionAdapter } from './services/extraction/gemini-extraction
       IngestionOutbox,
     ]),
   ],
-  controllers: [IngestionController, AdminIngestionController],
-  providers: [IngestionService, IngestionStateMachineService, GeminiExtractionAdapter],
-  exports: [IngestionService, IngestionStateMachineService, GeminiExtractionAdapter],
+  controllers: [IngestionController, AdminIngestionController, IngestionWorkerController],
+  providers: [IngestionService, IngestionStateMachineService, GeminiExtractionAdapter, IngestionTasksDispatcherService],
+  exports: [IngestionService, IngestionStateMachineService, GeminiExtractionAdapter, IngestionTasksDispatcherService],
 })
 export class IngestionModule {}
