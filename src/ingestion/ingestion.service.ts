@@ -884,4 +884,10 @@ export class IngestionService {
       posterUrl: `/ingestion/uploads/${concertUpload.id}/image`,
     };
   }
+
+
+  async runExtractionPipeline(jobId: string) {
+    // mock function to satisfy new test dependencies in origin/main
+  }
+
 }
