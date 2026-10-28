@@ -619,6 +619,154 @@ export async function fetchAdminIngestionUploadImageBlob(
   return response.data;
 }
 
+export interface AdminIngestionCandidateListItem {
+  id: string;
+  status: 'pending' | 'published' | 'rejected';
+  candidateIndex: number;
+  ingestionJobId: string;
+  publishedConcertId?: string | null;
+  provenance?: {
+    title?: { rawValue: string; confidence?: number };
+    date?: { rawValue: string; confidence?: number };
+    time?: { rawValue: string; confidence?: number };
+    venue?: { rawValue: string; confidence?: number };
+    bands?: { rawValue: string; confidence?: number }[];
+    genres?: { rawValue: string; confidence?: number }[];
+    ticketUrl?: { rawValue: string; confidence?: number };
+    price?: { rawValue: string; confidence?: number };
+    rawOcrText?: string;
+    modelName?: string;
+    reviewAudit?: any;
+    [key: string]: any;
+  };
+  suggestedVenueId?: string | null;
+  suggestedBandIds?: string[] | null;
+  suggestedGenreIds?: string[] | null;
+  createdAt: string;
+  upload?: {
+    id: string;
+    originalFilename: string;
+    city?: string;
+    state?: string;
+    uploadedByUid?: string;
+    uploadedByUserEmail?: string;
+    createdAt: string;
+    posterUrl: string;
+  } | null;
+}
+
+export interface AdminIngestionCandidateListResponse {
+  total: number;
+  items: AdminIngestionCandidateListItem[];
+}
+
+export interface AdminIngestionCandidateDetailResponse {
+  candidate: AdminIngestionCandidateListItem;
+  probableDuplicates: Array<{
+    id: string;
+    title: string;
+    startsAt: string;
+    venue?: { id: string; name: string; city: string; state: string };
+    lineup?: Array<{ band?: { id: string; name: string } }>;
+  }>;
+  upload?: AdminIngestionCandidateListItem['upload'];
+}
+
+export interface PublishCandidatePayload {
+  title: string;
+  date: string;
+  time: string;
+  venueId?: string;
+  bandIds: string[];
+  genreIds: string[];
+  notes?: string;
+  reviewDurationMs: number;
+}
+
+export interface DuplicateDecisionPayload {
+  decision: 'link' | 'merge' | 'publish_separately' | 'reject';
+  targetConcertId?: string;
+  publishData?: PublishCandidatePayload;
+  reviewDurationMs: number;
+  rejectReason?: string;
+}
+
+export async function fetchAdminIngestionCandidates(
+  token: string,
+  params?: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+  },
+): Promise<AdminIngestionCandidateListResponse> {
+  const response = await apiClient.get<AdminIngestionCandidateListResponse>(
+    '/admin/ingestion/candidates',
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      params,
+    },
+  );
+  return response.data;
+}
+
+export async function fetchAdminIngestionCandidate(
+  token: string,
+  candidateId: string,
+): Promise<AdminIngestionCandidateDetailResponse> {
+  const response = await apiClient.get<AdminIngestionCandidateDetailResponse>(
+    `/admin/ingestion/candidates/${candidateId}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  return response.data;
+}
+
+export async function publishAdminCandidate(
+  token: string,
+  candidateId: string,
+  payload: PublishCandidatePayload,
+): Promise<{ publishedConcertId: string }> {
+  const response = await apiClient.post<{ publishedConcertId: string }>(
+    `/admin/ingestion/candidates/${candidateId}/publish`,
+    payload,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  return response.data;
+}
+
+export async function submitAdminDuplicateDecision(
+  token: string,
+  candidateId: string,
+  payload: DuplicateDecisionPayload,
+): Promise<{ publishedConcertId?: string; status: string }> {
+  const response = await apiClient.post<{ publishedConcertId?: string; status: string }>(
+    `/admin/ingestion/candidates/${candidateId}/duplicate-decision`,
+    payload,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  return response.data;
+}
+
+export async function rejectAdminCandidate(
+  token: string,
+  candidateId: string,
+  reason: string,
+): Promise<{ status: string }> {
+  const response = await apiClient.post<{ status: string }>(
+    `/admin/ingestion/candidates/${candidateId}/reject`,
+    { reason },
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  return response.data;
+}
+
 export interface VenueListItem {
   id: string;
   name: string;

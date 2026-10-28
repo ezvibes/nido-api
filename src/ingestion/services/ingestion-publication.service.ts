@@ -265,4 +265,120 @@ export class IngestionPublicationService {
   ): Promise<{ status: string }> {
      return this.handleDuplicateDecision(candidateId, { decision: 'reject', rejectReason: reason, reviewDurationMs: 0 }, reviewedByUserId);
   }
+
+  async listCandidates(options: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ items: any[]; total: number }> {
+    const candidateRepo = this.dataSource.getRepository(IngestionCandidate);
+    const query = candidateRepo.createQueryBuilder('candidate')
+      .leftJoinAndSelect('candidate.ingestionJob', 'job')
+      .leftJoinAndSelect('job.concertUpload', 'upload')
+      .leftJoinAndSelect('upload.uploadedByUser', 'uploader')
+      .orderBy('candidate.createdAt', 'DESC')
+      .take(options.limit ?? 50)
+      .skip(options.offset ?? 0);
+
+    if (options.status && options.status !== 'all') {
+      query.andWhere('candidate.status = :status', { status: options.status });
+    }
+
+    const [items, total] = await query.getManyAndCount();
+    return {
+      total,
+      items: items.map((c) => ({
+        id: c.id,
+        status: c.status,
+        candidateIndex: c.candidateIndex,
+        ingestionJobId: c.ingestionJobId,
+        publishedConcertId: c.publishedConcertId,
+        provenance: c.provenance,
+        suggestedVenueId: c.suggestedVenueId,
+        suggestedBandIds: c.suggestedBandIds,
+        suggestedGenreIds: c.suggestedGenreIds,
+        createdAt: c.createdAt,
+        upload: c.ingestionJob?.concertUpload
+          ? {
+              id: c.ingestionJob.concertUpload.id,
+              originalFilename: c.ingestionJob.concertUpload.originalFilename,
+              city: c.ingestionJob.concertUpload.city,
+              state: c.ingestionJob.concertUpload.state,
+              uploadedByUid: c.ingestionJob.concertUpload.uploadedByUid,
+              uploadedByUserEmail: c.ingestionJob.concertUpload.uploadedByUser?.email,
+              createdAt: c.ingestionJob.concertUpload.createdAt,
+              posterUrl: `/admin/ingestion/uploads/${c.ingestionJob.concertUpload.id}/image`,
+            }
+          : null,
+      })),
+    };
+  }
+
+  async getCandidate(candidateId: string): Promise<any> {
+    const candidateRepo = this.dataSource.getRepository(IngestionCandidate);
+    const candidate = await candidateRepo.findOne({
+      where: { id: candidateId },
+      relations: {
+        ingestionJob: {
+          concertUpload: {
+            uploadedByUser: true,
+          },
+        },
+      },
+    });
+
+    if (!candidate) {
+      throw new NotFoundException(`Candidate ${candidateId} not found`);
+    }
+
+    // Search for probable duplicates in Concert catalog
+    const concertRepo = this.dataSource.getRepository(Concert);
+    let probableDuplicates: Concert[] = [];
+
+    const extractedDate = candidate.provenance?.date?.rawValue;
+    if (extractedDate) {
+      const parsedDate = new Date(extractedDate);
+      if (!isNaN(parsedDate.getTime())) {
+        const startDay = new Date(parsedDate);
+        startDay.setUTCHours(0, 0, 0, 0);
+        const endDay = new Date(parsedDate);
+        endDay.setUTCHours(23, 59, 59, 999);
+
+        const dupQuery = concertRepo.createQueryBuilder('concert')
+          .leftJoinAndSelect('concert.venue', 'venue')
+          .leftJoinAndSelect('concert.lineup', 'lineup')
+          .where('concert.startsAt BETWEEN :startDay AND :endDay', { startDay, endDay });
+
+        if (candidate.suggestedVenueId) {
+          dupQuery.orWhere(
+            'concert.venueId = :venueId AND concert.startsAt BETWEEN :rangeStart AND :rangeEnd',
+            {
+              venueId: candidate.suggestedVenueId,
+              rangeStart: new Date(startDay.getTime() - 24 * 60 * 60 * 1000),
+              rangeEnd: new Date(endDay.getTime() + 24 * 60 * 60 * 1000),
+            },
+          );
+        }
+
+        probableDuplicates = await dupQuery.take(5).getMany();
+      }
+    }
+
+    return {
+      candidate,
+      probableDuplicates,
+      upload: candidate.ingestionJob?.concertUpload
+        ? {
+            id: candidate.ingestionJob.concertUpload.id,
+            originalFilename: candidate.ingestionJob.concertUpload.originalFilename,
+            city: candidate.ingestionJob.concertUpload.city,
+            state: candidate.ingestionJob.concertUpload.state,
+            uploadedByUid: candidate.ingestionJob.concertUpload.uploadedByUid,
+            uploadedByUserEmail: candidate.ingestionJob.concertUpload.uploadedByUser?.email,
+            createdAt: candidate.ingestionJob.concertUpload.createdAt,
+            posterUrl: `/admin/ingestion/uploads/${candidate.ingestionJob.concertUpload.id}/image`,
+          }
+        : null,
+    };
+  }
 }

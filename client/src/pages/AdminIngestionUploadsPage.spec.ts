@@ -12,6 +12,12 @@ const api = vi.hoisted(() => ({
   fetchAdminIngestionUploads: vi.fn(),
   fetchConcertGenres: vi.fn(),
   reviewAdminIngestionUpload: vi.fn(),
+  fetchAdminIngestionCandidates: vi.fn(),
+  fetchAdminIngestionCandidate: vi.fn(),
+  publishAdminCandidate: vi.fn(),
+  submitAdminDuplicateDecision: vi.fn(),
+  rejectAdminCandidate: vi.fn(),
+  fetchVenues: vi.fn(),
 }));
 
 const auth = vi.hoisted(() => ({
@@ -43,6 +49,16 @@ describe('AdminIngestionUploadsPage', () => {
     api.fetchAdminIngestionUploads.mockReset();
     api.fetchConcertGenres.mockReset();
     api.reviewAdminIngestionUpload.mockReset();
+    api.fetchAdminIngestionCandidates.mockReset();
+    api.fetchAdminIngestionCandidate.mockReset();
+    api.publishAdminCandidate.mockReset();
+    api.submitAdminDuplicateDecision.mockReset();
+    api.rejectAdminCandidate.mockReset();
+    api.fetchVenues.mockReset();
+
+    api.fetchAdminIngestionCandidates.mockResolvedValue({ total: 0, items: [] });
+    api.fetchAdminIngestionCandidate.mockResolvedValue({ candidate: {}, probableDuplicates: [] });
+    api.fetchVenues.mockResolvedValue([]);
 
     auth.user!.value = {
       getIdToken: vi.fn().mockResolvedValue('firebase-token'),
@@ -176,7 +192,159 @@ describe('AdminIngestionUploadsPage', () => {
       }),
     );
   });
+
+  it('renders candidates in Show Review Queue and pre-selects first pending show', async () => {
+    const cand = buildCandidate();
+    api.fetchAdminIngestionCandidates.mockResolvedValue({
+      total: 1,
+      items: [cand],
+    });
+    api.fetchAdminIngestionCandidate.mockResolvedValue({
+      candidate: cand,
+      probableDuplicates: [],
+    });
+
+    const wrapper = mount(AdminIngestionUploadsPage);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Doctor S with The Vibe Trio');
+    expect(wrapper.text()).toContain('The Pour House');
+    expect(wrapper.get('.btn-publish-primary').text()).toContain('Approve & Publish Show');
+  });
+
+  it('publishes show with duration tracking in <= 3 clicks', async () => {
+    const cand = buildCandidate();
+    api.fetchAdminIngestionCandidates.mockResolvedValue({
+      total: 1,
+      items: [cand],
+    });
+    api.fetchAdminIngestionCandidate.mockResolvedValue({
+      candidate: cand,
+      probableDuplicates: [],
+    });
+    api.publishAdminCandidate.mockResolvedValue({ publishedConcertId: 'concert-100' });
+
+    const wrapper = mount(AdminIngestionUploadsPage);
+    await flushPromises();
+
+    await wrapper.get('.btn-publish-primary').trigger('click');
+    await flushPromises();
+
+    expect(api.publishAdminCandidate).toHaveBeenCalledWith(
+      'firebase-token',
+      'cand-1',
+      expect.objectContaining({
+        title: 'Doctor S with The Vibe Trio',
+        date: '2026-11-07',
+        time: '20:00',
+        reviewDurationMs: expect.any(Number),
+      }),
+    );
+  });
+
+  it('resolves duplicate conflict via side-by-side modal', async () => {
+    const cand = buildCandidate();
+    const existingConcert = {
+      id: 'concert-99',
+      title: 'Doctor S Trio',
+      startsAt: '2026-11-07T20:00:00.000Z',
+      venue: { id: 'venue-1', name: 'The Pour House', city: 'Raleigh' },
+      lineup: [{ band: { name: 'Doctor S' } }],
+    };
+    api.fetchAdminIngestionCandidates.mockResolvedValue({
+      total: 1,
+      items: [cand],
+    });
+    api.fetchAdminIngestionCandidate.mockResolvedValue({
+      candidate: cand,
+      probableDuplicates: [existingConcert],
+    });
+    api.submitAdminDuplicateDecision.mockResolvedValue({ status: 'published' });
+
+    const wrapper = mount(AdminIngestionUploadsPage);
+    await flushPromises();
+
+    const dupBtn = wrapper.get('.btn-duplicate-resolve');
+    expect(dupBtn.text()).toContain('Resolve Duplicate');
+    await dupBtn.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Possible Duplicate Conflict');
+    expect(wrapper.text()).toContain('Doctor S Trio');
+
+    await wrapper.get('.duplicate-action-card--link').trigger('click');
+    await flushPromises();
+
+    expect(api.submitAdminDuplicateDecision).toHaveBeenCalledWith(
+      'firebase-token',
+      'cand-1',
+      expect.objectContaining({
+        decision: 'link',
+        targetConcertId: 'concert-99',
+        reviewDurationMs: expect.any(Number),
+      }),
+    );
+  });
+
+  it('rejects a candidate with reason', async () => {
+    const cand = buildCandidate();
+    api.fetchAdminIngestionCandidates.mockResolvedValue({
+      total: 1,
+      items: [cand],
+    });
+    api.fetchAdminIngestionCandidate.mockResolvedValue({
+      candidate: cand,
+      probableDuplicates: [],
+    });
+    api.rejectAdminCandidate.mockResolvedValue({ status: 'rejected' });
+
+    const wrapper = mount(AdminIngestionUploadsPage);
+    await flushPromises();
+
+    await wrapper.get('.btn-reject-show').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Reject Poster / Show Listing');
+    await wrapper.get('.btn-confirm-reject').trigger('click');
+    await flushPromises();
+
+    expect(api.rejectAdminCandidate).toHaveBeenCalledWith(
+      'firebase-token',
+      'cand-1',
+      expect.stringContaining('Not a live music concert event'),
+    );
+  });
 });
+
+function buildCandidate(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'cand-1',
+    status: 'pending' as const,
+    candidateIndex: 0,
+    ingestionJobId: 'job-1',
+    publishedConcertId: null,
+    provenance: {
+      title: { rawValue: 'Doctor S with The Vibe Trio', confidence: 0.95 },
+      date: { rawValue: '2026-11-07', confidence: 0.98 },
+      time: { rawValue: '20:00', confidence: 0.9 },
+      venue: { rawValue: 'The Pour House', confidence: 0.92 },
+      bands: [{ rawValue: 'Doctor S' }, { rawValue: 'The Vibe Trio' }],
+    },
+    suggestedVenueId: 'venue-1',
+    createdAt: '2026-10-25T16:00:00.000Z',
+    upload: {
+      id: 'upload-1',
+      originalFilename: 'pour-house-nov7.jpg',
+      city: 'Raleigh',
+      state: 'NC',
+      uploadedByUid: 'user-1',
+      uploadedByUserEmail: 'camille@example.com',
+      createdAt: '2026-10-25T16:00:00.000Z',
+      posterUrl: '/admin/ingestion/uploads/upload-1/image',
+    },
+    ...overrides,
+  };
+}
 
 async function mountWithUpload(upload: ReturnType<typeof buildUpload>) {
   api.fetchAdminIngestionUploads.mockResolvedValue({

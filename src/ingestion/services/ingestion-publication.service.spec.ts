@@ -13,20 +13,37 @@ describe('IngestionPublicationService', () => {
   let manager: jest.Mocked<EntityManager>;
 
   beforeEach(async () => {
+    const mockQueryBuilder = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      orWhere: jest.fn().mockReturnThis(),
+      getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
+
+    const mockRepo = {
+      create: jest.fn().mockImplementation((val) => val),
+      save: jest.fn().mockImplementation(async (val) => {
+        if (Array.isArray(val)) return val;
+        return { id: 'new-id', ...val };
+      }),
+      findOne: jest.fn(),
+      createQueryBuilder: jest.fn().mockReturnValue(mockQueryBuilder),
+    };
+
     manager = {
       findOne: jest.fn(),
-      getRepository: jest.fn().mockReturnValue({
-        create: jest.fn().mockImplementation((val) => val),
-        save: jest.fn().mockImplementation(async (val) => {
-          if (Array.isArray(val)) return val;
-          return { id: 'new-id', ...val };
-        }),
-      }),
+      getRepository: jest.fn().mockReturnValue(mockRepo),
       save: jest.fn().mockImplementation(async (val) => val),
     } as any;
 
     dataSource = {
       transaction: jest.fn().mockImplementation(async (cb) => cb(manager)),
+      getRepository: jest.fn().mockReturnValue(mockRepo),
     } as any;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -108,5 +125,24 @@ describe('IngestionPublicationService', () => {
     expect(result.status).toBe('rejected');
     expect(candidate.status).toBe('rejected');
     expect(manager.save).toHaveBeenCalledWith(candidate);
+  });
+
+  it('should list candidates with pagination and status filter', async () => {
+    const result = await service.listCandidates({ status: 'pending', limit: 10, offset: 0 });
+    expect(result).toEqual({ total: 0, items: [] });
+  });
+
+  it('should get candidate details with probable duplicates query', async () => {
+    const candidate = new IngestionCandidate();
+    candidate.id = 'cand-1';
+    candidate.provenance = {
+      date: { rawValue: '2026-11-07' },
+    } as any;
+
+    (dataSource.getRepository(IngestionCandidate) as any).findOne.mockResolvedValueOnce(candidate);
+
+    const result = await service.getCandidate('cand-1');
+    expect(result.candidate.id).toBe('cand-1');
+    expect(result.probableDuplicates).toEqual([]);
   });
 });
