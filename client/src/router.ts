@@ -53,6 +53,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/my-submissions',
+    name: 'MySubmissions',
+    component: () => import('./pages/MySubmissionsPage.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/concert-sync',
     name: 'ConcertSync',
     component: ConcertSyncPage,

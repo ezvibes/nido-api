@@ -1,4 +1,4 @@
-import { enableAutoUnmount, mount } from '@vue/test-utils';
+import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App.vue';
 
@@ -15,7 +15,7 @@ vi.mock('./composables/useAuth', async () => {
 enableAutoUnmount(afterEach);
 
 describe('App navigation', () => {
-  it('shows Sync Doctor in the account menu, not the primary navigation', async () => {
+  it('shows Sync Doctor and My Poster Submissions in the account menu, not the primary navigation', async () => {
     const wrapper = mount(App, {
       global: {
         stubs: {
@@ -29,12 +29,16 @@ describe('App navigation', () => {
     });
 
     expect(wrapper.find('.header-menu > a[href="/concert-sync"]').exists()).toBe(false);
-    expect(wrapper.find('a[href="/concert-sync"]').exists()).toBe(false);
+    expect(wrapper.find('.header-menu > a[href="/my-submissions"]').exists()).toBe(false);
 
     await wrapper.get('.account-menu__button').trigger('click');
+    await flushPromises();
 
     expect(wrapper.get('.account-menu__dropdown a[href="/concert-sync"]').text()).toBe(
       'Sync Doctor',
+    );
+    expect(wrapper.get('.account-menu__dropdown a[href="/my-submissions"]').text()).toBe(
+      'My Poster Submissions',
     );
   });
 });
