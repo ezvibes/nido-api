@@ -237,6 +237,9 @@ describe('AdminIngestionUploadsPage', () => {
         title: 'Doctor S with The Vibe Trio',
         date: '2026-11-07',
         time: '20:00',
+        venueName: 'The Pour House',
+        bandNames: ['Doctor S', 'The Vibe Trio'],
+        genre: 'Jazz',
         reviewDurationMs: expect.any(Number),
       }),
     );
@@ -326,9 +329,16 @@ function buildCandidate(overrides: Record<string, unknown> = {}) {
     provenance: {
       title: { rawValue: 'Doctor S with The Vibe Trio', confidence: 0.95 },
       date: { rawValue: '2026-11-07', confidence: 0.98 },
-      time: { rawValue: '20:00', confidence: 0.9 },
-      venue: { rawValue: 'The Pour House', confidence: 0.92 },
-      bands: [{ rawValue: 'Doctor S' }, { rawValue: 'The Vibe Trio' }],
+      time: { rawValue: '20:00:00', confidence: 0.9 },
+      venueExtracted: { rawValue: 'The Pour House', confidence: 0.92 },
+      genres: { rawValue: 'Jazz', confidence: 0.9 },
+      performerLineup: {
+        rawValue: 'Doctor S, The Vibe Trio',
+        normalizedValue: [
+          { name: 'Doctor S', isHeadliner: true },
+          { name: 'The Vibe Trio', isHeadliner: false },
+        ],
+      },
     },
     suggestedVenueId: 'venue-1',
     createdAt: '2026-10-25T16:00:00.000Z',

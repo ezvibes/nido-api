@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   fetchBands: vi.fn(),
   fetchConcertGenres: vi.fn(),
   fetchIngestionJob: vi.fn(),
+  fetchMyIngestionSubmissions: vi.fn(),
   fetchVenues: vi.fn(),
   uploadIngestionImage: vi.fn(),
 }));
@@ -45,6 +46,7 @@ describe('IngestionUploadPanel', () => {
     api.fetchBands.mockReset();
     api.fetchConcertGenres.mockReset();
     api.fetchIngestionJob.mockReset();
+    api.fetchMyIngestionSubmissions.mockReset();
     api.fetchVenues.mockReset();
     api.uploadIngestionImage.mockReset();
 
@@ -54,6 +56,7 @@ describe('IngestionUploadPanel', () => {
     api.fetchConcertGenres.mockResolvedValue({ genres: ['Electronic'] });
     api.fetchVenues.mockResolvedValue([]);
     api.fetchBands.mockResolvedValue([]);
+    api.fetchMyIngestionSubmissions.mockResolvedValue([]);
     api.uploadIngestionImage.mockResolvedValue(buildUploadResult());
     api.createIngestionJob.mockResolvedValue(buildJobResponse());
     api.fetchIngestionJob.mockResolvedValue(buildJobResponse());
@@ -236,6 +239,58 @@ describe('IngestionUploadPanel', () => {
     expect(api.uploadIngestionImage.mock.calls[0]?.[1]).not.toHaveProperty(
       'genre',
     );
+  });
+
+  it('renders My Poster Submissions with plain-language status and live calendar link', async () => {
+    api.fetchMyIngestionSubmissions.mockResolvedValue([
+      {
+        ...buildJobResponse(),
+        id: 'job-pub-1',
+        status: 'completed',
+        candidates: [
+          {
+            id: 'cand-1',
+            candidateIndex: 0,
+            status: 'published',
+            publishedConcertId: 'concert-42',
+            title: 'Sylvan Esso at The Pour House',
+            venueName: 'The Pour House',
+            date: '2026-11-07',
+          },
+        ],
+      },
+    ]);
+
+    const wrapper = mount(IngestionUploadPanel);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('My Poster Submissions');
+    expect(wrapper.text()).toContain('Sylvan Esso at The Pour House');
+    expect(wrapper.text()).toContain('Published');
+    expect(wrapper.text()).toContain('View Live Show');
+  });
+
+  it('shows Needs retry and allows retrying when a job has retryable_failure status', async () => {
+    api.fetchMyIngestionSubmissions.mockResolvedValue([
+      {
+        ...buildJobResponse(),
+        id: 'job-fail-1',
+        status: 'retryable_failure',
+        errorMessage: 'Temporary extraction timeout',
+      },
+    ]);
+
+    const wrapper = mount(IngestionUploadPanel);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Needs retry');
+    const retryBtn = wrapper.get('.ingestion-submission-row .ingestion-panel__retry-btn');
+    expect(retryBtn.text()).toBe('Retry');
+
+    await retryBtn.trigger('click');
+    await flushPromises();
+
+    expect(api.createIngestionJob).toHaveBeenCalledWith('firebase-token', 'upload-1');
   });
 });
 

@@ -332,8 +332,40 @@ export class IngestionService {
       );
     }
 
+    const existingJob = await this.ingestionJobRepository.findOne({
+      where: { concertUploadId: concertUpload.id },
+      order: { createdAt: 'DESC' },
+    });
+    if (
+      existingJob &&
+      existingJob.status !== 'failed' &&
+      existingJob.status !== 'retryable_failure' &&
+      existingJob.status !== 'terminal_failure'
+    ) {
+      return this.getJob(existingJob.id, uid);
+    }
+
     // Atomically persist both IngestionJob and IngestionOutbox in a single transaction
     const ingestionJob = await this.dataSource.transaction(async (manager) => {
+      if (existingJob) {
+        existingJob.status = 'queued';
+        existingJob.stage = IngestionStage.QUEUED;
+        existingJob.attemptCount = (existingJob.attemptCount || 0) + 1;
+        existingJob.errorMessage = null as any;
+        existingJob.leaseOwner = null;
+        existingJob.leaseExpiresAt = null;
+        await manager.save(existingJob);
+
+        const retryOutbox = manager.create(IngestionOutbox, {
+          jobId: existingJob.id,
+          destination: 'ingestion_worker',
+          payload: { jobId: existingJob.id },
+          status: 'pending',
+        });
+        await manager.save(retryOutbox);
+        return existingJob;
+      }
+
       const job = await manager.save(
         manager.create(IngestionJob, {
           concertUploadId: concertUpload.id,
@@ -699,10 +731,58 @@ export class IngestionService {
       throw new NotFoundException(`Ingestion job ${id} not found`);
     }
 
-    return this.mapJobResponse(job);
+    let candidates: IngestionCandidate[] = [];
+    if (typeof (this.dataSource as any)?.getRepository === 'function') {
+      try {
+        const candidateRepo = this.dataSource.getRepository(IngestionCandidate);
+        if (typeof candidateRepo?.find === 'function') {
+          candidates = await candidateRepo.find({
+            where: { ingestionJobId: job.id },
+            order: { candidateIndex: 'ASC' },
+          });
+        }
+      } catch {
+        candidates = [];
+      }
+    }
+
+    return this.mapJobResponse(job, candidates);
   }
 
-  private mapJobResponse(job: IngestionJob): IngestionJobResponse {
+  async getMySubmissions(uid: string): Promise<IngestionJobResponse[]> {
+    const jobs = await this.ingestionJobRepository.find({
+      where: { concertUpload: { uploadedByUid: uid } },
+      relations: { concertUpload: true },
+      order: { createdAt: 'DESC' },
+      take: 20,
+    });
+
+    const results: IngestionJobResponse[] = [];
+    for (const job of jobs) {
+      let candidates: IngestionCandidate[] = [];
+      if (typeof (this.dataSource as any)?.getRepository === 'function') {
+        try {
+          const candidateRepo = this.dataSource.getRepository(IngestionCandidate);
+          if (typeof candidateRepo?.find === 'function') {
+            candidates = await candidateRepo.find({
+              where: { ingestionJobId: job.id },
+              order: { candidateIndex: 'ASC' },
+            });
+          }
+        } catch {
+          candidates = [];
+        }
+      }
+      results.push(this.mapJobResponse(job, candidates));
+    }
+
+    return results;
+  }
+
+  private mapJobResponse(
+    job: IngestionJob,
+    candidates: IngestionCandidate[] = [],
+  ): IngestionJobResponse {
     const concertUpload = job.concertUpload;
 
     return {
@@ -736,7 +816,30 @@ export class IngestionService {
         uploadedByUid: concertUpload.uploadedByUid,
         uploadedByUserId: concertUpload.uploadedByUserId,
         createdAt: concertUpload.createdAt,
+        reviewStatus: concertUpload.reviewStatus,
+        concertId: concertUpload.concertId ?? null,
       },
+      candidates: candidates.map((c) => ({
+        id: c.id,
+        candidateIndex: c.candidateIndex,
+        status: c.status,
+        publishedConcertId: c.publishedConcertId ?? null,
+        title: c.provenance?.title?.rawValue,
+        date: c.provenance?.date?.rawValue,
+        time: c.provenance?.time?.rawValue,
+        venueName:
+          c.provenance?.venueExtracted?.rawValue ||
+          c.provenance?.venue?.rawValue,
+        bandNames: Array.isArray(c.provenance?.bands)
+          ? c.provenance!.bands!.map((b: any) => b.rawValue).filter(Boolean)
+          : c.provenance?.performerLineup?.rawValue
+            ? c.provenance.performerLineup.rawValue
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : [],
+        warnings: c.provenance?.date?.warnings ?? [],
+      })),
     };
   }
 
@@ -797,10 +900,36 @@ export class IngestionService {
         genre: upload.genre ?? undefined,
       };
 
+      let imageBuffer: Buffer | undefined;
+      if (
+        this.configService.get('NODE_ENV') !== 'test' &&
+        this.configService.get('GEMINI_API_KEY') &&
+        upload.bucket &&
+        upload.objectName
+      ) {
+        try {
+          const [downloaded] = await this.storage
+            .bucket(upload.bucket)
+            .file(upload.objectName)
+            .download();
+          imageBuffer = downloaded;
+        } catch (downloadErr) {
+          this.logger.warn(
+            `Could not download poster buffer for ${upload.storageUri}: ${
+              downloadErr instanceof Error ? downloadErr.message : String(downloadErr)
+            }`,
+          );
+          throw downloadErr instanceof Error
+            ? downloadErr
+            : new Error(`Failed to download poster image from ${upload.storageUri}`);
+        }
+      }
+
       const extractionResults = await this.extractor.extract(
         upload.storageUri,
         upload.mimeType,
         hints,
+        imageBuffer,
       );
 
       await this.stateMachine.transitionTo(
@@ -881,6 +1010,14 @@ export class IngestionService {
                   confidence: 0.9,
                 }
               : undefined,
+            venue: result.venue
+              ? {
+                  rawValue: result.venue.name,
+                  normalizedValue: result.venue,
+                  source: 'extraction',
+                  confidence: 0.9,
+                }
+              : undefined,
             performerLineup: result.performers
               ? {
                   rawValue: result.performers
@@ -891,6 +1028,14 @@ export class IngestionService {
                   confidence: 0.9,
                 }
               : undefined,
+            bands: result.performers
+              ? result.performers.map((p: any) => ({
+                  rawValue: p.name,
+                  normalizedValue: p,
+                  source: 'extraction',
+                  confidence: 0.9,
+                }))
+              : undefined,
             genres: result.genre
               ? {
                   rawValue: result.genre,
@@ -898,6 +1043,7 @@ export class IngestionService {
                   confidence: 0.9,
                 }
               : undefined,
+            modelName: 'gemini-2.5-flash',
           } as any,
         });
       }

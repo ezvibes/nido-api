@@ -125,6 +125,18 @@ export class IngestionController {
     );
   }
 
+  @Get('submissions')
+  @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'List recent poster submissions and statuses for the signed-in contributor',
+    description:
+      'Returns the contributor’s own poster submissions, extraction progress, and published concert links.',
+  })
+  async getMySubmissions(@CurrentUser() user: DecodedIdToken) {
+    return this.ingestionService.getMySubmissions(user.uid);
+  }
+
   @Get('jobs/:id')
   @UseGuards(FirebaseAuthGuard)
   @ApiBearerAuth()

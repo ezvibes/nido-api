@@ -17,6 +17,14 @@ export interface FieldProvenance {
   warnings?: string[];
 }
 
+export interface CandidateReviewAudit {
+  reviewDurationMs: number;
+  reviewedAt: string;
+  reviewedByUserId: number;
+  decision?: 'publish' | 'link' | 'merge' | 'publish_separately' | 'reject';
+  rejectReason?: string;
+}
+
 export interface CandidateProvenance {
   title?: FieldProvenance;
   date?: FieldProvenance;
@@ -24,8 +32,13 @@ export interface CandidateProvenance {
   timezone?: FieldProvenance;
   venueHints?: FieldProvenance;
   venueExtracted?: FieldProvenance;
+  venue?: FieldProvenance;
   performerLineup?: FieldProvenance;
+  bands?: FieldProvenance[];
   genres?: FieldProvenance;
+  modelName?: string;
+  rawOcrText?: string;
+  reviewAudit?: CandidateReviewAudit;
 }
 
 @Entity({ name: 'ingestion_candidates' })

@@ -3,7 +3,7 @@
     <div class="ingestion-panel__header">
       <h2 class="ingestion-panel__title">Upload a concert poster</h2>
       <p class="ingestion-panel__subtitle">
-        Drop your flyer below to add it to the local live music calendar
+        Drop your poster below to add it to the local live music calendar
       </p>
     </div>
 
@@ -16,7 +16,7 @@
         }"
         role="button"
         tabindex="0"
-        aria-label="Choose flyer image or drag and drop one here"
+        aria-label="Choose poster image or drag and drop one here"
         @click="openFilePicker"
         @keydown.enter.prevent="openFilePicker"
         @keydown.space.prevent="openFilePicker"
@@ -33,7 +33,7 @@
           @change="handleFileChange"
         />
         <div class="ingestion-panel__dropzone-copy">
-          <p class="ingestion-panel__dropzone-eyebrow">Flyer image</p>
+          <p class="ingestion-panel__dropzone-eyebrow">Poster image</p>
           <p class="ingestion-panel__dropzone-title">
             {{ selectedFile ? selectedFile.name : 'Choose a file or drag it here' }}
           </p>
@@ -120,28 +120,85 @@
 
       <div class="ingestion-panel__actions">
         <button type="submit" class="ingestion-panel__submit" :disabled="isSubmitDisabled">
-          {{ isSubmitting ? 'Uploading…' : 'Upload flyer' }}
+          {{ isSubmitting ? 'Uploading…' : 'Upload poster' }}
         </button>
       </div>
     </form>
 
     <div v-if="showProgress" class="ingestion-panel__progress" role="status" aria-live="polite">
       <div v-if="isJobLoading" class="ingestion-panel__spinner" aria-hidden="true"></div>
-      <div>
-        <p class="ingestion-panel__progress-title">{{ progressTitle }}</p>
+      <div class="ingestion-panel__progress-body">
+        <div class="ingestion-panel__progress-header">
+          <p class="ingestion-panel__progress-title">{{ progressTitle }}</p>
+          <span :class="['ingestion-status-pill', `ingestion-status-pill--${contributorStatusKey}`]">
+            {{ contributorStatusLabel }}
+          </span>
+        </div>
         <p class="ingestion-panel__progress-copy">{{ progressCopy }}</p>
+
+        <div v-if="activeCandidates.length > 0" class="ingestion-extracted-list">
+          <div
+            v-for="cand in activeCandidates"
+            :key="cand.id"
+            class="ingestion-extracted-card"
+          >
+            <div class="ingestion-extracted-card__top">
+              <strong>{{ cand.title || 'Show Listing' }}</strong>
+              <span
+                :class="[
+                  'ingestion-confidence-tag',
+                  cand.warnings && cand.warnings.length > 0
+                    ? 'ingestion-confidence-tag--warn'
+                    : 'ingestion-confidence-tag--ok',
+                ]"
+              >
+                {{ cand.warnings && cand.warnings.length > 0 ? 'Check this' : 'Details found' }}
+              </span>
+            </div>
+            <p class="ingestion-extracted-card__meta">
+              {{ cand.venueName || selectedVenueName || 'Venue pending review' }}
+              <span v-if="cand.date"> · {{ formatSummaryDate(cand.date) }}</span>
+              <span v-if="cand.time"> · {{ cand.time.slice(0, 5) }}</span>
+            </p>
+            <p v-if="cand.bandNames && cand.bandNames.length > 0" class="ingestion-extracted-card__lineup">
+              Lineup: {{ cand.bandNames.join(', ') }}
+            </p>
+            <p v-if="cand.warnings && cand.warnings.length > 0" class="ingestion-extracted-card__warning">
+              Note for editor: {{ cand.warnings[0] }}
+            </p>
+          </div>
+        </div>
+
+        <div class="ingestion-panel__progress-actions">
+          <a
+            v-if="publishedConcertId"
+            href="/concerts"
+            class="ingestion-panel__calendar-link"
+          >
+            View on Concert Calendar →
+          </a>
+          <button
+            v-if="contributorStatusKey === 'failed' && activeUploadId"
+            type="button"
+            class="ingestion-panel__retry-btn"
+            :disabled="isRetrying"
+            @click="handleRetry(activeUploadId)"
+          >
+            {{ isRetrying ? 'Retrying…' : 'Retry reading poster' }}
+          </button>
+        </div>
       </div>
     </div>
 
     <div v-if="uploadResult" class="ingestion-panel__summary">
-      <p class="ingestion-panel__summary-title">Latest upload</p>
+      <p class="ingestion-panel__summary-title">Latest submission details</p>
       <dl class="ingestion-panel__details">
         <div>
-          <dt>Job</dt>
-          <dd>{{ job?.id ?? 'Not started yet' }}</dd>
+          <dt>Status</dt>
+          <dd>{{ contributorStatusLabel }}</dd>
         </div>
         <div>
-          <dt>Asset</dt>
+          <dt>Poster file</dt>
           <dd>{{ uploadResult.originalFilename }}</dd>
         </div>
         <div>
@@ -164,31 +221,74 @@
           <dt>Location</dt>
           <dd>{{ uploadLocation }}</dd>
         </div>
-        <div>
-          <dt>Status</dt>
-          <dd>{{ currentStatus }}</dd>
-        </div>
-        <div>
-          <dt>Stage</dt>
-          <dd>{{ job?.stage ?? 'asset_uploaded' }}</dd>
-        </div>
-        <div>
-          <dt>Stored at</dt>
-          <dd>{{ uploadResult.storageUri }}</dd>
-        </div>
       </dl>
+    </div>
+
+    <div v-if="recentSubmissions.length > 0" class="ingestion-submissions-history">
+      <div class="ingestion-submissions-history__header">
+        <h3 class="ingestion-submissions-history__title">My Poster Submissions</h3>
+        <button
+          type="button"
+          class="ingestion-submissions-history__refresh"
+          :disabled="submissionsLoading"
+          @click="loadMySubmissions"
+        >
+          {{ submissionsLoading ? 'Refreshing…' : 'Refresh status' }}
+        </button>
+      </div>
+      <div class="ingestion-submissions-history__list">
+        <div
+          v-for="item in recentSubmissions"
+          :key="item.id"
+          class="ingestion-submission-row"
+        >
+          <div class="ingestion-submission-row__main">
+            <div class="ingestion-submission-row__title">
+              <strong>{{ getSubmissionTitle(item) }}</strong>
+              <span :class="['ingestion-status-pill', `ingestion-status-pill--${getJobStatusKey(item)}`]">
+                {{ getJobStatusLabel(item) }}
+              </span>
+            </div>
+            <p class="ingestion-submission-row__meta">
+              {{ getSubmissionMeta(item) }}
+            </p>
+            <p class="ingestion-submission-row__next">
+              {{ getJobNextStepCopy(item) }}
+            </p>
+          </div>
+          <div class="ingestion-submission-row__actions">
+            <a
+              v-if="getPublishedConcertIdForJob(item)"
+              href="/concerts"
+              class="ingestion-panel__calendar-link"
+            >
+              View Live Show →
+            </a>
+            <button
+              v-else-if="getJobStatusKey(item) === 'failed' && item.concertUpload?.id"
+              type="button"
+              class="ingestion-panel__retry-btn"
+              :disabled="isRetrying"
+              @click="handleRetry(item.concertUpload.id)"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { AxiosError } from 'axios';
 import {
   createIngestionJob,
   fetchBands,
   fetchConcertGenres,
   fetchIngestionJob,
+  fetchMyIngestionSubmissions,
   fetchVenues,
   type BandListItem,
   type IngestionJobResponse,
@@ -230,36 +330,135 @@ const genreLoadState = ref<'loading' | 'loaded' | 'empty' | 'failed'>('loading')
 const message = ref('');
 const messageType = ref<'success' | 'error'>('success');
 const isSubmitting = ref(false);
+const isRetrying = ref(false);
 const uploadResult = ref<IngestionUploadResult | null>(null);
 const job = ref<IngestionJobResponse | null>(null);
+const recentSubmissions = ref<IngestionJobResponse[]>([]);
+const submissionsLoading = ref(false);
 
 const jobId = computed(() => job.value?.id ?? '');
 const currentStatus = computed(() => job.value?.status ?? 'not_started');
-const isJobLoading = computed(() => isSubmitting.value || ['queued', 'processing'].includes(currentStatus.value));
-const showProgress = computed(() => isSubmitting.value || !!uploadResult.value || !!job.value);
+const activeUploadId = computed(
+  () => uploadResult.value?.concertUploadId || job.value?.concertUpload?.id || '',
+);
+const activeCandidates = computed(() => job.value?.candidates ?? []);
+const publishedConcertId = computed(() => {
+  const fromCand = activeCandidates.value.find((c) => c.publishedConcertId)?.publishedConcertId;
+  return fromCand || job.value?.concertUpload?.concertId || null;
+});
+
+const FAILED_JOB_STATUSES = ['failed', 'retryable_failure', 'terminal_failure'];
+const IN_FLIGHT_JOB_STATUSES = [
+  'queued',
+  'processing',
+  'asset_validated',
+  'ocr_completed',
+  'extraction_completed',
+  'matches_proposed',
+];
+
+const getJobStatusKey = (targetJob?: IngestionJobResponse | null) => {
+  if (!targetJob) {
+    return isSubmitting.value ? 'uploading' : 'submitted';
+  }
+  const hasPublished =
+    targetJob.status === 'completed' ||
+    targetJob.concertUpload?.reviewStatus === 'approved' ||
+    targetJob.candidates?.some((c) => c.status === 'published');
+  if (hasPublished) return 'published';
+  if (FAILED_JOB_STATUSES.includes(targetJob.status)) return 'failed';
+  if (targetJob.status === 'rejected' || targetJob.concertUpload?.reviewStatus === 'rejected') {
+    return 'rejected';
+  }
+  if (targetJob.status === 'needs_review') return 'awaiting_review';
+  if (IN_FLIGHT_JOB_STATUSES.includes(targetJob.status) && targetJob.status !== 'queued') {
+    return 'reading';
+  }
+  return 'submitted';
+};
+
+const getJobStatusLabel = (targetJob?: IngestionJobResponse | null) => {
+  const key = getJobStatusKey(targetJob);
+  switch (key) {
+    case 'uploading':
+      return 'Uploading';
+    case 'submitted':
+      return 'Submitted';
+    case 'reading':
+      return 'Reading poster';
+    case 'awaiting_review':
+      return 'Awaiting review';
+    case 'published':
+      return 'Published';
+    case 'rejected':
+      return 'Not published';
+    case 'failed':
+      return 'Needs retry';
+    default:
+      return 'Submitted';
+  }
+};
+
+const getJobNextStepCopy = (targetJob: IngestionJobResponse) => {
+  const key = getJobStatusKey(targetJob);
+  if (key === 'published') {
+    return 'Your show is live on the Nido concert calendar.';
+  }
+  if (key === 'awaiting_review') {
+    return 'Details found! Nothing else to do — our editors will review and publish your show.';
+  }
+  if (key === 'reading') {
+    return 'Reading show details from your poster graphic.';
+  }
+  if (key === 'failed') {
+    return targetJob.errorMessage || 'We could not finish reading this poster. Click Retry to try again.';
+  }
+  if (key === 'rejected') {
+    return 'This upload was reviewed and not added to the concert calendar.';
+  }
+  return 'Saved and queued to read poster details.';
+};
+
+const contributorStatusKey = computed(() =>
+  isSubmitting.value ? 'uploading' : getJobStatusKey(job.value),
+);
+const contributorStatusLabel = computed(() =>
+  isSubmitting.value ? 'Uploading' : getJobStatusLabel(job.value),
+);
+
+const isJobLoading = computed(
+  () => isSubmitting.value || IN_FLIGHT_JOB_STATUSES.includes(currentStatus.value),
+);
+const showProgress = computed(
+  () => isSubmitting.value || !!uploadResult.value || !!job.value,
+);
 const progressTitle = computed(() => {
   if (isSubmitting.value) {
-    return 'Uploading flyer...';
+    return 'Uploading poster...';
   }
-  if (currentStatus.value === 'needs_review') {
-    return 'Ready for review';
+  const key = contributorStatusKey.value;
+  if (key === 'published') {
+    return 'Published to Concert Calendar';
   }
-  if (currentStatus.value === 'failed') {
-    return 'Ingestion failed';
+  if (key === 'awaiting_review') {
+    return 'Details found · Awaiting editor review';
   }
-  return 'Processing upload...';
+  if (key === 'reading') {
+    return 'Reading poster...';
+  }
+  if (key === 'failed') {
+    return 'We hit a snag reading this poster';
+  }
+  return 'Poster submitted';
 });
 const progressCopy = computed(() => {
   if (isSubmitting.value) {
-    return 'Saving the image and creating an ingestion job.';
+    return 'Saving your poster image and starting extraction.';
   }
-  if (currentStatus.value === 'needs_review') {
-    return 'The image is stored and the Phase 1 job is queued for review.';
+  if (job.value) {
+    return getJobNextStepCopy(job.value);
   }
-  if (currentStatus.value === 'failed') {
-    return job.value?.errorMessage ?? 'The ingestion job failed.';
-  }
-  return `Current status: ${currentStatus.value}`;
+  return 'Nothing else to do — our editors will take it from here.';
 });
 const uploadLocation = computed(() =>
   [uploadResult.value?.city, uploadResult.value?.state].filter(Boolean).join(', ') || 'Not provided',
@@ -448,11 +647,66 @@ const selectedBandName = computed(() => {
   return b ? b.name : (uploadResult.value?.bandId ? 'Selected band' : '');
 });
 
+const loadMySubmissions = async () => {
+  if (!user.value || typeof fetchMyIngestionSubmissions !== 'function') {
+    return;
+  }
+  submissionsLoading.value = true;
+  try {
+    const token = await user.value.getIdToken();
+    const list = await fetchMyIngestionSubmissions(token);
+    recentSubmissions.value = Array.isArray(list) ? list : [];
+  } catch {
+    // Non-blocking for upload form
+  } finally {
+    submissionsLoading.value = false;
+  }
+};
+
+const getPublishedConcertIdForJob = (item: IngestionJobResponse) => {
+  const fromCand = item.candidates?.find((c) => c.publishedConcertId)?.publishedConcertId;
+  return fromCand || item.concertUpload?.concertId || null;
+};
+
+const getSubmissionTitle = (item: IngestionJobResponse) => {
+  const candTitle = item.candidates?.[0]?.title;
+  return candTitle || item.concertUpload?.originalFilename || 'Concert Poster';
+};
+
+const getSubmissionMeta = (item: IngestionJobResponse) => {
+  const firstCand = item.candidates?.[0];
+  const parts: string[] = [];
+  if (firstCand?.venueName) {
+    parts.push(firstCand.venueName);
+  } else if (item.concertUpload?.city) {
+    parts.push([item.concertUpload.city, item.concertUpload.state].filter(Boolean).join(', '));
+  }
+  if (firstCand?.date) {
+    parts.push(formatSummaryDate(firstCand.date));
+  }
+  if (item.candidates && item.candidates.length > 1) {
+    parts.push(`${item.candidates.length} shows found on poster`);
+  }
+  return parts.join(' · ') || 'Submitted poster graphic';
+};
+
 onMounted(() => {
   void loadGenres();
   void loadVenues();
   void loadBands();
+  void loadMySubmissions();
 });
+
+watch(
+  () => user.value,
+  (nextUser) => {
+    if (nextUser) {
+      void loadMySubmissions();
+    } else {
+      recentSubmissions.value = [];
+    }
+  },
+);
 
 const resetFileInput = () => {
   if (fileInput.value) {
@@ -542,10 +796,31 @@ const refreshJob = async () => {
 const pollJobStatus = async () => {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     await refreshJob();
-    if (job.value && !['queued', 'processing'].includes(job.value.status)) {
+    if (job.value && !IN_FLIGHT_JOB_STATUSES.includes(job.value.status)) {
       return;
     }
     await new Promise((resolve) => window.setTimeout(resolve, 150));
+  }
+};
+
+const handleRetry = async (targetUploadId: string) => {
+  if (!user.value || !targetUploadId || isRetrying.value) {
+    return;
+  }
+  isRetrying.value = true;
+  message.value = '';
+  try {
+    const token = await user.value.getIdToken();
+    job.value = await createIngestionJob(token, targetUploadId);
+    messageType.value = 'success';
+    message.value = 'Retrying poster extraction…';
+    await pollJobStatus();
+    await loadMySubmissions();
+  } catch (error) {
+    messageType.value = 'error';
+    message.value = getErrorMessage(error);
+  } finally {
+    isRetrying.value = false;
   }
 };
 
@@ -578,7 +853,7 @@ const handleSubmit = async () => {
           uploadedAt: new Date().toISOString(),
         };
         messageType.value = 'success';
-        message.value = 'Local preview: Flyer simulated upload complete! See details below.';
+        message.value = 'Local preview: Poster simulated upload complete! See details below.';
         isSubmitting.value = false;
       }, 400);
     }
@@ -605,8 +880,9 @@ const handleSubmit = async () => {
     });
     job.value = await createIngestionJob(token, uploadResult.value.concertUploadId);
     messageType.value = 'success';
-    message.value = 'Flyer uploaded and ingestion job started.';
+    message.value = 'Poster uploaded! Reading show details now.';
     await pollJobStatus();
+    await loadMySubmissions();
   } catch (error) {
     messageType.value = 'error';
     message.value = getErrorMessage(error);
@@ -896,14 +1172,28 @@ const handleSubmit = async () => {
 
 .ingestion-panel__progress {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  justify-content: flex-start;
   gap: 0.85rem;
   padding: 0.95rem;
   border-radius: 0.85rem;
   background: var(--background);
   border: 1px solid var(--border);
   text-align: left;
+}
+
+.ingestion-panel__progress-body {
+  display: grid;
+  gap: 0.55rem;
+  width: 100%;
+}
+
+.ingestion-panel__progress-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .ingestion-panel__progress-title,
@@ -916,7 +1206,192 @@ const handleSubmit = async () => {
 }
 
 .ingestion-panel__progress-copy {
+  margin-top: 0.1rem;
+  color: var(--text-light);
+}
+
+.ingestion-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.ingestion-status-pill--published {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.ingestion-status-pill--awaiting_review {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.ingestion-status-pill--reading,
+.ingestion-status-pill--uploading,
+.ingestion-status-pill--submitted {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.ingestion-status-pill--failed,
+.ingestion-status-pill--rejected {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.ingestion-extracted-list {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.ingestion-extracted-card {
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.65rem;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 0.25rem;
+}
+
+.ingestion-extracted-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.ingestion-extracted-card__meta,
+.ingestion-extracted-card__lineup,
+.ingestion-extracted-card__warning {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-light);
+}
+
+.ingestion-extracted-card__warning {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.ingestion-confidence-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+}
+
+.ingestion-confidence-tag--ok {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.ingestion-confidence-tag--warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.ingestion-panel__progress-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin-top: 0.2rem;
+}
+
+.ingestion-panel__calendar-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  background: #ecfdf3;
+  color: #027a48;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.ingestion-panel__retry-btn {
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text-dark);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ingestion-submissions-history {
+  padding: 0.95rem;
+  border-radius: 0.85rem;
+  background: var(--background);
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ingestion-submissions-history__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.ingestion-submissions-history__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.ingestion-submissions-history__refresh {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card-bg, #fff);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ingestion-submissions-history__list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.ingestion-submission-row {
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.7rem;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  text-align: left;
+}
+
+.ingestion-submission-row__main {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.ingestion-submission-row__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ingestion-submission-row__meta,
+.ingestion-submission-row__next {
+  margin: 0;
+  font-size: 0.83rem;
   color: var(--text-light);
 }
 

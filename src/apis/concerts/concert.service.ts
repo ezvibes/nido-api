@@ -225,7 +225,17 @@ export class ConcertService {
       .addSelect(
         (subquery) =>
           subquery
-            .select('MAX(upload.id::text)')
+            .select(
+              `COALESCE(
+                MAX(upload.id::text),
+                (
+                  SELECT MAX(cand_job.concert_upload_id::text)
+                  FROM ingestion_candidates cand
+                  INNER JOIN ingestion_jobs cand_job ON cand_job.id = cand.ingestion_job_id
+                  WHERE cand.published_concert_id = concert.id::text
+                )
+              )`,
+            )
             .from('concert_uploads', 'upload')
             .where('upload.concert_id = concert.id'),
         'upload_id',

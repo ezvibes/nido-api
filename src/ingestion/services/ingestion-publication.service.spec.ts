@@ -23,6 +23,7 @@ describe('IngestionPublicationService', () => {
       orWhere: jest.fn().mockReturnThis(),
       getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
       getMany: jest.fn().mockResolvedValue([]),
+      getOne: jest.fn().mockResolvedValue(null),
     };
 
     const mockRepo = {
@@ -132,11 +133,18 @@ describe('IngestionPublicationService', () => {
     expect(result).toEqual({ total: 0, items: [] });
   });
 
-  it('should get candidate details with probable duplicates query', async () => {
+  it('should get candidate details with probable duplicates query and public posterUrl', async () => {
     const candidate = new IngestionCandidate();
     candidate.id = 'cand-1';
     candidate.provenance = {
       date: { rawValue: '2026-11-07' },
+    } as any;
+    candidate.ingestionJob = {
+      concertUpload: {
+        id: 'upload-123',
+        originalFilename: 'poster.jpg',
+        createdAt: new Date(),
+      },
     } as any;
 
     (dataSource.getRepository(IngestionCandidate) as any).findOne.mockResolvedValueOnce(candidate);
@@ -144,5 +152,74 @@ describe('IngestionPublicationService', () => {
     const result = await service.getCandidate('cand-1');
     expect(result.candidate.id).toBe('cand-1');
     expect(result.probableDuplicates).toEqual([]);
+    expect(result.upload?.posterUrl).toBe('/ingestion/uploads/upload-123/image');
+  });
+
+  it('should parse HH:mm:ss time strings and resolve venueName and bandNames in transaction', async () => {
+    const candidate = new IngestionCandidate();
+    candidate.id = 'cand-2';
+    candidate.status = 'pending';
+    candidate.ingestionJobId = 'job-2';
+
+    manager.findOne.mockResolvedValueOnce(candidate);
+
+    const job = new IngestionJob();
+    job.id = 'job-2';
+    job.concertUpload = { city: 'Raleigh', state: 'NC', genre: 'Indie Rock' } as any;
+    manager.findOne.mockResolvedValueOnce(job);
+
+    const result = await service.publishCandidate(
+      'cand-2',
+      {
+        title: 'Sylvan Esso Live',
+        date: '2026-11-07',
+        time: '20:30:00',
+        venueName: 'The Pour House',
+        bandIds: [],
+        bandNames: ['Sylvan Esso', 'Indigo De Souza'],
+        genreIds: [],
+        genre: 'Electronic',
+        reviewDurationMs: 4200,
+      },
+      1,
+    );
+
+    expect(result.publishedConcertId).toBeDefined();
+    expect(candidate.status).toBe('published');
+  });
+
+  it('should handle duplicate decision: publish_separately without nested transaction deadlock', async () => {
+    const candidate = new IngestionCandidate();
+    candidate.id = 'cand-sep';
+    candidate.status = 'pending';
+    candidate.ingestionJobId = 'job-sep';
+
+    manager.findOne.mockResolvedValueOnce(candidate);
+
+    const job = new IngestionJob();
+    job.id = 'job-sep';
+    job.concertUpload = {} as any;
+    manager.findOne.mockResolvedValueOnce(job);
+
+    const result = await service.handleDuplicateDecision(
+      'cand-sep',
+      {
+        decision: 'publish_separately',
+        publishData: {
+          title: 'Late Night Set',
+          date: '2026-11-07',
+          time: '23:00',
+          bandIds: ['band-1'],
+          genreIds: [],
+          reviewDurationMs: 3100,
+        },
+        reviewDurationMs: 3100,
+      },
+      1,
+    );
+
+    expect(result.status).toBe('published');
+    expect(result.publishedConcertId).toBeDefined();
+    expect(dataSource.transaction).toHaveBeenCalledTimes(1);
   });
 });

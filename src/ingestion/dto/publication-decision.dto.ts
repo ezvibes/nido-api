@@ -20,15 +20,31 @@ export class PublishCandidateDto {
   @IsString()
   venueId?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  venueName?: string;
+
   @ApiProperty()
   @IsArray()
   @IsString({ each: true })
   bandIds: string[];
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  bandNames?: string[];
+
   @ApiProperty()
   @IsArray()
   @IsString({ each: true })
   genreIds: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  genre?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -37,5 +37,6 @@ export interface IExtractionAdapter {
     imageUrl: string,
     mimeType: string,
     hints?: ExtractionHints,
+    imageBuffer?: Buffer,
   ): Promise<ExtractionResult[]>;
 }
