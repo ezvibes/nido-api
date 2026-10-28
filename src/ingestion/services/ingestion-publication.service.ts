@@ -131,16 +131,33 @@ export class IngestionPublicationService {
         const name = rawName?.trim();
         if (!name) continue;
         const baseSlug = slugify(name) || 'band';
-        const existing = await bandRepo.findOne({ where: { slug: baseSlug } });
-        if (existing) {
+        let existing: Band | null = null;
+        if (typeof bandRepo.createQueryBuilder === 'function') {
+          existing = await bandRepo
+            .createQueryBuilder('band')
+            .where('LOWER(band.name) = LOWER(:name)', { name })
+            .getOne();
+        }
+        if (!existing) {
+          existing = await bandRepo.findOne({ where: { slug: baseSlug } });
+        }
+
+        if (existing && existing.name?.toLowerCase() === name.toLowerCase()) {
           if (!resolvedIds.includes(existing.id)) {
             resolvedIds.push(existing.id);
           }
         } else {
+          let uniqueSlug = baseSlug;
+          let counter = 1;
+          while (existing && existing.slug === uniqueSlug) {
+            uniqueSlug = `${baseSlug}-${counter}`;
+            counter++;
+            existing = await bandRepo.findOne({ where: { slug: uniqueSlug } });
+          }
           const saved = await bandRepo.save(
             bandRepo.create({
               name,
-              slug: baseSlug,
+              slug: uniqueSlug,
               genres: [],
             }),
           );
@@ -331,7 +348,19 @@ export class IngestionPublicationService {
         };
         await manager.save(candidate);
 
-        if (job.concertUpload) {
+        const candidateRepo = manager.getRepository(IngestionCandidate);
+        const siblingCandidates =
+          typeof candidateRepo.find === 'function'
+            ? await candidateRepo.find({ where: { ingestionJobId: candidate.ingestionJobId } })
+            : [];
+        const hasPublishedSibling = siblingCandidates.some(
+          (c) => c.id !== candidate.id && c.status === 'published',
+        );
+        const hasPendingSibling = siblingCandidates.some(
+          (c) => c.id !== candidate.id && c.status === 'pending',
+        );
+
+        if (job.concertUpload && !hasPublishedSibling && !hasPendingSibling) {
            job.concertUpload.reviewStatus = 'rejected';
            job.concertUpload.reviewNotes = dto.rejectReason;
            job.concertUpload.reviewedAt = new Date();
@@ -339,9 +368,11 @@ export class IngestionPublicationService {
            await manager.save(job.concertUpload);
         }
 
-        job.stage = IngestionStage.COMPLETED;
-        job.status = IngestionStage.COMPLETED;
-        await manager.save(job);
+        if (!hasPendingSibling) {
+          job.stage = IngestionStage.COMPLETED;
+          job.status = IngestionStage.COMPLETED;
+          await manager.save(job);
+        }
 
         return { status: 'rejected' };
       }
@@ -354,6 +385,13 @@ export class IngestionPublicationService {
         const concert = await manager.findOne(Concert, { where: { id: dto.targetConcertId } });
         if (!concert) {
            throw new NotFoundException(`Target concert ${dto.targetConcertId} not found`);
+        }
+
+        if (dto.decision === 'link') {
+          concert.isAdminApproved = true;
+          concert.adminApprovedAt = concert.adminApprovedAt || new Date();
+          concert.adminApprovedByUserId = concert.adminApprovedByUserId || reviewedByUserId;
+          await manager.save(concert);
         }
 
         if (dto.decision === 'merge' && dto.publishData) {
@@ -418,7 +456,9 @@ export class IngestionPublicationService {
            job.concertUpload.reviewStatus = 'approved';
            job.concertUpload.reviewedAt = new Date();
            job.concertUpload.reviewedByUserId = reviewedByUserId;
-           job.concertUpload.concertId = concert.id;
+           if (!job.concertUpload.concertId) {
+             job.concertUpload.concertId = concert.id;
+           }
            await manager.save(job.concertUpload);
         }
 
@@ -494,6 +534,8 @@ export class IngestionPublicationService {
               originalFilename: c.ingestionJob.concertUpload.originalFilename,
               city: c.ingestionJob.concertUpload.city,
               state: c.ingestionJob.concertUpload.state,
+              genre: c.ingestionJob.concertUpload.genre,
+              concertDate: c.ingestionJob.concertUpload.concertDate?.toISOString?.() ?? c.ingestionJob.concertUpload.concertDate,
               uploadedByUid: c.ingestionJob.concertUpload.uploadedByUid,
               uploadedByUserEmail: c.ingestionJob.concertUpload.uploadedByUser?.email,
               createdAt: c.ingestionJob.concertUpload.createdAt,
@@ -537,10 +579,15 @@ export class IngestionPublicationService {
         const dupQuery = concertRepo.createQueryBuilder('concert')
           .leftJoinAndSelect('concert.venue', 'venue')
           .leftJoinAndSelect('concert.lineup', 'lineup')
-          .where('concert.startsAt BETWEEN :startDay AND :endDay', { startDay, endDay });
+          .leftJoinAndSelect('lineup.band', 'band');
+
+        const extractedVenueName =
+          candidate.provenance?.venue?.rawValue?.trim() ||
+          candidate.provenance?.venueExtracted?.rawValue?.trim();
+        const extractedTitle = candidate.provenance?.title?.rawValue?.trim();
 
         if (candidate.suggestedVenueId) {
-          dupQuery.orWhere(
+          dupQuery.where(
             'concert.venueId = :venueId AND concert.startsAt BETWEEN :rangeStart AND :rangeEnd',
             {
               venueId: candidate.suggestedVenueId,
@@ -548,6 +595,25 @@ export class IngestionPublicationService {
               rangeEnd: new Date(endDay.getTime() + 24 * 60 * 60 * 1000),
             },
           );
+          if (extractedTitle) {
+            dupQuery.orWhere(
+              'concert.startsAt BETWEEN :startDay AND :endDay AND LOWER(concert.title) = LOWER(:title)',
+              { startDay, endDay, title: extractedTitle },
+            );
+          }
+        } else if (extractedVenueName) {
+          dupQuery.where(
+            'concert.startsAt BETWEEN :startDay AND :endDay AND LOWER(venue.name) = LOWER(:venueName)',
+            { startDay, endDay, venueName: extractedVenueName },
+          );
+          if (extractedTitle) {
+            dupQuery.orWhere(
+              'concert.startsAt BETWEEN :startDay AND :endDay AND LOWER(concert.title) = LOWER(:title)',
+              { startDay, endDay, title: extractedTitle },
+            );
+          }
+        } else {
+          dupQuery.where('concert.startsAt BETWEEN :startDay AND :endDay', { startDay, endDay });
         }
 
         probableDuplicates = await dupQuery.take(5).getMany();
@@ -563,6 +629,10 @@ export class IngestionPublicationService {
             originalFilename: candidate.ingestionJob.concertUpload.originalFilename,
             city: candidate.ingestionJob.concertUpload.city,
             state: candidate.ingestionJob.concertUpload.state,
+            genre: candidate.ingestionJob.concertUpload.genre,
+            concertDate:
+              candidate.ingestionJob.concertUpload.concertDate?.toISOString?.() ??
+              candidate.ingestionJob.concertUpload.concertDate,
             uploadedByUid: candidate.ingestionJob.concertUpload.uploadedByUid,
             uploadedByUserEmail: candidate.ingestionJob.concertUpload.uploadedByUser?.email,
             createdAt: candidate.ingestionJob.concertUpload.createdAt,

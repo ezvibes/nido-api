@@ -178,7 +178,7 @@
             View on Concert Calendar →
           </a>
           <button
-            v-if="currentStatus === 'failed' && activeUploadId"
+            v-if="contributorStatusKey === 'failed' && activeUploadId"
             type="button"
             class="ingestion-panel__retry-btn"
             :disabled="isRetrying"
@@ -265,7 +265,7 @@
               View Live Show →
             </a>
             <button
-              v-else-if="item.status === 'failed' && item.concertUpload?.id"
+              v-else-if="getJobStatusKey(item) === 'failed' && item.concertUpload?.id"
               type="button"
               class="ingestion-panel__retry-btn"
               :disabled="isRetrying"
@@ -347,6 +347,16 @@ const publishedConcertId = computed(() => {
   return fromCand || job.value?.concertUpload?.concertId || null;
 });
 
+const FAILED_JOB_STATUSES = ['failed', 'retryable_failure', 'terminal_failure'];
+const IN_FLIGHT_JOB_STATUSES = [
+  'queued',
+  'processing',
+  'asset_validated',
+  'ocr_completed',
+  'extraction_completed',
+  'matches_proposed',
+];
+
 const getJobStatusKey = (targetJob?: IngestionJobResponse | null) => {
   if (!targetJob) {
     return isSubmitting.value ? 'uploading' : 'submitted';
@@ -356,12 +366,14 @@ const getJobStatusKey = (targetJob?: IngestionJobResponse | null) => {
     targetJob.concertUpload?.reviewStatus === 'approved' ||
     targetJob.candidates?.some((c) => c.status === 'published');
   if (hasPublished) return 'published';
-  if (targetJob.status === 'failed') return 'failed';
+  if (FAILED_JOB_STATUSES.includes(targetJob.status)) return 'failed';
   if (targetJob.status === 'rejected' || targetJob.concertUpload?.reviewStatus === 'rejected') {
     return 'rejected';
   }
   if (targetJob.status === 'needs_review') return 'awaiting_review';
-  if (targetJob.status === 'processing') return 'reading';
+  if (IN_FLIGHT_JOB_STATUSES.includes(targetJob.status) && targetJob.status !== 'queued') {
+    return 'reading';
+  }
   return 'submitted';
 };
 
@@ -415,7 +427,7 @@ const contributorStatusLabel = computed(() =>
 );
 
 const isJobLoading = computed(
-  () => isSubmitting.value || ['queued', 'processing'].includes(currentStatus.value),
+  () => isSubmitting.value || IN_FLIGHT_JOB_STATUSES.includes(currentStatus.value),
 );
 const showProgress = computed(
   () => isSubmitting.value || !!uploadResult.value || !!job.value,
@@ -784,7 +796,7 @@ const refreshJob = async () => {
 const pollJobStatus = async () => {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     await refreshJob();
-    if (job.value && !['queued', 'processing'].includes(job.value.status)) {
+    if (job.value && !IN_FLIGHT_JOB_STATUSES.includes(job.value.status)) {
       return;
     }
     await new Promise((resolve) => window.setTimeout(resolve, 150));

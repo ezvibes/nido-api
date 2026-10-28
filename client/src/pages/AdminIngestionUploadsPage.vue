@@ -100,7 +100,7 @@
               <div class="queue-item-card__thumb">
                 <img
                   v-if="cand.upload?.posterUrl"
-                  :src="cand.upload.posterUrl"
+                  :src="resolvePosterUrl(cand.upload.posterUrl)"
                   alt="Poster preview"
                   loading="lazy"
                   @error="(e: any) => e.target.style.display = 'none'"
@@ -166,7 +166,7 @@
               <div class="poster-visual-frame">
                 <img
                   v-if="selectedCandidate.upload?.posterUrl"
-                  :src="selectedCandidate.upload.posterUrl"
+                  :src="resolvePosterUrl(selectedCandidate.upload.posterUrl)"
                   class="poster-visual-img"
                   alt="Original concert poster"
                 />
@@ -542,7 +542,7 @@
 
     <!-- FULLSCREEN POSTER MODAL -->
     <div v-if="fullscreenPosterOpen" class="fullscreen-poster-backdrop" @click="fullscreenPosterOpen = false">
-      <img :src="selectedCandidate?.upload?.posterUrl" class="fullscreen-poster-img" alt="Zoomed poster preview" />
+      <img :src="resolvePosterUrl(selectedCandidate?.upload?.posterUrl)" class="fullscreen-poster-img" alt="Zoomed poster preview" />
       <button type="button" class="fullscreen-poster-close" @click="fullscreenPosterOpen = false">Close</button>
     </div>
 
@@ -719,6 +719,7 @@ import {
   type DuplicateDecisionPayload,
 } from '../composables/useApi';
 import { useAuth } from '../composables/useAuth';
+import { resolvePosterUrl } from '../types/concerts';
 import GenreCombobox from '../components/GenreCombobox.vue';
 
 type StatusFilter = 'all' | UploadReviewStatus;
@@ -855,20 +856,28 @@ const selectCandidate = async (candidate: AdminIngestionCandidateListItem) => {
   // Prefill form from provenance
   const prov = candidate.provenance || {};
   showForm.value.title = prov.title?.rawValue || candidate.upload?.originalFilename?.replace(/\.[^.]+$/, '') || '';
-  showForm.value.date = prov.date?.rawValue || '';
+  showForm.value.date =
+    prov.date?.rawValue ||
+    candidate.upload?.concertDate?.slice(0, 10) ||
+    '';
   showForm.value.time = (prov.time?.rawValue || '19:00').slice(0, 5);
   showForm.value.venueId = candidate.suggestedVenueId || '';
   showForm.value.venueName = prov.venue?.rawValue || prov.venueExtracted?.rawValue || '';
+  const extractedGenre = Array.isArray(prov.genres)
+    ? prov.genres[0]?.rawValue
+    : (prov.genres as any)?.rawValue;
   showForm.value.genre =
-    prov.genres?.[0]?.rawValue ||
-    (candidate.upload as any)?.genre ||
+    extractedGenre ||
+    candidate.upload?.genre ||
     genres.value[0] ||
     'Rock';
 
   if (Array.isArray(prov.bands) && prov.bands.length > 0) {
     showForm.value.bandNames = prov.bands.map((b: any) => typeof b === 'string' ? b : b.rawValue || '').filter(Boolean);
   } else if (Array.isArray(prov.performerLineup?.normalizedValue) && prov.performerLineup.normalizedValue.length > 0) {
-    showForm.value.bandNames = prov.performerLineup.normalizedValue.map((b: any) => String(b).trim()).filter(Boolean);
+    showForm.value.bandNames = prov.performerLineup.normalizedValue
+      .map((b: any) => (typeof b === 'string' ? b.trim() : String(b?.name || b?.rawValue || '').trim()))
+      .filter(Boolean);
   } else if (typeof prov.performerLineup?.rawValue === 'string' && prov.performerLineup.rawValue.trim()) {
     showForm.value.bandNames = prov.performerLineup.rawValue.split(',').map((b: string) => b.trim()).filter(Boolean);
   } else if (showForm.value.title) {

@@ -269,6 +269,29 @@ describe('IngestionUploadPanel', () => {
     expect(wrapper.text()).toContain('Published');
     expect(wrapper.text()).toContain('View Live Show');
   });
+
+  it('shows Needs retry and allows retrying when a job has retryable_failure status', async () => {
+    api.fetchMyIngestionSubmissions.mockResolvedValue([
+      {
+        ...buildJobResponse(),
+        id: 'job-fail-1',
+        status: 'retryable_failure',
+        errorMessage: 'Temporary extraction timeout',
+      },
+    ]);
+
+    const wrapper = mount(IngestionUploadPanel);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Needs retry');
+    const retryBtn = wrapper.get('.ingestion-submission-row .ingestion-panel__retry-btn');
+    expect(retryBtn.text()).toBe('Retry');
+
+    await retryBtn.trigger('click');
+    await flushPromises();
+
+    expect(api.createIngestionJob).toHaveBeenCalledWith('firebase-token', 'upload-1');
+  });
 });
 
 async function selectValidFile(wrapper: VueWrapper) {

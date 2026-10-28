@@ -53,20 +53,24 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
           JSON.stringify(hints);
       }
 
-      const parts: any[] = [{ text: prompt + '\n' + hintText }];
-      if (imageBuffer && imageBuffer.length > 0) {
-        parts.push({
+      if (!imageBuffer || imageBuffer.length === 0) {
+        throw new Error('Poster image buffer is required for live Gemini extraction');
+      }
+
+      const parts: any[] = [
+        { text: prompt + '\n' + hintText },
+        {
           inlineData: {
             mimeType: mimeType || 'image/jpeg',
             data: imageBuffer.toString('base64'),
           },
-        });
-      }
+        },
+      ];
 
       // Note: We use basic schema implementation
       const response = await this.ai.models.generateContent({
         model: this.model,
-        contents: imageBuffer && imageBuffer.length > 0 ? parts : prompt + '\n' + hintText,
+        contents: parts,
         config: {
           responseMimeType: 'application/json',
           responseSchema: {
@@ -113,16 +117,27 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
       });
 
       const text = response.text;
-      const results: ExtractionResult[] = JSON.parse(text || '[]');
+      const rawResults: ExtractionResult[] = JSON.parse(text || '[]');
+      const flattenedResults: ExtractionResult[] = [];
 
-      results.forEach((result) => {
+      for (const item of rawResults) {
+        if (Array.isArray(item.dates) && item.dates.length > 1) {
+          for (const d of item.dates) {
+            flattenedResults.push({ ...item, dates: [{ ...d }] });
+          }
+        } else {
+          flattenedResults.push(item);
+        }
+      }
+
+      flattenedResults.forEach((result) => {
         if (hints && hints.date && result.dates && result.dates[0]) {
           if (hints.date !== result.dates[0].date) {
             result.dates[0].warning = `Hint conflict: uploader suggested '${hints.date}', poster states '${result.dates[0].date}'`;
           }
         }
       });
-      return results;
+      return flattenedResults;
     } catch (e) {
       this.logger.error('Extraction failed', e);
       throw e;

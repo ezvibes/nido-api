@@ -351,8 +351,18 @@ export class IngestionService {
         existingJob.status = 'queued';
         existingJob.stage = IngestionStage.QUEUED;
         existingJob.attemptCount = (existingJob.attemptCount || 0) + 1;
-        existingJob.errorMessage = undefined;
+        existingJob.errorMessage = null as any;
+        existingJob.leaseOwner = null;
+        existingJob.leaseExpiresAt = null;
         await manager.save(existingJob);
+
+        const retryOutbox = manager.create(IngestionOutbox, {
+          jobId: existingJob.id,
+          destination: 'ingestion_worker',
+          payload: { jobId: existingJob.id },
+          status: 'pending',
+        });
+        await manager.save(retryOutbox);
         return existingJob;
       }
 
@@ -909,6 +919,9 @@ export class IngestionService {
               downloadErr instanceof Error ? downloadErr.message : String(downloadErr)
             }`,
           );
+          throw downloadErr instanceof Error
+            ? downloadErr
+            : new Error(`Failed to download poster image from ${upload.storageUri}`);
         }
       }
 

@@ -664,9 +664,9 @@ export interface AdminIngestionCandidateListItem {
     time?: { rawValue: string; confidence?: number; warnings?: string[] };
     venue?: { rawValue: string; confidence?: number; warnings?: string[] };
     venueExtracted?: { rawValue: string; confidence?: number; warnings?: string[] };
-    performerLineup?: { rawValue: string; normalizedValue?: string[]; confidence?: number; warnings?: string[] };
+    performerLineup?: { rawValue: string; normalizedValue?: any[]; confidence?: number; warnings?: string[] };
     bands?: { rawValue: string; confidence?: number }[];
-    genres?: { rawValue: string; confidence?: number }[];
+    genres?: { rawValue: string; confidence?: number }[] | { rawValue: string; confidence?: number };
     ticketUrl?: { rawValue: string; confidence?: number };
     price?: { rawValue: string; confidence?: number };
     rawOcrText?: string;
@@ -683,6 +683,8 @@ export interface AdminIngestionCandidateListItem {
     originalFilename: string;
     city?: string;
     state?: string;
+    genre?: string;
+    concertDate?: string;
     uploadedByUid?: string;
     uploadedByUserEmail?: string;
     createdAt: string;
