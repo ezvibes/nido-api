@@ -115,7 +115,7 @@
                   <span class="queue-item-card__time">{{ formatTimeAgo(cand.createdAt) }}</span>
                 </div>
                 <h4 class="queue-item-card__title">{{ cand.provenance?.title?.rawValue || 'Untitled Show' }}</h4>
-                <p class="queue-item-card__venue">{{ cand.provenance?.venue?.rawValue || 'Venue TBD' }}</p>
+                <p class="queue-item-card__venue">{{ cand.provenance?.venue?.rawValue || cand.provenance?.venueExtracted?.rawValue || 'Venue TBD' }}</p>
                 <div class="queue-item-card__date">
                   {{ formatCandidateDate(cand.provenance?.date?.rawValue, cand.provenance?.time?.rawValue) }}
                 </div>
@@ -856,13 +856,21 @@ const selectCandidate = async (candidate: AdminIngestionCandidateListItem) => {
   const prov = candidate.provenance || {};
   showForm.value.title = prov.title?.rawValue || candidate.upload?.originalFilename?.replace(/\.[^.]+$/, '') || '';
   showForm.value.date = prov.date?.rawValue || '';
-  showForm.value.time = prov.time?.rawValue || '19:00';
+  showForm.value.time = (prov.time?.rawValue || '19:00').slice(0, 5);
   showForm.value.venueId = candidate.suggestedVenueId || '';
-  showForm.value.venueName = prov.venue?.rawValue || '';
-  showForm.value.genre = genres.value[0] || 'Rock';
+  showForm.value.venueName = prov.venue?.rawValue || prov.venueExtracted?.rawValue || '';
+  showForm.value.genre =
+    prov.genres?.[0]?.rawValue ||
+    (candidate.upload as any)?.genre ||
+    genres.value[0] ||
+    'Rock';
 
   if (Array.isArray(prov.bands) && prov.bands.length > 0) {
     showForm.value.bandNames = prov.bands.map((b: any) => typeof b === 'string' ? b : b.rawValue || '').filter(Boolean);
+  } else if (Array.isArray(prov.performerLineup?.normalizedValue) && prov.performerLineup.normalizedValue.length > 0) {
+    showForm.value.bandNames = prov.performerLineup.normalizedValue.map((b: any) => String(b).trim()).filter(Boolean);
+  } else if (typeof prov.performerLineup?.rawValue === 'string' && prov.performerLineup.rawValue.trim()) {
+    showForm.value.bandNames = prov.performerLineup.rawValue.split(',').map((b: string) => b.trim()).filter(Boolean);
   } else if (showForm.value.title) {
     showForm.value.bandNames = [showForm.value.title];
   } else {
@@ -905,8 +913,11 @@ const publishShow = async () => {
       date: showForm.value.date,
       time: showForm.value.time,
       venueId: showForm.value.venueId || undefined,
-      bandIds: [], // mapped by backend
-      genreIds: [],
+      venueName: showForm.value.venueName || undefined,
+      bandIds: selectedCandidate.value.suggestedBandIds || [],
+      bandNames: showForm.value.bandNames,
+      genreIds: selectedCandidate.value.suggestedGenreIds || [],
+      genre: showForm.value.genre || undefined,
       notes: showForm.value.notes || undefined,
       reviewDurationMs: durationMs,
     });
@@ -946,8 +957,11 @@ const submitDuplicateDecision = async (decision: DuplicateDecisionPayload['decis
         date: showForm.value.date,
         time: showForm.value.time,
         venueId: showForm.value.venueId || undefined,
-        bandIds: [],
-        genreIds: [],
+        venueName: showForm.value.venueName || undefined,
+        bandIds: selectedCandidate.value.suggestedBandIds || [],
+        bandNames: showForm.value.bandNames,
+        genreIds: selectedCandidate.value.suggestedGenreIds || [],
+        genre: showForm.value.genre || undefined,
         reviewDurationMs: durationMs,
       },
       reviewDurationMs: durationMs,
@@ -991,20 +1005,24 @@ const openPosterFullscreen = () => {
 };
 
 // PLAIN LANGUAGE ALERTS LOGIC
+const getDateWarning = () =>
+  selectedCandidate.value?.provenance?.date?.warnings?.[0] || '';
+
 const getPlainAlertClass = () => {
   if (probableDuplicates.value.length > 0) return 'plain-alert--warning';
-  if (!showForm.value.date || !showForm.value.venueId) return 'plain-alert--info';
+  if (getDateWarning() || !showForm.value.date || !showForm.value.venueId) return 'plain-alert--info';
   return 'plain-alert--success';
 };
 
 const getPlainAlertIcon = () => {
   if (probableDuplicates.value.length > 0) return '🔍';
-  if (!showForm.value.date || !showForm.value.venueId) return '⚠️';
+  if (getDateWarning() || !showForm.value.date || !showForm.value.venueId) return '⚠️';
   return '✓';
 };
 
 const getPlainAlertTitle = () => {
   if (probableDuplicates.value.length > 0) return 'Possible duplicate concert found in database';
+  if (getDateWarning()) return 'Check this date against the poster';
   if (!showForm.value.date) return 'Please verify concert date';
   if (!showForm.value.venueId) return 'Venue not linked to catalog';
   return 'All fields verified cleanly';
@@ -1014,11 +1032,14 @@ const getPlainAlertDesc = () => {
   if (probableDuplicates.value.length > 0) {
     return `An existing listing for '${activeDuplicateConcert.value?.title}' on this date matches this venue. Click 'Resolve Duplicate' to review.`;
   }
+  if (getDateWarning()) {
+    return getDateWarning();
+  }
   if (!showForm.value.date) {
     return 'Extracted date needs human confirmation against the original poster.';
   }
   if (!showForm.value.venueId) {
-    return 'Select a matching catalog venue from the dropdown to ensure clean search indexing.';
+    return 'Select a matching catalog venue from the dropdown or keep the extracted venue name to create it automatically.';
   }
   return 'Title, venue, date, and performers match with high certainty. Ready for one-click catalog publication.';
 };

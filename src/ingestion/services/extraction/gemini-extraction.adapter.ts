@@ -25,6 +25,7 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
     imageUrl: string,
     mimeType: string,
     hints?: ExtractionHints,
+    imageBuffer?: Buffer,
   ): Promise<ExtractionResult[]> {
     if (
       this.configService.get('NODE_ENV') === 'test' ||
@@ -32,17 +33,16 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
     ) {
       return this.mockExtract(imageUrl, mimeType, hints);
     }
-    return this.realExtract(imageUrl, mimeType, hints);
+    return this.realExtract(imageUrl, mimeType, hints, imageBuffer);
   }
 
   private async realExtract(
     imageUrl: string,
     mimeType: string,
     hints?: ExtractionHints,
+    imageBuffer?: Buffer,
   ): Promise<ExtractionResult[]> {
     try {
-      // Very basic base64 conversion mapping - for gcs you'd download to buffer then pass, or pass a gcs uri
-      // Using placeholder behavior to show extraction request
       const prompt = `Extract the concert details from this poster.
       If you receive hints, do not let them override what is clearly stated on the poster.`;
 
@@ -53,10 +53,20 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
           JSON.stringify(hints);
       }
 
+      const parts: any[] = [{ text: prompt + '\n' + hintText }];
+      if (imageBuffer && imageBuffer.length > 0) {
+        parts.push({
+          inlineData: {
+            mimeType: mimeType || 'image/jpeg',
+            data: imageBuffer.toString('base64'),
+          },
+        });
+      }
+
       // Note: We use basic schema implementation
       const response = await this.ai.models.generateContent({
         model: this.model,
-        contents: prompt + '\n' + hintText,
+        contents: imageBuffer && imageBuffer.length > 0 ? parts : prompt + '\n' + hintText,
         config: {
           responseMimeType: 'application/json',
           responseSchema: {

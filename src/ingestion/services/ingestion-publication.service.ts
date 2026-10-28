@@ -5,23 +5,26 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { DataSource, Repository, EntityManager } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { IngestionCandidate } from '../entities/ingestion-candidate.entity';
 import { IngestionJob } from '../entities/ingestion-job.entity';
 import { ConcertUpload } from '../entities/concert-upload.entity';
 import { Concert, ConcertCatalogStatus } from '../../apis/concerts/entities/concert.entity';
 import { ConcertBandLineup, PerformanceRole } from '../../apis/concerts/entities/concert-band-lineup.entity';
-import { ConcertSet } from '../../apis/concerts/entities/concert-set.entity';
+import { Venue } from '../../apis/venues/entities/venue.entity';
+import { Band } from '../../apis/bands/entities/band.entity';
 import { IngestionStage } from '../interfaces/ingestion-enums';
-import { InjectRepository } from '@nestjs/typeorm';
 
 export interface PublishCandidateDto {
   title: string;
   date: string; // YYYY-MM-DD
-  time: string; // HH:mm
+  time: string; // HH:mm or HH:mm:ss
   venueId?: string;
+  venueName?: string;
   bandIds: string[];
+  bandNames?: string[];
   genreIds: string[];
+  genre?: string;
   notes?: string;
   reviewDurationMs: number;
 }
@@ -34,6 +37,16 @@ export interface DuplicateDecisionDto {
   rejectReason?: string;
 }
 
+function slugify(text: string): string {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w\-]+/g, '')
+    .replace(/\-\-+/g, '-');
+}
+
 @Injectable()
 export class IngestionPublicationService {
   private readonly logger = new Logger(IngestionPublicationService.name);
@@ -42,6 +55,116 @@ export class IngestionPublicationService {
     private readonly dataSource: DataSource,
   ) {}
 
+  private buildStartsAt(dateStr: string, timeStr?: string): Date {
+    const cleanDate = (dateStr || '').trim().slice(0, 10);
+    const rawTime = (timeStr || '19:00').trim();
+    const timeParts = rawTime.split(':');
+    const hh = (timeParts[0] || '19').padStart(2, '0');
+    const mm = (timeParts[1] || '00').padStart(2, '0');
+    const ss = (timeParts[2] || '00').slice(0, 2).padStart(2, '0');
+    const parsed = new Date(`${cleanDate}T${hh}:${mm}:${ss}Z`);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new BadRequestException(`Invalid concert date/time: ${dateStr} ${timeStr}`);
+    }
+    return parsed;
+  }
+
+  private async resolveVenueIdInTx(
+    manager: EntityManager,
+    dto: PublishCandidateDto,
+    candidate: IngestionCandidate,
+    upload?: ConcertUpload | null,
+  ): Promise<string | null> {
+    if (dto.venueId?.trim()) {
+      return dto.venueId.trim();
+    }
+    if (candidate.suggestedVenueId?.trim()) {
+      return candidate.suggestedVenueId.trim();
+    }
+    const venueName =
+      dto.venueName?.trim() ||
+      candidate.provenance?.venueExtracted?.rawValue?.trim() ||
+      candidate.provenance?.venue?.rawValue?.trim();
+    if (!venueName) {
+      return upload?.venueId ?? null;
+    }
+
+    const venueRepo = manager.getRepository(Venue);
+    const cleanCity =
+      candidate.provenance?.venueExtracted?.normalizedValue?.city?.trim() ||
+      upload?.city?.trim() ||
+      'Unknown City';
+    const cleanState =
+      candidate.provenance?.venueExtracted?.normalizedValue?.state?.trim() ||
+      upload?.state?.trim() ||
+      'NC';
+    const citySlug = slugify(cleanCity) || 'unknown-city';
+
+    const existing = await venueRepo.findOne({
+      where: { name: venueName, citySlug },
+    });
+    if (existing) {
+      return existing.id;
+    }
+
+    const created = await venueRepo.save(
+      venueRepo.create({
+        name: venueName,
+        city: cleanCity,
+        citySlug,
+        region: cleanState,
+        regionSlug: slugify(cleanState) || 'nc',
+      }),
+    );
+    return created.id;
+  }
+
+  private async resolveBandIdsInTx(
+    manager: EntityManager,
+    dto: PublishCandidateDto,
+    candidate: IngestionCandidate,
+  ): Promise<string[]> {
+    if (Array.isArray(dto.bandNames) && dto.bandNames.length > 0) {
+      const bandRepo = manager.getRepository(Band);
+      const resolvedIds: string[] = [];
+      for (const rawName of dto.bandNames) {
+        const name = rawName?.trim();
+        if (!name) continue;
+        const baseSlug = slugify(name) || 'band';
+        const existing = await bandRepo.findOne({ where: { slug: baseSlug } });
+        if (existing) {
+          if (!resolvedIds.includes(existing.id)) {
+            resolvedIds.push(existing.id);
+          }
+        } else {
+          const saved = await bandRepo.save(
+            bandRepo.create({
+              name,
+              slug: baseSlug,
+              genres: [],
+            }),
+          );
+          if (saved?.id && !resolvedIds.includes(saved.id)) {
+            resolvedIds.push(saved.id);
+          }
+        }
+      }
+      if (resolvedIds.length > 0) {
+        return resolvedIds;
+      }
+    }
+
+    if (Array.isArray(dto.bandIds) && dto.bandIds.length > 0) {
+      return Array.from(new Set(dto.bandIds.filter(Boolean)));
+    }
+
+    if (Array.isArray(candidate.suggestedBandIds) && candidate.suggestedBandIds.length > 0) {
+      return Array.from(new Set(candidate.suggestedBandIds.filter(Boolean)));
+    }
+
+    return [];
+  }
+
   async publishCandidate(
     candidateId: string,
     dto: PublishCandidateDto,
@@ -49,82 +172,120 @@ export class IngestionPublicationService {
   ): Promise<{ publishedConcertId: string }> {
     return this.dataSource.transaction(async (manager) => {
       const candidate = await this.lockCandidate(manager, candidateId);
+      return this.publishLockedCandidateInTx(
+        manager,
+        candidate,
+        dto,
+        reviewedByUserId,
+        'publish',
+      );
+    });
+  }
 
-      if (candidate.status === 'published' && candidate.publishedConcertId) {
-        return { publishedConcertId: candidate.publishedConcertId };
-      }
+  private async publishLockedCandidateInTx(
+    manager: EntityManager,
+    candidate: IngestionCandidate,
+    dto: PublishCandidateDto,
+    reviewedByUserId: number,
+    decisionLabel: 'publish' | 'publish_separately' = 'publish',
+    preloadedJob?: IngestionJob | null,
+  ): Promise<{ publishedConcertId: string }> {
+    if (candidate.status === 'published' && candidate.publishedConcertId) {
+      return { publishedConcertId: candidate.publishedConcertId };
+    }
 
-      if (candidate.status !== 'pending') {
-        throw new ConflictException(`Candidate ${candidateId} cannot be published, status is ${candidate.status}`);
-      }
+    if (candidate.status !== 'pending') {
+      throw new ConflictException(`Candidate ${candidate.id} cannot be published, status is ${candidate.status}`);
+    }
 
-      const job = await manager.findOne(IngestionJob, {
+    const job =
+      preloadedJob ??
+      (await manager.findOne(IngestionJob, {
         where: { id: candidate.ingestionJobId },
         relations: { concertUpload: true },
-      });
-      if (!job) {
-         throw new NotFoundException(`Job for candidate ${candidateId} not found`);
-      }
+      }));
+    if (!job) {
+      throw new NotFoundException(`Job for candidate ${candidate.id} not found`);
+    }
 
-      const startsAt = new Date(`${dto.date}T${dto.time}:00Z`);
+    const startsAt = this.buildStartsAt(dto.date, dto.time);
+    const resolvedVenueId = await this.resolveVenueIdInTx(
+      manager,
+      dto,
+      candidate,
+      job.concertUpload,
+    );
+    const resolvedBandIds = await this.resolveBandIdsInTx(manager, dto, candidate);
+    const resolvedGenre =
+      dto.genre?.trim() ||
+      dto.genreIds?.[0]?.trim() ||
+      candidate.provenance?.genres?.rawValue?.trim() ||
+      job.concertUpload?.genre?.trim() ||
+      'Live Music';
 
-      // 3. Create canonical Concert entity
-      const concertRepository = manager.getRepository(Concert);
+    // 3. Create canonical Concert entity
+    const concertRepository = manager.getRepository(Concert);
 
-      const newConcert = concertRepository.create({
-        owner: { id: job.concertUpload?.uploadedByUserId || reviewedByUserId } as any, // requested by code review
-        title: dto.title,
-        genre: 'Live Music', // We don't have a genre table relation here, normally it's a string, we might need mapping
-        venue: dto.venueId ? { id: dto.venueId } as any : null,
-        startsAt,
-        catalogStatus: ConcertCatalogStatus.ACTIVE,
-        isAdminApproved: true,
-        version: 1,
-      });
-      const savedConcert = await concertRepository.save(newConcert);
-
-      // Create lineup
-      if (dto.bandIds && dto.bandIds.length > 0) {
-        const lineupRepo = manager.getRepository(ConcertBandLineup);
-        const lineups = dto.bandIds.map((bandId, index) => {
-           return lineupRepo.create({
-             concertId: savedConcert.id,
-             bandId: bandId,
-             performanceOrder: index,
-             performanceRole: index === 0 ? PerformanceRole.HEADLINER : PerformanceRole.SUPPORT,
-           });
-        });
-        await lineupRepo.save(lineups);
-      }
-
-      // Update Candidate (reviewAudit requested by Code Review)
-      candidate.status = 'published';
-      candidate.publishedConcertId = savedConcert.id;
-      if (!candidate.provenance) candidate.provenance = {};
-      (candidate.provenance as any).reviewAudit = {
-         reviewDurationMs: dto.reviewDurationMs,
-         reviewedAt: new Date().toISOString(),
-         reviewedByUserId
-      };
-      await manager.save(candidate);
-
-      // Update Upload
-      if (job.concertUpload) {
-         job.concertUpload.reviewStatus = 'approved';
-         job.concertUpload.reviewNotes = dto.notes;
-         job.concertUpload.reviewedAt = new Date();
-         job.concertUpload.reviewedByUserId = reviewedByUserId;
-         job.concertUpload.concertId = savedConcert.id; // Link poster image
-         await manager.save(job.concertUpload);
-      }
-
-      // Update Job
-      job.stage = IngestionStage.COMPLETED;
-      job.status = IngestionStage.COMPLETED;
-      await manager.save(job);
-
-      return { publishedConcertId: savedConcert.id };
+    const newConcert = concertRepository.create({
+      owner: { id: job.concertUpload?.uploadedByUserId || reviewedByUserId } as any,
+      title: dto.title,
+      genre: resolvedGenre,
+      venueId: resolvedVenueId ?? undefined,
+      venue: resolvedVenueId ? ({ id: resolvedVenueId } as any) : null,
+      startsAt,
+      description: dto.notes?.trim() || null,
+      catalogStatus: ConcertCatalogStatus.ACTIVE,
+      isAdminApproved: true,
+      adminApprovedAt: new Date(),
+      adminApprovedByUserId: reviewedByUserId,
+      version: 1,
     });
+    const savedConcert = await concertRepository.save(newConcert);
+
+    // Create lineup
+    if (resolvedBandIds.length > 0) {
+      const lineupRepo = manager.getRepository(ConcertBandLineup);
+      const lineups = resolvedBandIds.map((bandId, index) => {
+        return lineupRepo.create({
+          concertId: savedConcert.id,
+          bandId: bandId,
+          performanceOrder: index,
+          performanceRole: index === 0 ? PerformanceRole.HEADLINER : PerformanceRole.SUPPORT,
+        });
+      });
+      await lineupRepo.save(lineups);
+    }
+
+    // Update Candidate (reviewAudit requested by Code Review)
+    candidate.status = 'published';
+    candidate.publishedConcertId = savedConcert.id;
+    if (!candidate.provenance) candidate.provenance = {};
+    candidate.provenance.reviewAudit = {
+      reviewDurationMs: dto.reviewDurationMs,
+      decision: decisionLabel,
+      reviewedAt: new Date().toISOString(),
+      reviewedByUserId,
+    };
+    await manager.save(candidate);
+
+    // Update Upload
+    if (job.concertUpload) {
+      job.concertUpload.reviewStatus = 'approved';
+      job.concertUpload.reviewNotes = dto.notes;
+      job.concertUpload.reviewedAt = new Date();
+      job.concertUpload.reviewedByUserId = reviewedByUserId;
+      if (!job.concertUpload.concertId) {
+        job.concertUpload.concertId = savedConcert.id; // Link primary poster image without overwriting earlier multi-day concert link
+      }
+      await manager.save(job.concertUpload);
+    }
+
+    // Update Job
+    job.stage = IngestionStage.COMPLETED;
+    job.status = IngestionStage.COMPLETED;
+    await manager.save(job);
+
+    return { publishedConcertId: savedConcert.id };
   }
 
   private async lockCandidate(manager: EntityManager, candidateId: string): Promise<IngestionCandidate> {
@@ -161,8 +322,9 @@ export class IngestionPublicationService {
       if (dto.decision === 'reject') {
         candidate.status = 'rejected';
         if (!candidate.provenance) candidate.provenance = {};
-        (candidate.provenance as any).reviewAudit = {
+        candidate.provenance.reviewAudit = {
            reviewDurationMs: dto.reviewDurationMs,
+           decision: 'reject',
            rejectReason: dto.rejectReason,
            reviewedAt: new Date().toISOString(),
            reviewedByUserId
@@ -195,20 +357,41 @@ export class IngestionPublicationService {
         }
 
         if (dto.decision === 'merge' && dto.publishData) {
-            // merge data into concert requested by Code review
-            const startsAt = new Date(`${dto.publishData.date}T${dto.publishData.time}:00Z`);
+            const startsAt = this.buildStartsAt(dto.publishData.date, dto.publishData.time);
+            const resolvedVenueId = await this.resolveVenueIdInTx(
+              manager,
+              dto.publishData,
+              candidate,
+              job.concertUpload,
+            );
+            const resolvedBandIds = await this.resolveBandIdsInTx(
+              manager,
+              dto.publishData,
+              candidate,
+            );
+
             concert.title = dto.publishData.title || concert.title;
             concert.startsAt = startsAt || concert.startsAt;
-            if (dto.publishData.venueId) {
-                concert.venue = { id: dto.publishData.venueId } as any;
+            if (dto.publishData.genre?.trim()) {
+              concert.genre = dto.publishData.genre.trim();
             }
+            if (resolvedVenueId) {
+              concert.venueId = resolvedVenueId;
+              concert.venue = { id: resolvedVenueId } as any;
+            }
+            concert.isAdminApproved = true;
+            concert.adminApprovedAt = new Date();
+            concert.adminApprovedByUserId = reviewedByUserId;
+            concert.editorialLockedAt = new Date();
             await manager.save(concert);
 
             // Re-create lineup
-            if (dto.publishData.bandIds && dto.publishData.bandIds.length > 0) {
+            if (resolvedBandIds.length > 0) {
               const lineupRepo = manager.getRepository(ConcertBandLineup);
-              await lineupRepo.delete({ concertId: concert.id });
-              const lineups = dto.publishData.bandIds.map((bandId, index) => {
+              if (typeof lineupRepo.delete === 'function') {
+                await lineupRepo.delete({ concertId: concert.id });
+              }
+              const lineups = resolvedBandIds.map((bandId, index) => {
                  return lineupRepo.create({
                    concertId: concert.id,
                    bandId: bandId,
@@ -223,7 +406,7 @@ export class IngestionPublicationService {
         candidate.status = 'published';
         candidate.publishedConcertId = concert.id;
         if (!candidate.provenance) candidate.provenance = {};
-        (candidate.provenance as any).reviewAudit = {
+        candidate.provenance.reviewAudit = {
            reviewDurationMs: dto.reviewDurationMs,
            decision: dto.decision,
            reviewedAt: new Date().toISOString(),
@@ -250,7 +433,14 @@ export class IngestionPublicationService {
         if (!dto.publishData) {
            throw new BadRequestException('publishData is required for publish_separately');
         }
-        const { publishedConcertId } = await this.publishCandidate(candidateId, dto.publishData, reviewedByUserId);
+        const { publishedConcertId } = await this.publishLockedCandidateInTx(
+          manager,
+          candidate,
+          dto.publishData,
+          reviewedByUserId,
+          'publish_separately',
+          job,
+        );
         return { publishedConcertId, status: 'published' };
       }
 
@@ -307,7 +497,7 @@ export class IngestionPublicationService {
               uploadedByUid: c.ingestionJob.concertUpload.uploadedByUid,
               uploadedByUserEmail: c.ingestionJob.concertUpload.uploadedByUser?.email,
               createdAt: c.ingestionJob.concertUpload.createdAt,
-              posterUrl: `/admin/ingestion/uploads/${c.ingestionJob.concertUpload.id}/image`,
+              posterUrl: `/ingestion/uploads/${c.ingestionJob.concertUpload.id}/image`,
             }
           : null,
       })),
@@ -376,7 +566,7 @@ export class IngestionPublicationService {
             uploadedByUid: candidate.ingestionJob.concertUpload.uploadedByUid,
             uploadedByUserEmail: candidate.ingestionJob.concertUpload.uploadedByUser?.email,
             createdAt: candidate.ingestionJob.concertUpload.createdAt,
-            posterUrl: `/admin/ingestion/uploads/${candidate.ingestionJob.concertUpload.id}/image`,
+            posterUrl: `/ingestion/uploads/${candidate.ingestionJob.concertUpload.id}/image`,
           }
         : null,
     };

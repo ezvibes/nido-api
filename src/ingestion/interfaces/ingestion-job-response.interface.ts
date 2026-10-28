@@ -27,5 +27,19 @@ export interface IngestionJobResponse {
     uploadedByUid: string;
     uploadedByUserId?: number;
     createdAt: Date;
+    reviewStatus?: string;
+    concertId?: string | null;
   };
+  candidates?: Array<{
+    id: string;
+    candidateIndex: number;
+    status: string;
+    publishedConcertId?: string | null;
+    title?: string;
+    date?: string;
+    time?: string;
+    venueName?: string;
+    bandNames?: string[];
+    warnings?: string[];
+  }>;
 }

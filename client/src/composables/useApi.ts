@@ -297,6 +297,19 @@ export interface IngestionUploadResult {
   uploadedAt: string;
 }
 
+export interface IngestionCandidateSummary {
+  id: string;
+  candidateIndex: number;
+  status: 'pending' | 'published' | 'rejected' | string;
+  publishedConcertId?: string | null;
+  title?: string;
+  date?: string;
+  time?: string;
+  venueName?: string;
+  bandNames?: string[];
+  warnings?: string[];
+}
+
 export interface IngestionJobResponse {
   id: string;
   status: string;
@@ -322,8 +335,11 @@ export interface IngestionJobResponse {
     size: number;
     uploadedByUid: string;
     uploadedByUserId?: number;
+    reviewStatus?: string;
+    concertId?: string | null;
     createdAt: string;
   };
+  candidates?: IngestionCandidateSummary[];
 }
 
 export async function createIngestionJob(
@@ -415,6 +431,23 @@ export async function fetchIngestionJob(token: string, jobId: string) {
     return response.data;
   } catch (error) {
     console.error('Error fetching ingestion job:', error);
+    throw error;
+  }
+}
+
+export async function fetchMyIngestionSubmissions(token: string) {
+  try {
+    const response = await apiClient.get<IngestionJobResponse[]>(
+      '/ingestion/submissions',
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching ingestion submissions:', error);
     throw error;
   }
 }
@@ -626,10 +659,12 @@ export interface AdminIngestionCandidateListItem {
   ingestionJobId: string;
   publishedConcertId?: string | null;
   provenance?: {
-    title?: { rawValue: string; confidence?: number };
-    date?: { rawValue: string; confidence?: number };
-    time?: { rawValue: string; confidence?: number };
-    venue?: { rawValue: string; confidence?: number };
+    title?: { rawValue: string; confidence?: number; warnings?: string[] };
+    date?: { rawValue: string; confidence?: number; warnings?: string[] };
+    time?: { rawValue: string; confidence?: number; warnings?: string[] };
+    venue?: { rawValue: string; confidence?: number; warnings?: string[] };
+    venueExtracted?: { rawValue: string; confidence?: number; warnings?: string[] };
+    performerLineup?: { rawValue: string; normalizedValue?: string[]; confidence?: number; warnings?: string[] };
     bands?: { rawValue: string; confidence?: number }[];
     genres?: { rawValue: string; confidence?: number }[];
     ticketUrl?: { rawValue: string; confidence?: number };
@@ -677,8 +712,11 @@ export interface PublishCandidatePayload {
   date: string;
   time: string;
   venueId?: string;
+  venueName?: string;
   bandIds: string[];
+  bandNames?: string[];
   genreIds: string[];
+  genre?: string;
   notes?: string;
   reviewDurationMs: number;
 }
