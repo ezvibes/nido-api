@@ -1,3 +1,4 @@
+import { IngestionTasksDispatcherService } from './services/ingestion-tasks-dispatcher.service';
 import {
   BadRequestException,
   ConflictException,
@@ -11,13 +12,14 @@ import { Storage } from '@google-cloud/storage';
 import { randomUUID } from 'crypto';
 import { readFileSync } from 'fs';
 import { extname } from 'path';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Response } from 'express';
 import { CreateIngestionUploadDto } from './dto/create-ingestion-upload.dto';
 import { ReviewConcertUploadDto } from './dto/review-concert-upload.dto';
 import { IngestionJob } from './entities/ingestion-job.entity';
 import { ConcertUpload } from './entities/concert-upload.entity';
+import { IngestionOutbox } from './entities/ingestion-outbox.entity';
 import { IngestionStage } from './interfaces/ingestion-enums';
 import { IngestionJobResponse } from './interfaces/ingestion-job-response.interface';
 import { IngestionUploadResult } from './interfaces/ingestion-upload-result.interface';
@@ -29,6 +31,10 @@ import { UploadableFile } from './interfaces/uploadable-file.interface';
 import { Concert } from '../apis/concerts/entities/concert.entity';
 import { VenueService } from '../apis/venues/venue.service';
 import { BandService } from '../apis/bands/band.service';
+import { IngestionStateMachineService } from './services/ingestion-state-machine.service';
+import { GeminiExtractionAdapter } from './services/extraction/gemini-extraction.adapter';
+import { ExtractionHints } from './services/extraction/iextraction.adapter';
+import { IngestionCandidate } from './entities/ingestion-candidate.entity';
 import {
   ConcertBandLineup,
   PerformanceRole,
@@ -52,6 +58,10 @@ export class IngestionService {
     private readonly concertRepository: Repository<Concert>,
     private readonly venueService: VenueService,
     private readonly bandService: BandService,
+    private readonly stateMachine: IngestionStateMachineService,
+    private readonly tasksDispatcher: IngestionTasksDispatcherService,
+    private readonly extractor: GeminiExtractionAdapter,
+    private readonly dataSource: DataSource,
   ) {
     this.bucketName =
       this.configService.get<string>('GCS_INGESTION_BUCKET')?.trim() ||
@@ -322,18 +332,42 @@ export class IngestionService {
       );
     }
 
-    const ingestionJob = await this.ingestionJobRepository.save(
-      this.ingestionJobRepository.create({
-        concertUploadId: concertUpload.id,
-        status: 'queued',
-        stage: IngestionStage.QUEUED,
-        idempotencyKey: concertUpload.id,
-        ocrProvider: this.defaultOcrProvider,
-        parserVersion: this.parserVersion,
-      }),
-    );
+    // Atomically persist both IngestionJob and IngestionOutbox in a single transaction
+    const ingestionJob = await this.dataSource.transaction(async (manager) => {
+      const job = await manager.save(
+        manager.create(IngestionJob, {
+          concertUploadId: concertUpload.id,
+          status: 'queued',
+          stage: IngestionStage.QUEUED,
+          idempotencyKey: concertUpload.id,
+          ocrProvider: this.defaultOcrProvider,
+          parserVersion: this.parserVersion,
+        }),
+      );
 
-    void this.runJobSkeleton(ingestionJob.id);
+      const outbox = manager.create(IngestionOutbox, {
+        jobId: job.id,
+        destination: 'ingestion_worker',
+        payload: { jobId: job.id },
+        status: 'pending',
+      });
+      await manager.save(outbox);
+
+      return job;
+    });
+
+    // Attempt async Cloud Tasks dispatch; if disabled or unconfigured, execute in-process fallback
+    const dispatched = await this.tasksDispatcher.dispatchJob(ingestionJob.id);
+    if (!dispatched) {
+      this.logger.log(
+        `Async queue dispatch inactive for job ${ingestionJob.id}; executing synchronous in-process fallback`,
+      );
+      void this.runExtractionPipeline(ingestionJob.id).catch((err) => {
+        this.logger.error(
+          `Synchronous extraction fallback error for job ${ingestionJob.id}: ${err.message}`,
+        );
+      });
+    }
 
     return this.mapJobResponse(
       Object.assign(new IngestionJob(), {
@@ -731,6 +765,172 @@ export class IngestionService {
     };
   }
 
+  public async runExtractionPipeline(jobId: string) {
+    try {
+      // Load job & upload
+      const job = await this.ingestionJobRepository.findOne({
+        where: { id: jobId },
+        relations: { concertUpload: true },
+      });
+
+      if (!job) return;
+
+      const upload = job.concertUpload;
+
+      if (job.stage !== IngestionStage.QUEUED && job.stage !== IngestionStage.ASSET_VALIDATED) {
+        return; // Idempotency: skip if already extracted or further along
+      }
+
+      // Validation state
+      await this.stateMachine.transitionTo(
+        jobId,
+        IngestionStage.ASSET_VALIDATED,
+      );
+
+      // OCR/Extraction state
+      const hints = {
+        bandId: upload.bandId ?? undefined,
+        venueId: upload.venueId ?? undefined,
+        date: upload.concertDate
+          ? upload.concertDate.toISOString().slice(0, 10)
+          : undefined,
+        genre: upload.genre ?? undefined,
+      };
+
+      const extractionResults = await this.extractor.extract(
+        upload.storageUri,
+        upload.mimeType,
+        hints,
+      );
+
+      await this.stateMachine.transitionTo(
+        jobId,
+        IngestionStage.EXTRACTION_COMPLETED,
+      );
+
+      // Map to candidates
+      const candidatesData: Partial<IngestionCandidate>[] = [];
+      for (let idx = 0; idx < extractionResults.length; idx++) {
+        const result = extractionResults[idx];
+
+        // Catalog matching
+        let suggestedVenueId: string | null = null;
+        if (result.venue && result.venue.name) {
+          const venues = await this.venueService.findAll();
+          const matchedVenues = venues.filter((v) =>
+            v.name.toLowerCase().includes(result.venue!.name.toLowerCase()),
+          );
+          if (matchedVenues.length > 0) {
+            suggestedVenueId = matchedVenues[0].id;
+          }
+        }
+
+        let suggestedBandIds: string[] = [];
+        if (result.performers && result.performers.length > 0) {
+          for (const p of result.performers) {
+            const bands = await this.bandService.findAll({ q: p.name });
+            if (bands && bands.length > 0) {
+              suggestedBandIds.push(bands[0].id);
+            }
+          }
+        }
+
+        candidatesData.push({
+          candidateIndex: idx,
+          status: 'pending',
+          suggestedVenueId: suggestedVenueId || null,
+          suggestedBandIds: suggestedBandIds.length > 0 ? suggestedBandIds : null,
+          provenance: {
+            title: {
+              rawValue: result.title,
+              source: 'extraction',
+              confidence: 0.9,
+            },
+            date:
+              result.dates && result.dates[0]
+                ? {
+                    rawValue: result.dates[0].date,
+                    source: 'extraction',
+                    confidence: 0.9,
+                    warnings: result.dates[0].warning
+                      ? [result.dates[0].warning]
+                      : undefined,
+                  }
+                : undefined,
+            time:
+              result.dates && result.dates[0] && result.dates[0].startTime
+                ? {
+                    rawValue: result.dates[0].startTime,
+                    source: 'extraction',
+                    confidence: 0.9,
+                  }
+                : undefined,
+            timezone:
+              result.dates && result.dates[0] && result.dates[0].timezone
+                ? {
+                    rawValue: result.dates[0].timezone,
+                    source: 'extraction',
+                    confidence: 0.9,
+                  }
+                : undefined,
+            venueExtracted: result.venue
+              ? {
+                  rawValue: result.venue.name,
+                  normalizedValue: result.venue,
+                  source: 'extraction',
+                  confidence: 0.9,
+                }
+              : undefined,
+            performerLineup: result.performers
+              ? {
+                  rawValue: result.performers
+                    .map((p: any) => p.name)
+                    .join(', '),
+                  normalizedValue: result.performers,
+                  source: 'extraction',
+                  confidence: 0.9,
+                }
+              : undefined,
+            genres: result.genre
+              ? {
+                  rawValue: result.genre,
+                  source: 'extraction',
+                  confidence: 0.9,
+                }
+              : undefined,
+          } as any,
+        });
+      }
+
+      await this.stateMachine.persistCandidates(jobId, candidatesData);
+
+      await this.stateMachine.transitionTo(
+        jobId,
+        IngestionStage.MATCHES_PROPOSED,
+      );
+
+      // Final Needs Review
+      await this.stateMachine.transitionTo(jobId, IngestionStage.NEEDS_REVIEW);
+
+      await this.ingestionJobRepository.update(jobId, {
+        status: 'needs_review',
+        ocrProvider: 'gemini-2.5-flash',
+        ocrConfidence: 0.9,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Unknown ingestion pipeline error';
+      await this.ingestionJobRepository.update(jobId, {
+        status: 'retryable_failure',
+        stage: IngestionStage.QUEUED,
+        errorMessage,
+      });
+      throw error;
+    }
+  }
+
   private async runJobSkeleton(jobId: string) {
     try {
       await this.delay(25);
@@ -884,10 +1084,4 @@ export class IngestionService {
       posterUrl: `/ingestion/uploads/${concertUpload.id}/image`,
     };
   }
-
-
-  async runExtractionPipeline(jobId: string) {
-    // mock function to satisfy new test dependencies in origin/main
-  }
-
 }
