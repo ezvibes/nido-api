@@ -6,6 +6,13 @@ describe('AdminIngestionController', () => {
     adminReviewConcertUpload: jest.fn(),
     adminStreamUploadImage: jest.fn(),
   };
+  const ingestionPublicationService = {
+    listCandidates: jest.fn(),
+    getCandidate: jest.fn(),
+    publishCandidate: jest.fn(),
+    handleDuplicateDecision: jest.fn(),
+    rejectCandidate: jest.fn(),
+  };
   const userService = {
     syncFromToken: jest.fn(),
   };
@@ -16,6 +23,7 @@ describe('AdminIngestionController', () => {
     jest.clearAllMocks();
     controller = new AdminIngestionController(
       ingestionService as any,
+      ingestionPublicationService as any,
       userService as any,
     );
   });
@@ -69,5 +77,86 @@ describe('AdminIngestionController', () => {
       'upload-1',
       res,
     );
+  });
+
+  it('should list candidates with parsed pagination and status', async () => {
+    ingestionPublicationService.listCandidates.mockResolvedValue({
+      total: 1,
+      items: [{ id: 'cand-1' }],
+    });
+
+    const result = await controller.listCandidates('pending', '10', '0');
+
+    expect(ingestionPublicationService.listCandidates).toHaveBeenCalledWith({
+      status: 'pending',
+      limit: 10,
+      offset: 0,
+    });
+    expect(result.total).toBe(1);
+  });
+
+  it('should get candidate details and probable duplicates', async () => {
+    ingestionPublicationService.getCandidate.mockResolvedValue({
+      candidate: { id: 'cand-1' },
+      probableDuplicates: [],
+    });
+
+    const result = await controller.getCandidate('cand-1');
+
+    expect(ingestionPublicationService.getCandidate).toHaveBeenCalledWith('cand-1');
+    expect(result.candidate.id).toBe('cand-1');
+  });
+
+  it('should publish a candidate using reviewer profile id', async () => {
+    userService.syncFromToken.mockResolvedValue({ id: 42 });
+    ingestionPublicationService.publishCandidate.mockResolvedValue({
+      publishedConcertId: 'concert-100',
+    });
+
+    const body = {
+      title: 'Doctor S',
+      date: '2026-11-07',
+      time: '20:00',
+      bandIds: ['band-1'],
+      genreIds: ['genre-1'],
+      reviewDurationMs: 14000,
+    };
+
+    const result = await controller.publishCandidate('cand-1', body as any, { uid: 'admin-user' } as any);
+
+    expect(userService.syncFromToken).toHaveBeenCalledWith({ uid: 'admin-user' });
+    expect(ingestionPublicationService.publishCandidate).toHaveBeenCalledWith('cand-1', body, 42);
+    expect(result.publishedConcertId).toBe('concert-100');
+  });
+
+  it('should handle duplicate decision with reviewer profile id', async () => {
+    userService.syncFromToken.mockResolvedValue({ id: 42 });
+    ingestionPublicationService.handleDuplicateDecision.mockResolvedValue({
+      publishedConcertId: 'concert-existing',
+      status: 'published',
+    });
+
+    const body = {
+      decision: 'link' as const,
+      targetConcertId: 'concert-existing',
+      reviewDurationMs: 12000,
+    };
+
+    const result = await controller.handleDuplicateDecision('cand-1', body as any, { uid: 'admin-user' } as any);
+
+    expect(ingestionPublicationService.handleDuplicateDecision).toHaveBeenCalledWith('cand-1', body, 42);
+    expect(result.status).toBe('published');
+  });
+
+  it('should reject a candidate with reviewer profile id', async () => {
+    userService.syncFromToken.mockResolvedValue({ id: 42 });
+    ingestionPublicationService.rejectCandidate.mockResolvedValue({
+      status: 'rejected',
+    });
+
+    const result = await controller.rejectCandidate('cand-1', { reason: 'not a concert' }, { uid: 'admin-user' } as any);
+
+    expect(ingestionPublicationService.rejectCandidate).toHaveBeenCalledWith('cand-1', 'not a concert', 42);
+    expect(result.status).toBe('rejected');
   });
 });

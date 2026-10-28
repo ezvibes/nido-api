@@ -1,0 +1,384 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { DataSource, Repository, EntityManager } from 'typeorm';
+import { IngestionCandidate } from '../entities/ingestion-candidate.entity';
+import { IngestionJob } from '../entities/ingestion-job.entity';
+import { ConcertUpload } from '../entities/concert-upload.entity';
+import { Concert, ConcertCatalogStatus } from '../../apis/concerts/entities/concert.entity';
+import { ConcertBandLineup, PerformanceRole } from '../../apis/concerts/entities/concert-band-lineup.entity';
+import { ConcertSet } from '../../apis/concerts/entities/concert-set.entity';
+import { IngestionStage } from '../interfaces/ingestion-enums';
+import { InjectRepository } from '@nestjs/typeorm';
+
+export interface PublishCandidateDto {
+  title: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  venueId?: string;
+  bandIds: string[];
+  genreIds: string[];
+  notes?: string;
+  reviewDurationMs: number;
+}
+
+export interface DuplicateDecisionDto {
+  decision: 'link' | 'merge' | 'publish_separately' | 'reject';
+  targetConcertId?: string; // required for link and merge
+  publishData?: PublishCandidateDto; // required for publish_separately or merge
+  reviewDurationMs: number;
+  rejectReason?: string;
+}
+
+@Injectable()
+export class IngestionPublicationService {
+  private readonly logger = new Logger(IngestionPublicationService.name);
+
+  constructor(
+    private readonly dataSource: DataSource,
+  ) {}
+
+  async publishCandidate(
+    candidateId: string,
+    dto: PublishCandidateDto,
+    reviewedByUserId: number,
+  ): Promise<{ publishedConcertId: string }> {
+    return this.dataSource.transaction(async (manager) => {
+      const candidate = await this.lockCandidate(manager, candidateId);
+
+      if (candidate.status === 'published' && candidate.publishedConcertId) {
+        return { publishedConcertId: candidate.publishedConcertId };
+      }
+
+      if (candidate.status !== 'pending') {
+        throw new ConflictException(`Candidate ${candidateId} cannot be published, status is ${candidate.status}`);
+      }
+
+      const job = await manager.findOne(IngestionJob, {
+        where: { id: candidate.ingestionJobId },
+        relations: { concertUpload: true },
+      });
+      if (!job) {
+         throw new NotFoundException(`Job for candidate ${candidateId} not found`);
+      }
+
+      const startsAt = new Date(`${dto.date}T${dto.time}:00Z`);
+
+      // 3. Create canonical Concert entity
+      const concertRepository = manager.getRepository(Concert);
+
+      const newConcert = concertRepository.create({
+        owner: { id: job.concertUpload?.uploadedByUserId || reviewedByUserId } as any, // requested by code review
+        title: dto.title,
+        genre: 'Live Music', // We don't have a genre table relation here, normally it's a string, we might need mapping
+        venue: dto.venueId ? { id: dto.venueId } as any : null,
+        startsAt,
+        catalogStatus: ConcertCatalogStatus.ACTIVE,
+        isAdminApproved: true,
+        version: 1,
+      });
+      const savedConcert = await concertRepository.save(newConcert);
+
+      // Create lineup
+      if (dto.bandIds && dto.bandIds.length > 0) {
+        const lineupRepo = manager.getRepository(ConcertBandLineup);
+        const lineups = dto.bandIds.map((bandId, index) => {
+           return lineupRepo.create({
+             concertId: savedConcert.id,
+             bandId: bandId,
+             performanceOrder: index,
+             performanceRole: index === 0 ? PerformanceRole.HEADLINER : PerformanceRole.SUPPORT,
+           });
+        });
+        await lineupRepo.save(lineups);
+      }
+
+      // Update Candidate (reviewAudit requested by Code Review)
+      candidate.status = 'published';
+      candidate.publishedConcertId = savedConcert.id;
+      if (!candidate.provenance) candidate.provenance = {};
+      (candidate.provenance as any).reviewAudit = {
+         reviewDurationMs: dto.reviewDurationMs,
+         reviewedAt: new Date().toISOString(),
+         reviewedByUserId
+      };
+      await manager.save(candidate);
+
+      // Update Upload
+      if (job.concertUpload) {
+         job.concertUpload.reviewStatus = 'approved';
+         job.concertUpload.reviewNotes = dto.notes;
+         job.concertUpload.reviewedAt = new Date();
+         job.concertUpload.reviewedByUserId = reviewedByUserId;
+         job.concertUpload.concertId = savedConcert.id; // Link poster image
+         await manager.save(job.concertUpload);
+      }
+
+      // Update Job
+      job.stage = IngestionStage.COMPLETED;
+      job.status = IngestionStage.COMPLETED;
+      await manager.save(job);
+
+      return { publishedConcertId: savedConcert.id };
+    });
+  }
+
+  private async lockCandidate(manager: EntityManager, candidateId: string): Promise<IngestionCandidate> {
+    const candidate = await manager.findOne(IngestionCandidate, {
+      where: { id: candidateId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!candidate) {
+      throw new NotFoundException(`Candidate ${candidateId} not found`);
+    }
+    return candidate;
+  }
+
+  async handleDuplicateDecision(
+    candidateId: string,
+    dto: DuplicateDecisionDto,
+    reviewedByUserId: number,
+  ): Promise<{ publishedConcertId?: string; status: string }> {
+    return this.dataSource.transaction(async (manager) => {
+      const candidate = await this.lockCandidate(manager, candidateId);
+
+      if (candidate.status !== 'pending') {
+        throw new ConflictException(`Candidate ${candidateId} cannot be modified, status is ${candidate.status}`);
+      }
+
+      const job = await manager.findOne(IngestionJob, {
+        where: { id: candidate.ingestionJobId },
+        relations: { concertUpload: true },
+      });
+      if (!job) {
+         throw new NotFoundException(`Job for candidate ${candidateId} not found`);
+      }
+
+      if (dto.decision === 'reject') {
+        candidate.status = 'rejected';
+        if (!candidate.provenance) candidate.provenance = {};
+        (candidate.provenance as any).reviewAudit = {
+           reviewDurationMs: dto.reviewDurationMs,
+           rejectReason: dto.rejectReason,
+           reviewedAt: new Date().toISOString(),
+           reviewedByUserId
+        };
+        await manager.save(candidate);
+
+        if (job.concertUpload) {
+           job.concertUpload.reviewStatus = 'rejected';
+           job.concertUpload.reviewNotes = dto.rejectReason;
+           job.concertUpload.reviewedAt = new Date();
+           job.concertUpload.reviewedByUserId = reviewedByUserId;
+           await manager.save(job.concertUpload);
+        }
+
+        job.stage = IngestionStage.COMPLETED;
+        job.status = IngestionStage.COMPLETED;
+        await manager.save(job);
+
+        return { status: 'rejected' };
+      }
+
+      if (dto.decision === 'link' || dto.decision === 'merge') {
+        if (!dto.targetConcertId) {
+           throw new BadRequestException('targetConcertId is required for link or merge');
+        }
+
+        const concert = await manager.findOne(Concert, { where: { id: dto.targetConcertId } });
+        if (!concert) {
+           throw new NotFoundException(`Target concert ${dto.targetConcertId} not found`);
+        }
+
+        if (dto.decision === 'merge' && dto.publishData) {
+            // merge data into concert requested by Code review
+            const startsAt = new Date(`${dto.publishData.date}T${dto.publishData.time}:00Z`);
+            concert.title = dto.publishData.title || concert.title;
+            concert.startsAt = startsAt || concert.startsAt;
+            if (dto.publishData.venueId) {
+                concert.venue = { id: dto.publishData.venueId } as any;
+            }
+            await manager.save(concert);
+
+            // Re-create lineup
+            if (dto.publishData.bandIds && dto.publishData.bandIds.length > 0) {
+              const lineupRepo = manager.getRepository(ConcertBandLineup);
+              await lineupRepo.delete({ concertId: concert.id });
+              const lineups = dto.publishData.bandIds.map((bandId, index) => {
+                 return lineupRepo.create({
+                   concertId: concert.id,
+                   bandId: bandId,
+                   performanceOrder: index,
+                   performanceRole: index === 0 ? PerformanceRole.HEADLINER : PerformanceRole.SUPPORT,
+                 });
+              });
+              await lineupRepo.save(lineups);
+            }
+        }
+
+        candidate.status = 'published';
+        candidate.publishedConcertId = concert.id;
+        if (!candidate.provenance) candidate.provenance = {};
+        (candidate.provenance as any).reviewAudit = {
+           reviewDurationMs: dto.reviewDurationMs,
+           decision: dto.decision,
+           reviewedAt: new Date().toISOString(),
+           reviewedByUserId
+        };
+        await manager.save(candidate);
+
+        if (job.concertUpload) {
+           job.concertUpload.reviewStatus = 'approved';
+           job.concertUpload.reviewedAt = new Date();
+           job.concertUpload.reviewedByUserId = reviewedByUserId;
+           job.concertUpload.concertId = concert.id;
+           await manager.save(job.concertUpload);
+        }
+
+        job.stage = IngestionStage.COMPLETED;
+        job.status = IngestionStage.COMPLETED;
+        await manager.save(job);
+
+        return { publishedConcertId: concert.id, status: 'published' };
+      }
+
+      if (dto.decision === 'publish_separately') {
+        if (!dto.publishData) {
+           throw new BadRequestException('publishData is required for publish_separately');
+        }
+        const { publishedConcertId } = await this.publishCandidate(candidateId, dto.publishData, reviewedByUserId);
+        return { publishedConcertId, status: 'published' };
+      }
+
+      throw new BadRequestException(`Invalid decision ${dto.decision}`);
+    });
+  }
+
+  async rejectCandidate(
+    candidateId: string,
+    reason: string,
+    reviewedByUserId: number,
+  ): Promise<{ status: string }> {
+     return this.handleDuplicateDecision(candidateId, { decision: 'reject', rejectReason: reason, reviewDurationMs: 0 }, reviewedByUserId);
+  }
+
+  async listCandidates(options: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ items: any[]; total: number }> {
+    const candidateRepo = this.dataSource.getRepository(IngestionCandidate);
+    const query = candidateRepo.createQueryBuilder('candidate')
+      .leftJoinAndSelect('candidate.ingestionJob', 'job')
+      .leftJoinAndSelect('job.concertUpload', 'upload')
+      .leftJoinAndSelect('upload.uploadedByUser', 'uploader')
+      .orderBy('candidate.createdAt', 'DESC')
+      .take(options.limit ?? 50)
+      .skip(options.offset ?? 0);
+
+    if (options.status && options.status !== 'all') {
+      query.andWhere('candidate.status = :status', { status: options.status });
+    }
+
+    const [items, total] = await query.getManyAndCount();
+    return {
+      total,
+      items: items.map((c) => ({
+        id: c.id,
+        status: c.status,
+        candidateIndex: c.candidateIndex,
+        ingestionJobId: c.ingestionJobId,
+        publishedConcertId: c.publishedConcertId,
+        provenance: c.provenance,
+        suggestedVenueId: c.suggestedVenueId,
+        suggestedBandIds: c.suggestedBandIds,
+        suggestedGenreIds: c.suggestedGenreIds,
+        createdAt: c.createdAt,
+        upload: c.ingestionJob?.concertUpload
+          ? {
+              id: c.ingestionJob.concertUpload.id,
+              originalFilename: c.ingestionJob.concertUpload.originalFilename,
+              city: c.ingestionJob.concertUpload.city,
+              state: c.ingestionJob.concertUpload.state,
+              uploadedByUid: c.ingestionJob.concertUpload.uploadedByUid,
+              uploadedByUserEmail: c.ingestionJob.concertUpload.uploadedByUser?.email,
+              createdAt: c.ingestionJob.concertUpload.createdAt,
+              posterUrl: `/admin/ingestion/uploads/${c.ingestionJob.concertUpload.id}/image`,
+            }
+          : null,
+      })),
+    };
+  }
+
+  async getCandidate(candidateId: string): Promise<any> {
+    const candidateRepo = this.dataSource.getRepository(IngestionCandidate);
+    const candidate = await candidateRepo.findOne({
+      where: { id: candidateId },
+      relations: {
+        ingestionJob: {
+          concertUpload: {
+            uploadedByUser: true,
+          },
+        },
+      },
+    });
+
+    if (!candidate) {
+      throw new NotFoundException(`Candidate ${candidateId} not found`);
+    }
+
+    // Search for probable duplicates in Concert catalog
+    const concertRepo = this.dataSource.getRepository(Concert);
+    let probableDuplicates: Concert[] = [];
+
+    const extractedDate = candidate.provenance?.date?.rawValue;
+    if (extractedDate) {
+      const parsedDate = new Date(extractedDate);
+      if (!isNaN(parsedDate.getTime())) {
+        const startDay = new Date(parsedDate);
+        startDay.setUTCHours(0, 0, 0, 0);
+        const endDay = new Date(parsedDate);
+        endDay.setUTCHours(23, 59, 59, 999);
+
+        const dupQuery = concertRepo.createQueryBuilder('concert')
+          .leftJoinAndSelect('concert.venue', 'venue')
+          .leftJoinAndSelect('concert.lineup', 'lineup')
+          .where('concert.startsAt BETWEEN :startDay AND :endDay', { startDay, endDay });
+
+        if (candidate.suggestedVenueId) {
+          dupQuery.orWhere(
+            'concert.venueId = :venueId AND concert.startsAt BETWEEN :rangeStart AND :rangeEnd',
+            {
+              venueId: candidate.suggestedVenueId,
+              rangeStart: new Date(startDay.getTime() - 24 * 60 * 60 * 1000),
+              rangeEnd: new Date(endDay.getTime() + 24 * 60 * 60 * 1000),
+            },
+          );
+        }
+
+        probableDuplicates = await dupQuery.take(5).getMany();
+      }
+    }
+
+    return {
+      candidate,
+      probableDuplicates,
+      upload: candidate.ingestionJob?.concertUpload
+        ? {
+            id: candidate.ingestionJob.concertUpload.id,
+            originalFilename: candidate.ingestionJob.concertUpload.originalFilename,
+            city: candidate.ingestionJob.concertUpload.city,
+            state: candidate.ingestionJob.concertUpload.state,
+            uploadedByUid: candidate.ingestionJob.concertUpload.uploadedByUid,
+            uploadedByUserEmail: candidate.ingestionJob.concertUpload.uploadedByUser?.email,
+            createdAt: candidate.ingestionJob.concertUpload.createdAt,
+            posterUrl: `/admin/ingestion/uploads/${candidate.ingestionJob.concertUpload.id}/image`,
+          }
+        : null,
+    };
+  }
+}

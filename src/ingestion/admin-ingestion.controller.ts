@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Post,
   Put,
   Query,
   Res,
@@ -29,6 +30,12 @@ import {
   AdminConcertUploadResponseDto,
 } from './dto/ingestion-response.dto';
 import { IngestionService } from './ingestion.service';
+import { IngestionPublicationService } from './services/ingestion-publication.service';
+import {
+  PublishCandidateDto,
+  DuplicateDecisionDto,
+  RejectCandidateDto,
+} from './dto/publication-decision.dto';
 
 @Controller('admin/ingestion')
 @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
@@ -37,6 +44,7 @@ import { IngestionService } from './ingestion.service';
 export class AdminIngestionController {
   constructor(
     private readonly ingestionService: IngestionService,
+    private readonly ingestionPublicationService: IngestionPublicationService,
     private readonly userService: UserService,
   ) {}
 
@@ -129,5 +137,78 @@ export class AdminIngestionController {
   })
   async streamUploadImage(@Param('id') id: string, @Res() res: Response) {
     return this.ingestionService.adminStreamUploadImage(id, res);
+  }
+
+  @Get('candidates')
+  @ApiOperation({
+    summary: 'List extracted show candidates for admin review',
+    description: 'Admin queue of extracted concert candidates with priority and provenance.',
+  })
+  @ApiQuery({ name: 'status', required: false, example: 'pending' })
+  @ApiQuery({ name: 'limit', required: false, example: 50 })
+  @ApiQuery({ name: 'offset', required: false, example: 0 })
+  async listCandidates(
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const parsedLimit = limit ? Number(limit) : undefined;
+    const parsedOffset = offset ? Number(offset) : undefined;
+    return this.ingestionPublicationService.listCandidates({
+      status,
+      limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+      offset: Number.isFinite(parsedOffset) ? parsedOffset : undefined,
+    });
+  }
+
+  @Get('candidates/:id')
+  @ApiOperation({
+    summary: 'Get details for a single candidate including probable duplicate concerts',
+  })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async getCandidate(@Param('id') id: string) {
+    return this.ingestionPublicationService.getCandidate(id);
+  }
+
+  @Post('candidates/:id/publish')
+  @ApiOperation({
+    summary: 'Approve and publish an extracted show candidate to the canonical concert catalog',
+  })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async publishCandidate(
+    @Param('id') id: string,
+    @Body() body: PublishCandidateDto,
+    @CurrentUser() user: DecodedIdToken,
+  ) {
+    const profile = await this.userService.syncFromToken(user);
+    return this.ingestionPublicationService.publishCandidate(id, body, profile.id);
+  }
+
+  @Post('candidates/:id/duplicate-decision')
+  @ApiOperation({
+    summary: 'Resolve a probable duplicate decision (link, merge, publish_separately, or reject)',
+  })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async handleDuplicateDecision(
+    @Param('id') id: string,
+    @Body() body: DuplicateDecisionDto,
+    @CurrentUser() user: DecodedIdToken,
+  ) {
+    const profile = await this.userService.syncFromToken(user);
+    return this.ingestionPublicationService.handleDuplicateDecision(id, body, profile.id);
+  }
+
+  @Post('candidates/:id/reject')
+  @ApiOperation({
+    summary: 'Reject an extracted show candidate',
+  })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async rejectCandidate(
+    @Param('id') id: string,
+    @Body() body: RejectCandidateDto,
+    @CurrentUser() user: DecodedIdToken,
+  ) {
+    const profile = await this.userService.syncFromToken(user);
+    return this.ingestionPublicationService.rejectCandidate(id, body.reason, profile.id);
   }
 }
