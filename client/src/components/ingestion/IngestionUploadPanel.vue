@@ -177,6 +177,12 @@
           >
             View on Concert Calendar →
           </a>
+          <router-link
+            to="/my-submissions"
+            class="ingestion-panel__submissions-link"
+          >
+            View my poster submissions →
+          </router-link>
           <button
             v-if="contributorStatusKey === 'failed' && activeUploadId"
             type="button"
@@ -222,60 +228,6 @@
           <dd>{{ uploadLocation }}</dd>
         </div>
       </dl>
-    </div>
-
-    <div v-if="recentSubmissions.length > 0" class="ingestion-submissions-history">
-      <div class="ingestion-submissions-history__header">
-        <h3 class="ingestion-submissions-history__title">My Poster Submissions</h3>
-        <button
-          type="button"
-          class="ingestion-submissions-history__refresh"
-          :disabled="submissionsLoading"
-          @click="loadMySubmissions"
-        >
-          {{ submissionsLoading ? 'Refreshing…' : 'Refresh status' }}
-        </button>
-      </div>
-      <div class="ingestion-submissions-history__list">
-        <div
-          v-for="item in recentSubmissions"
-          :key="item.id"
-          class="ingestion-submission-row"
-        >
-          <div class="ingestion-submission-row__main">
-            <div class="ingestion-submission-row__title">
-              <strong>{{ getSubmissionTitle(item) }}</strong>
-              <span :class="['ingestion-status-pill', `ingestion-status-pill--${getJobStatusKey(item)}`]">
-                {{ getJobStatusLabel(item) }}
-              </span>
-            </div>
-            <p class="ingestion-submission-row__meta">
-              {{ getSubmissionMeta(item) }}
-            </p>
-            <p class="ingestion-submission-row__next">
-              {{ getJobNextStepCopy(item) }}
-            </p>
-          </div>
-          <div class="ingestion-submission-row__actions">
-            <a
-              v-if="getPublishedConcertIdForJob(item)"
-              href="/concerts"
-              class="ingestion-panel__calendar-link"
-            >
-              View Live Show →
-            </a>
-            <button
-              v-else-if="getJobStatusKey(item) === 'failed' && item.concertUpload?.id"
-              type="button"
-              class="ingestion-panel__retry-btn"
-              :disabled="isRetrying"
-              @click="handleRetry(item.concertUpload.id)"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   </section>
 </template>
@@ -663,32 +615,6 @@ const loadMySubmissions = async () => {
   }
 };
 
-const getPublishedConcertIdForJob = (item: IngestionJobResponse) => {
-  const fromCand = item.candidates?.find((c) => c.publishedConcertId)?.publishedConcertId;
-  return fromCand || item.concertUpload?.concertId || null;
-};
-
-const getSubmissionTitle = (item: IngestionJobResponse) => {
-  const candTitle = item.candidates?.[0]?.title;
-  return candTitle || item.concertUpload?.originalFilename || 'Concert Poster';
-};
-
-const getSubmissionMeta = (item: IngestionJobResponse) => {
-  const firstCand = item.candidates?.[0];
-  const parts: string[] = [];
-  if (firstCand?.venueName) {
-    parts.push(firstCand.venueName);
-  } else if (item.concertUpload?.city) {
-    parts.push([item.concertUpload.city, item.concertUpload.state].filter(Boolean).join(', '));
-  }
-  if (firstCand?.date) {
-    parts.push(formatSummaryDate(firstCand.date));
-  }
-  if (item.candidates && item.candidates.length > 1) {
-    parts.push(`${item.candidates.length} shows found on poster`);
-  }
-  return parts.join(' · ') || 'Submitted poster graphic';
-};
 
 onMounted(() => {
   void loadGenres();
@@ -794,12 +720,12 @@ const refreshJob = async () => {
 };
 
 const pollJobStatus = async () => {
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
     await refreshJob();
     if (job.value && !IN_FLIGHT_JOB_STATUSES.includes(job.value.status)) {
       return;
     }
-    await new Promise((resolve) => window.setTimeout(resolve, 150));
+    await new Promise((resolve) => window.setTimeout(resolve, 1000));
   }
 };
 
@@ -811,7 +737,8 @@ const handleRetry = async (targetUploadId: string) => {
   message.value = '';
   try {
     const token = await user.value.getIdToken();
-    job.value = await createIngestionJob(token, targetUploadId);
+    const newJob = await createIngestionJob(token, targetUploadId);
+    job.value = newJob;
     messageType.value = 'success';
     message.value = 'Retrying poster extraction…';
     await pollJobStatus();
@@ -1313,6 +1240,23 @@ const handleSubmit = async () => {
   font-size: 0.82rem;
   font-weight: 700;
   text-decoration: none;
+}
+
+.ingestion-panel__submissions-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.ingestion-panel__submissions-link:hover {
+  background: #e2e8f0;
+  color: var(--accent);
 }
 
 .ingestion-panel__retry-btn {

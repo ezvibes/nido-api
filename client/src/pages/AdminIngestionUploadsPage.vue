@@ -49,10 +49,6 @@
           <div class="stats-card__label stats-card__label--success">Approved Today</div>
           <div class="stats-card__value stats-card__value--success">{{ approvedTodayCount }} Shows</div>
         </div>
-        <div class="stats-card">
-          <div class="stats-card__label">Avg Review Time</div>
-          <div class="stats-card__value stats-card__value--white">{{ avgReviewTimeDisplay }}</div>
-        </div>
       </div>
 
       <!-- Queue Controls & Filter -->
@@ -126,7 +122,7 @@
 
         <!-- RIGHT: Interactive Review Workspace Column -->
         <div v-if="selectedCandidate" class="review-detail-column">
-          <!-- Active Header & Live Review Effort Timer -->
+          <!-- Active Header -->
           <div class="review-detail-header">
             <div>
               <div class="review-detail-header__meta">
@@ -139,12 +135,6 @@
                 </span>
               </div>
               <h3 class="review-detail-header__title">{{ showForm.title || 'Untitled Show' }}</h3>
-            </div>
-
-            <!-- Effort tracking pill -->
-            <div class="review-timer-pill" title="Review effort tracked automatically for latency SLAs">
-              <span class="review-timer-pill__label">Review Time</span>
-              <span class="review-timer-pill__time">{{ liveTimerDisplay }}</span>
             </div>
           </div>
 
@@ -751,11 +741,6 @@ let reviewStartTime = Date.now();
 let timerInterval: any = null;
 const liveTimerSeconds = ref(0);
 
-const liveTimerDisplay = computed(() => {
-  const m = Math.floor(liveTimerSeconds.value / 60);
-  const s = liveTimerSeconds.value % 60;
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}s`;
-});
 
 const startTimer = () => {
   reviewStartTime = Date.now();
@@ -806,7 +791,6 @@ const duplicateCandidatesCount = computed(() =>
   probableDuplicates.value.length > 0 ? 1 : 0,
 );
 
-const avgReviewTimeDisplay = computed(() => '34s / show');
 
 // TOKEN HELPER
 const getToken = async () => {
@@ -1549,24 +1533,28 @@ onBeforeUnmount(() => {
 
 .queue-list-column {
   display: flex;
-  flex-col: column;
+  flex-direction: column;
   gap: 0.85rem;
+  width: 100%;
 }
 
 .queue-list-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
+  padding: 0.25rem 0;
 }
 
 .queue-list-header h3 {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 800;
+  color: var(--text, #0f172a);
 }
 
 .queue-list-header__meta {
   font-size: 0.78rem;
+  font-weight: 600;
   color: var(--text-muted, #64748b);
 }
 
@@ -1574,20 +1562,25 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  max-height: calc(100vh - 240px);
+  max-height: calc(100vh - 220px);
   overflow-y: auto;
   padding-right: 0.25rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .queue-item-card {
   display: flex;
+  align-items: center;
   gap: 0.85rem;
   padding: 0.85rem;
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid var(--border, #e2e8f0);
   background: var(--surface, #ffffff);
   cursor: pointer;
   transition: all 160ms ease;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .queue-item-card:hover {
@@ -1602,8 +1595,8 @@ onBeforeUnmount(() => {
 }
 
 .queue-item-card__thumb {
-  width: 58px;
-  height: 74px;
+  width: 48px;
+  height: 64px;
   border-radius: 6px;
   background: #1e293b;
   overflow: hidden;
@@ -1620,39 +1613,46 @@ onBeforeUnmount(() => {
 }
 
 .queue-item-card__thumb-placeholder {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
 }
 
 .queue-item-card__info {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 }
 
 .queue-item-card__top {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   align-items: center;
-  margin-bottom: 0.25rem;
+  justify-content: space-between;
+  gap: 0.4rem;
 }
 
 .queue-item-card__time {
   font-size: 0.72rem;
   color: var(--text-muted, #64748b);
+  white-space: nowrap;
 }
 
 .queue-item-card__title {
   margin: 0;
-  font-size: 0.92rem;
+  font-size: 0.95rem;
   font-weight: 800;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.3;
   color: var(--text, #0f172a);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .queue-item-card__venue {
-  margin: 0.15rem 0 0;
-  font-size: 0.8rem;
+  margin: 0;
+  font-size: 0.82rem;
   color: var(--text-muted, #64748b);
   white-space: nowrap;
   overflow: hidden;
@@ -1663,7 +1663,6 @@ onBeforeUnmount(() => {
   font-size: 0.78rem;
   font-weight: 600;
   color: #475569;
-  margin-top: 0.25rem;
 }
 
 /* BADGES */

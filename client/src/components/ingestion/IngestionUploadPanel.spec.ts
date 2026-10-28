@@ -40,6 +40,13 @@ vi.mock('../../composables/useApi', () => api);
 
 enableAutoUnmount(afterEach);
 
+const routerStubs = {
+  RouterLink: {
+    props: ['to'],
+    template: '<a :href="to"><slot /></a>',
+  },
+};
+
 describe('IngestionUploadPanel', () => {
   beforeEach(() => {
     api.createIngestionJob.mockReset();
@@ -67,7 +74,7 @@ describe('IngestionUploadPanel', () => {
       genres: ['Jazz', 'other', 'Other', 'Funk'],
     });
 
-    const wrapper = mount(IngestionUploadPanel);
+    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
     await flushPromises();
 
     expect(api.fetchConcertGenres).toHaveBeenCalledWith();
@@ -99,7 +106,7 @@ describe('IngestionUploadPanel', () => {
   it('submits Other only after explicit selection and resets to empty on clear', async () => {
     api.fetchConcertGenres.mockResolvedValue({ genres: [] });
 
-    const wrapper = mount(IngestionUploadPanel);
+    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
     await flushPromises();
     const genreInput = wrapper.get<HTMLInputElement>('[role="combobox"]');
 
@@ -120,7 +127,7 @@ describe('IngestionUploadPanel', () => {
   });
 
   it('does not submit arbitrary user text', async () => {
-    const wrapper = mount(IngestionUploadPanel);
+    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
     await flushPromises();
 
     await wrapper
@@ -153,7 +160,7 @@ describe('IngestionUploadPanel', () => {
       },
     ]);
 
-    const wrapper = mount(IngestionUploadPanel);
+    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
     await flushPromises();
 
     await wrapper.get('input[aria-label="Concert date"]').setValue('2026-10-15');
@@ -177,7 +184,7 @@ describe('IngestionUploadPanel', () => {
   it('keeps upload available while genres are loading', async () => {
     api.fetchConcertGenres.mockReturnValue(new Promise(() => undefined));
 
-    const wrapper = mount(IngestionUploadPanel);
+    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
     await selectValidFile(wrapper);
 
     expect(wrapper.text()).toContain('Loading current genres…');
@@ -192,7 +199,7 @@ describe('IngestionUploadPanel', () => {
   it('keeps upload available and omits genre when the API returns no genres', async () => {
     api.fetchConcertGenres.mockResolvedValue({ genres: [] });
 
-    const wrapper = mount(IngestionUploadPanel);
+    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
     await flushPromises();
     await selectValidFile(wrapper);
 
@@ -218,7 +225,7 @@ describe('IngestionUploadPanel', () => {
   it('keeps upload available when genre loading fails', async () => {
     api.fetchConcertGenres.mockRejectedValue(new Error('metadata unavailable'));
 
-    const wrapper = mount(IngestionUploadPanel);
+    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
     await flushPromises();
     await selectValidFile(wrapper);
 
@@ -241,56 +248,17 @@ describe('IngestionUploadPanel', () => {
     );
   });
 
-  it('renders My Poster Submissions with plain-language status and live calendar link', async () => {
-    api.fetchMyIngestionSubmissions.mockResolvedValue([
-      {
-        ...buildJobResponse(),
-        id: 'job-pub-1',
-        status: 'completed',
-        candidates: [
-          {
-            id: 'cand-1',
-            candidateIndex: 0,
-            status: 'published',
-            publishedConcertId: 'concert-42',
-            title: 'Sylvan Esso at The Pour House',
-            venueName: 'The Pour House',
-            date: '2026-11-07',
-          },
-        ],
-      },
-    ]);
-
-    const wrapper = mount(IngestionUploadPanel);
+  it('shows progress and link to dedicated poster submissions view upon upload', async () => {
+    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
     await flushPromises();
 
-    expect(wrapper.text()).toContain('My Poster Submissions');
-    expect(wrapper.text()).toContain('Sylvan Esso at The Pour House');
-    expect(wrapper.text()).toContain('Published');
-    expect(wrapper.text()).toContain('View Live Show');
-  });
-
-  it('shows Needs retry and allows retrying when a job has retryable_failure status', async () => {
-    api.fetchMyIngestionSubmissions.mockResolvedValue([
-      {
-        ...buildJobResponse(),
-        id: 'job-fail-1',
-        status: 'retryable_failure',
-        errorMessage: 'Temporary extraction timeout',
-      },
-    ]);
-
-    const wrapper = mount(IngestionUploadPanel);
+    await selectValidFile(wrapper);
+    await wrapper.get('form').trigger('submit');
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Needs retry');
-    const retryBtn = wrapper.get('.ingestion-submission-row .ingestion-panel__retry-btn');
-    expect(retryBtn.text()).toBe('Retry');
-
-    await retryBtn.trigger('click');
-    await flushPromises();
-
-    expect(api.createIngestionJob).toHaveBeenCalledWith('firebase-token', 'upload-1');
+    expect(wrapper.text()).toContain('Poster uploaded! Reading show details now.');
+    const submissionsLink = wrapper.get('a[href="/my-submissions"]');
+    expect(submissionsLink.text()).toContain('View my poster submissions');
   });
 });
 

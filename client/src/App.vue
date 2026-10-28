@@ -126,6 +126,13 @@ onBeforeUnmount(() => {
                 My Concerts
               </router-link>
               <router-link
+                to="/my-submissions"
+                class="account-menu__item"
+                @click="closeMenu"
+              >
+                My Poster Submissions
+              </router-link>
+              <router-link
                 to="/concert-sync"
                 class="account-menu__item"
                 @click="closeMenu"
