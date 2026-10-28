@@ -50,4 +50,24 @@ describe('GeminiExtractionAdapter', () => {
     expect(result).toHaveLength(1);
     expect(result[0].dates![0].warning).toContain('Hint conflict');
   });
+
+  it('defaults to gemini-3.8-flash and automatically upgrades retired gemini-2.5-flash', () => {
+    expect(adapter.getModelName()).toBe('gemini-3.8-flash');
+
+    const retiredAdapter = new GeminiExtractionAdapter({
+      get: jest.fn((key: string) => {
+        if (key === 'GEMINI_MODEL') return 'gemini-2.5-flash';
+        return null;
+      }),
+    } as unknown as ConfigService);
+    expect(retiredAdapter.getModelName()).toBe('gemini-3.8-flash');
+
+    const configuredAdapter = new GeminiExtractionAdapter({
+      get: jest.fn((key: string) => {
+        if (key === 'GEMINI_MODEL') return 'gemini-3.6-flash';
+        return null;
+      }),
+    } as unknown as ConfigService);
+    expect(configuredAdapter.getModelName()).toBe('gemini-3.6-flash');
+  });
 });

@@ -5,7 +5,7 @@ Root `AGENTS.md` is the canonical Nido operating contract. Follow it first.
 Use `.agents/skills/` for reusable project workflows:
 
 - `nido-feature-flywheel`: feature implementation and PR handoff.
-- `nido-deployment-manager`: deployment, GCP/Firebase operations, rollback, and
+- `nido-deploy`: deployment, GCP/Firebase operations, Terraform CI/CD, rollback, and
   production readiness.
 - `agent-infrastructure-maintainer`: agent instruction and adapter maintenance.
 - `firenze-newsletter`: Firenze/TPS2 newsletter curation, editorial quality,

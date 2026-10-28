@@ -7,7 +7,7 @@ Use the same Nido workflow skills as Codex:
 
 - Feature work: `.agents/skills/nido-feature-flywheel/SKILL.md`
 - Deployment and GCP/Firebase work:
-  `.agents/skills/nido-deployment-manager/SKILL.md`
+  `.agents/skills/nido-deploy/SKILL.md`
 - Agent instruction maintenance:
   `.agents/skills/agent-infrastructure-maintainer/SKILL.md`
 - Firenze/TPS2 newsletter and editorial work:
