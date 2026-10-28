@@ -147,14 +147,29 @@ export class HealthService {
 
   private checkGeminiConfig(): DependencyHealth {
     const apiKey = this.hasConfig('GEMINI_API_KEY');
-    const model = this.configService.get<string>('GEMINI_MODEL')?.trim();
+    const model = this.configService
+      .get<string>('GEMINI_MODEL')
+      ?.trim()
+      ?.replace(/^models\//, '');
+    const retiredModels = new Set([
+      'gemini-1.5-flash',
+      'gemini-2.0-flash',
+      'gemini-2.5-flash',
+    ]);
+    const isModelRetired = Boolean(model && retiredModels.has(model));
+    const ok = apiKey && !isModelRetired;
 
     return {
-      status: apiKey ? 'ok' : 'degraded',
-      message: apiKey ? undefined : 'GEMINI_API_KEY is not set.',
+      status: ok ? 'ok' : 'degraded',
+      message: !apiKey
+        ? 'GEMINI_API_KEY is not set.'
+        : isModelRetired
+          ? `Configured GEMINI_MODEL "${model}" is retired; update to gemini-3.8-flash or gemini-3.6-flash.`
+          : undefined,
       details: {
         apiKeyConfigured: apiKey,
         model: model || null,
+        modelRetired: isModelRetired,
       },
     };
   }

@@ -1043,7 +1043,10 @@ export class IngestionService {
                   confidence: 0.9,
                 }
               : undefined,
-            modelName: 'gemini-2.5-flash',
+            modelName:
+              this.extractor.getModelName?.() ||
+              this.configService.get<string>('GEMINI_MODEL')?.trim() ||
+              'gemini-3.8-flash',
           } as any,
         });
       }
@@ -1060,7 +1063,10 @@ export class IngestionService {
 
       await this.ingestionJobRepository.update(jobId, {
         status: 'needs_review',
-        ocrProvider: 'gemini-2.5-flash',
+        ocrProvider:
+          this.extractor.getModelName?.() ||
+          this.configService.get<string>('GEMINI_MODEL')?.trim() ||
+          'gemini-3.8-flash',
         ocrConfidence: 0.9,
       });
     } catch (error) {

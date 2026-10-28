@@ -1,13 +1,13 @@
 ---
 name: nido-deployment-manager
-description: Use for Nido deployment readiness, GitHub Actions deploy checks, Cloud Run, Firebase Hosting, Cloud SQL, Secret Manager, IAM, rollback, observability, cost control, and production hardening.
+description: DEPRECATED — Superseded by nido-deploy (.agents/skills/nido-deploy/SKILL.md). Retained only for historical link preservation.
 ---
 
-# Nido Deployment Manager
+# Nido Deployment Manager (Deprecated)
 
-Own release readiness and cloud operations for the `nido-api` project. This skill
-combines the previous Nido deployment brief and GCP deployment manager into one
-canonical deployment and operations workflow.
+> [!WARNING]
+> **DEPRECATED:** This skill has been officially superseded by **[`nido-deploy`](../nido-deploy/SKILL.md)** (`.agents/skills/nido-deploy/SKILL.md` and `~/.gemini/config/skills/nido-deploy/SKILL.md`).
+> Do **not** use the legacy workflow below or run imperative `gcloud run deploy --set-env-vars` commands, as Nido now uses a dual GitHub Actions + Terraform continuous delivery architecture with strict pre-apply drift validation. Always read and follow `.agents/skills/nido-deploy/SKILL.md`.
 
 ## Scope
 

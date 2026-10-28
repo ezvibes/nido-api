@@ -39,7 +39,7 @@ preserving the longer-term ingestion, catalog, public API, and partner vision.
   behavior: use `.agents/skills/nido-feature-flywheel/SKILL.md`.
 - Deployment, GCP/Firebase operations, production-readiness, rollback, IAM,
   secrets, cost, and observability work: use
-  `.agents/skills/nido-deployment-manager/SKILL.md`.
+  `.agents/skills/nido-deploy/SKILL.md`.
 - Agent instruction, skill, Codex, Claude, or Antigravity workflow maintenance:
   use `.agents/skills/agent-infrastructure-maintainer/SKILL.md`.
 - Newsletter curation, prompt quality, editorial evaluation, and Beehiiv draft

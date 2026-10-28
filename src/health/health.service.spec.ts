@@ -97,4 +97,26 @@ describe('HealthService', () => {
       },
     });
   });
+
+  it('returns degraded deep health when GEMINI_MODEL is set to a retired model', async () => {
+    const service = createService({
+      env: {
+        GEMINI_MODEL: 'gemini-2.5-flash',
+      },
+    });
+
+    await expect(service.getDeepHealth()).resolves.toMatchObject({
+      status: 'degraded',
+      checks: {
+        gemini: {
+          status: 'degraded',
+          details: {
+            apiKeyConfigured: true,
+            model: 'gemini-2.5-flash',
+            modelRetired: true,
+          },
+        },
+      },
+    });
+  });
 });

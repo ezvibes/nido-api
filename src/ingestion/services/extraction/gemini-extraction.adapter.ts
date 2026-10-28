@@ -9,16 +9,47 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ConfigService } from '@nestjs/config';
 
+const DEFAULT_EXTRACTION_MODEL = 'gemini-3.8-flash';
+const FALLBACK_EXTRACTION_MODEL = 'gemini-flash-latest';
+const RETIRED_GEMINI_MODELS = new Set([
+  'gemini-1.5-flash',
+  'gemini-2.0-flash',
+  'gemini-2.5-flash',
+]);
+
 @Injectable()
 export class GeminiExtractionAdapter implements IExtractionAdapter {
   private readonly logger = new Logger(GeminiExtractionAdapter.name);
   private readonly ai: GoogleGenAI;
-  private readonly model = 'gemini-2.5-flash';
+  private readonly model: string;
 
   constructor(private readonly configService: ConfigService) {
+    const configuredModel = (
+      this.configService.get<string>('GEMINI_EXTRACTION_MODEL') ||
+      this.configService.get<string>('GEMINI_MODEL') ||
+      ''
+    )
+      .trim()
+      .replace(/^models\//, '');
+
+    if (!configuredModel || RETIRED_GEMINI_MODELS.has(configuredModel)) {
+      if (configuredModel && RETIRED_GEMINI_MODELS.has(configuredModel)) {
+        this.logger.warn(
+          `Configured Gemini model "${configuredModel}" is retired; upgrading extraction adapter to "${DEFAULT_EXTRACTION_MODEL}".`,
+        );
+      }
+      this.model = DEFAULT_EXTRACTION_MODEL;
+    } else {
+      this.model = configuredModel;
+    }
+
     this.ai = new GoogleGenAI({
       apiKey: this.configService.get<string>('GEMINI_API_KEY') || 'mock-key',
     });
+  }
+
+  getModelName(): string {
+    return this.model;
   }
 
   async extract(
@@ -67,60 +98,93 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
         },
       ];
 
-      // Note: We use basic schema implementation
-      const response = await this.ai.models.generateContent({
-        model: this.model,
-        contents: parts,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                venue: {
+      const requestConfig = {
+        responseMimeType: 'application/json',
+        // Cap thinking tokens to keep per-poster OCR fast (~2.5s) and low-cost (~$0.0002/poster)
+        thinkingConfig: {
+          thinkingBudget: 256,
+        },
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              venue: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  address: { type: Type.STRING },
+                  city: { type: Type.STRING },
+                  state: { type: Type.STRING },
+                },
+              },
+              performers: {
+                type: Type.ARRAY,
+                items: {
                   type: Type.OBJECT,
                   properties: {
                     name: { type: Type.STRING },
-                    address: { type: Type.STRING },
-                    city: { type: Type.STRING },
-                    state: { type: Type.STRING },
+                    isHeadliner: { type: Type.BOOLEAN },
                   },
                 },
-                performers: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      name: { type: Type.STRING },
-                      isHeadliner: { type: Type.BOOLEAN },
-                    },
-                  },
-                },
-                dates: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      date: { type: Type.STRING, description: 'YYYY-MM-DD' },
-                      startTime: { type: Type.STRING, description: 'HH:MM:SS' },
-                      timezone: { type: Type.STRING },
-                    },
-                  },
-                },
-                genre: { type: Type.STRING },
               },
+              dates: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    date: { type: Type.STRING, description: 'YYYY-MM-DD' },
+                    startTime: { type: Type.STRING, description: 'HH:MM:SS' },
+                    timezone: { type: Type.STRING },
+                  },
+                },
+              },
+              genre: { type: Type.STRING },
             },
           },
         },
-      });
+      };
+
+      let response;
+      try {
+        response = await this.ai.models.generateContent({
+          model: this.model,
+          contents: parts,
+          config: requestConfig,
+        });
+      } catch (primaryErr) {
+        const errMsg =
+          primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
+        if (
+          (errMsg.includes('404') || errMsg.includes('NOT_FOUND')) &&
+          this.model !== FALLBACK_EXTRACTION_MODEL
+        ) {
+          const fallbackModel =
+            this.model !== DEFAULT_EXTRACTION_MODEL
+              ? DEFAULT_EXTRACTION_MODEL
+              : FALLBACK_EXTRACTION_MODEL;
+          this.logger.warn(
+            `Primary Gemini model "${this.model}" returned NOT_FOUND; retrying with "${fallbackModel}".`,
+          );
+          response = await this.ai.models.generateContent({
+            model: fallbackModel,
+            contents: parts,
+            config: requestConfig,
+          });
+        } else {
+          throw primaryErr;
+        }
+      }
 
       const text = response.text;
       const rawResults: ExtractionResult[] = JSON.parse(text || '[]');
       const flattenedResults: ExtractionResult[] = [];
 
       for (const item of rawResults) {
+        if ((!Array.isArray(item.dates) || item.dates.length === 0) && hints?.date) {
+          item.dates = [{ date: hints.date }];
+        }
         if (Array.isArray(item.dates) && item.dates.length > 1) {
           for (const d of item.dates) {
             flattenedResults.push({ ...item, dates: [{ ...d }] });

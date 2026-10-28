@@ -859,7 +859,7 @@ const selectCandidate = async (candidate: AdminIngestionCandidateListItem) => {
   showForm.value.date =
     prov.date?.rawValue ||
     candidate.upload?.concertDate?.slice(0, 10) ||
-    '';
+    new Date().toISOString().slice(0, 10);
   showForm.value.time = (prov.time?.rawValue || '19:00').slice(0, 5);
   showForm.value.venueId = candidate.suggestedVenueId || '';
   showForm.value.venueName = prov.venue?.rawValue || prov.venueExtracted?.rawValue || '';
