@@ -50,7 +50,7 @@ flowchart LR
 | **Week 1** | **Agent Identity & Core Runtime**     | GEAR 2: Course 1 & 2 (ADK Environment, Core 4 Parameters, `root_agent`)   | ADK local web sandbox; Venue Scout spike ([PR #108](https://github.com/ezvibes/nido-api/pull/108)) |
 | **Week 2** | **Tooling & Data Contracts**          | ADK FunctionTools, Zod schemas, Type safety in LLM function calling       | Newsletter Agent Slice 1 (Issue #102: 4 Core ADK Tools)                                            |
 | **Week 3** | **Multimodal Ingestion & Vision**     | Multimodal Gemini inference, structured schema extraction, GCP Storage    | Flyer Ingestion v2: metadata hints, OCR parsing, candidate staging                                 |
-| **Week 4** | **Cloud Architecture & Security**     | PCA: Cloud Run, Cloud SQL, Secrets Manager, Google OIDC service accounts  | Issue #105: Zero static API keys; Cloud Scheduler OIDC pipeline                                    |
+| **Week 4** | **Cloud Architecture, Security & Multimodal Ingestion**     | PCA: Cloud Run v2, Direct VPC Egress, Cloud SQL Private IP, Workload Identity  | PR #145: Zero public DB IP; NIDO-001: End-to-end poster ingestion pipeline                                    |
 | **Week 5** | **Session State & Persistent Memory** | ADK Session Services (Memory $\rightarrow$ Cloud SQL / Redis state store) | Multi-turn conversational venue discovery & curation session memory                                |
 | **Week 6** | **Graph Workflows & Quality Gates**   | Directed Acyclic Graphs (DAGs), deterministic gates + LLM-as-a-judge      | Agent Development Testing Harness & Brand Voice Benchmark (Issue #106)                             |
 | **Week 7** | **Model Context Protocol (MCP)**      | MCP Server setup, tool sharing across agents and IDEs                     | Exposing Nido Catalog as an internal MCP server for Jules & Claude                                 |
@@ -78,6 +78,51 @@ Copy this template for every training session:
 ---
 
 ## 📖 Session Logs
+
+### October 27–28, 2026 | Week 4: Closing the Loop on Multimodal Poster Ingestion (`NIDO-001`), Cross-Slice Agent Verification & Live Cloud Run Telemetry
+
+- **1. Breakthrough (The Concept):**
+  - **A Merged PR Is Not a Completed Mission:** When multiple async coding slices (Slice 1 database state, Slice 2 OCR extraction, Slice 3 Admin UI) are built in parallel, each slice can pass its isolated unit tests while failing at the seams. True completion requires **Innsbruck** (cross-slice contract auditing) + **Frankfurt** (live end-to-end production verification on real uploaded assets).
+  - **Fail-Closed Extraction vs. Silent Mock Fallbacks:** Silent fallbacks to mock data (`if (!fs.existsSync(gsUri)) return mockExtract()`) make unit tests pass while masking real cloud integration bugs (like GCS buffer downloads and retired model IDs). Production adapters must fail closed when live credentials are configured so real errors surface immediately.
+  - **Bounded Thinking Budgets for Multimodal Vision:** Gemini Flash models with `thinkingConfig: { thinkingBudget: 256 }` deliver high-accuracy structured JSON extraction on real event posters (including `.avif` graphics) in **~2.3 seconds** at **~1,250 total tokens (~$0.0002/poster)**—preventing runaway thinking-token bills while beating the $0.01/poster budget ceiling by 50x.
+  - **Deep Health Checks Must Validate Model Lifecycle, Not Just Key Presence:** Checking `Boolean(GEMINI_API_KEY)` in `/health/deep` is not enough when upstream model versions deprecate. Health checks and adapters must actively guard against retired model identifiers (`gemini-2.5-flash`) and auto-upgrade or fail visibly.
+
+- **2. Build (The Code, PRs & Skills):**
+  - Shipped **PR #163**, **PR #164**, and **PR #165** to production Cloud Run (`nido-api-00082-4k4`) and Firebase Hosting (`https://nido-api-9ed65.web.app`), expanding the automated gate (`npm run agent:gate`) to **42 API Jest suites (282 tests)** and **11 Client Vitest suites (57 tests)**.
+  - Built and globally installed the **`nido-deploy`** operational skill and `.agents/skills/nido-deploy/scripts/check_gcp_health.sh` diagnostic tool across workspaces.
+  - Verified the first live end-to-end `.avif` poster upload (`Fringe.avif` -> GCS -> `gemini-3.6-flash` vision extraction + uploader date-hint merge -> `Durham Fringe Festival` @ `Carolina Theatre` staged in PostgreSQL `ingestion_candidates`).
+  - Scoped and dispatched **Issue #166** to **Jules** for post-walkthrough UI polish.
+
+- **3. Boundary / Bug (The Real-World Lessons):**
+  - **The Cross-Slice Seam Trap:** Discovered and fixed 12 cross-slice mismatches between Slice 2 and Slice 3 before and during rollout—including `provenance.bands` vs `performerLineup` key mismatches, relative `/ingestion/uploads/:id/image` URLs breaking across Firebase Hosting and Cloud Run origins, and `AdminIngestionUploadsPage.vue` needing to auto-create new Venues and Bands inside the `SELECT FOR UPDATE` publication transaction.
+  - **The Retired Model 404 Trap:** Once real GCS buffer downloading replaced the silent mock fallback, `GeminiExtractionAdapter` hit a live `404 NOT_FOUND` because `gemini-2.5-flash` was hardcoded instead of reading `GEMINI_MODEL` from `ConfigService`. Fixed by wiring `ConfigService`, auto-upgrading retired model names, adding a runtime 404 retry fallback, and exposing `modelRetired` in `/health/deep`.
+  - **The Tailwind-in-Vanilla-CSS Typo (`flex-col: column`):** Live browser testing immediately caught a subtle CSS bug (`flex-col: column` instead of `flex-direction: column`) and a 600ms mock-tuned polling loop that unit tests cannot see—proving why human-in-the-loop browser walkthroughs remain mandatory after every major slice.
+
+- **4. Broadcast (Content Hook for LinkedIn / X):**
+  > "Unit tests prove your slices work in isolation; production proves whether your slices actually talk to each other. This week we shipped Nido's end-to-end multimodal concert poster pipeline on Cloud Run, Cloud SQL, and Gemini Vision—extracting live event posters in 2.3s for $0.0002/poster while keeping human editors in control with 1-click publishing and duplicate resolution. #GoogleCloud #Gemini #AIagents #Terraform #VueJS #NestJS #BuildInPublic"
+
+### October 22, 2026 | Week 4: Direct VPC Egress, Private IP Database Hardening & Ingestion State Machine
+
+- **1. Breakthrough (The Concept):**
+  - **Zero Public IP Database Architecture:** Severed Cloud SQL (`nido-postgres-dev`) from the public internet entirely (`authorized_networks = []`). Upgraded Cloud Run v2 services and Cloud Run Jobs from the Cloud SQL Proxy to **Google Cloud Direct VPC Egress** (`private-ranges-only`), routing all database queries over private RFC 1918 subnets (`10.142.0.0/20` in `us-east1`) without passing over the public web or incurring VPC Access Connector idle costs.
+  - **The Live Venue Metaphor:** Formalized our serverless mental model in `developer-docs/architecture-and-serverless-runtime.md`: The Front Gate & Foyer (Cloud Run Edge Anycast routing/TLS), The Box Office (NestJS Gateway/Auth/Trace), The On-Demand Crew (Scale-to-zero Cloud Run Compute), The VIP Tunnel (Direct VPC Egress), and The Basement Vault (Private Cloud SQL).
+  - **Durable Ingestion State Machine:** Designed an at-least-once, idempotent ingestion pipeline (`IngestionJob`, `IngestionCandidate`, `IngestionOutbox`) with leasing locks (`queued` $\rightarrow$ `leasing` $\rightarrow$ `processing` $\rightarrow$ `completed`/`failed`) and transactional outbox staging to prevent duplicate extractions across concurrent workers.
+  - **OCR Cascade Strategy:** Benchmarked Google Cloud Vision vs. Gemini Flash OCR vs. local Tesseract (`adr-ocr-provider-cascade.md`) to establish an intelligent fallback and cost-optimization tier for poster parsing.
+
+- **2. Build (The Code & PRs):**
+  - **PR #145 (Direct VPC Egress & IaC Hardening):** Implemented dynamic `vpc_access` blocks in `terraform/main.tf`, added VPC configuration support to `.github/scripts/render-terraform-vars.mjs`, and hardened both `deploy-dev.yml` and `validate-deployment.yml` workflows.
+  - **PR #149 (NIDO-001 Slice 1 - Durable Ingestion State):** Created TypeORM entities (`IngestionJob`, `IngestionCandidate`, `IngestionOutbox`), migration `1760000017000-UpdateIngestionPipeline.ts`, and `IngestionStateMachineService` with lease-timeout protection.
+  - **PR #150 (NIDO-001 Slice 2 - Multi-Provider OCR Benchmark):** Built test runner and fixtures comparing Cloud Vision, Gemini Flash, and Tesseract with automated cost/accuracy reporting.
+
+- **3. Boundary / Bug (The Real-World Lesson):**
+  - **The TypeORM Reflection Metadata Trap:** The Cloud Run migration job crashed with:
+    `DataTypeNotSupportedError: Data type "Object" in "IngestionJob.taskName" is not supported by "postgres" database`.
+    In TypeScript with `emitDecoratorMetadata`, union types like `taskName: string | null` emit `design:type = Object` instead of `String`. Because `@Column({ name: 'task_name', nullable: true })` lacked an explicit column type, TypeORM defaulted to Postgres `Object` and crashed on startup. Resolved by explicitly specifying `@Column({ type: 'varchar', nullable: true })` across all nullable entity columns and registering entities in the central `DataSource` manifest.
+
+- **4. Broadcast (Content Hook for LinkedIn / X):**
+  > "Big security milestone on @EZVibes today: completely cut our Cloud SQL database off from the public internet! 🔒
+  > 
+  > By pairing Google Cloud Run v2 with Direct VPC Egress, our NestJS containers and migration jobs now route directly to PostgreSQL via private RFC 1918 IP space. Zero public database ports exposed, zero VPC connector idle cost, and a guarded Terraform pipeline ensuring strict drift protection. Models reason; code enforces boundaries. #GoogleCloud #CloudArchitect #BuildInPublic #DevOps #Security"
 
 ### October 15, 2026 | Week 3: Autonomous ReAct Agents, Guarded Terraform IaC & Universal Tool Framework
 
