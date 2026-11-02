@@ -277,6 +277,24 @@
                   <div v-if="selectedCandidate.provenance?.date?.confidence">
                     <strong>Date Confidence:</strong> {{ (selectedCandidate.provenance.date.confidence * 100).toFixed(0) }}%
                   </div>
+                  <div v-if="selectedCandidate.provenance?.doorsTime?.rawValue">
+                    <strong>Doors Time:</strong> {{ selectedCandidate.provenance.doorsTime.rawValue }}
+                  </div>
+                  <div v-if="selectedCandidate.provenance?.isFestival">
+                    <strong>Event Type:</strong> Festival / Multi-act series
+                  </div>
+                  <div v-if="selectedCandidate.provenance?.genreList?.length">
+                    <strong>Genres:</strong> {{ selectedCandidate.provenance.genreList.join(', ') }}
+                  </div>
+                  <div v-if="selectedCandidate.provenance?.ticketPrice">
+                    <strong>Ticket Price:</strong> {{ selectedCandidate.provenance.ticketPrice }}
+                  </div>
+                  <div v-if="selectedCandidate.provenance?.ageRestriction">
+                    <strong>Age Restriction:</strong> {{ selectedCandidate.provenance.ageRestriction }}
+                  </div>
+                  <div v-if="selectedCandidate.provenance?.promotersAndSponsors?.length">
+                    <strong>Promoters &amp; Sponsors:</strong> {{ selectedCandidate.provenance.promotersAndSponsors.join(', ') }}
+                  </div>
                   <div v-if="selectedCandidate.provenance?.rawOcrText" class="tech-provenance-raw">
                     <strong>Raw OCR Text:</strong>
                     <pre>{{ selectedCandidate.provenance.rawOcrText }}</pre>
@@ -847,9 +865,11 @@ const selectCandidate = async (candidate: AdminIngestionCandidateListItem) => {
   showForm.value.time = (prov.time?.rawValue || '19:00').slice(0, 5);
   showForm.value.venueId = candidate.suggestedVenueId || '';
   showForm.value.venueName = prov.venue?.rawValue || prov.venueExtracted?.rawValue || '';
-  const extractedGenre = Array.isArray(prov.genres)
-    ? prov.genres[0]?.rawValue
-    : (prov.genres as any)?.rawValue;
+  const extractedGenre =
+    prov.primaryGenre?.rawValue ||
+    (Array.isArray(prov.genres)
+      ? prov.genres[0]?.rawValue
+      : (prov.genres as any)?.rawValue);
   showForm.value.genre =
     extractedGenre ||
     candidate.upload?.genre ||

@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { GeminiExtractionAdapter } from './gemini-extraction.adapter';
+import { GeminiExtractionAdapter, CANONICAL_GENRES } from './gemini-extraction.adapter';
 import { ConfigService } from '@nestjs/config';
 
 describe('GeminiExtractionAdapter', () => {
@@ -28,6 +28,24 @@ describe('GeminiExtractionAdapter', () => {
     const result = await adapter.extract('test-single', 'image/jpeg');
     expect(result).toHaveLength(1);
     expect(result[0].title).toBe('Test Title');
+    expect(result[0].primaryGenre).toBeDefined();
+  });
+
+  it('should extract a multi-genre festival fixture with doors time and set times', async () => {
+    const result = await adapter.extract('festival', 'image/jpeg');
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe('Carolina Music Festival');
+    expect(result[0].isFestival).toBe(true);
+    expect(result[0].primaryGenre).toBe('Bluegrass');
+    expect(result[0].genres).toContain('Folk');
+    expect(result[0].dates![0].doorsTime).toBe('18:00:00');
+    expect(result[0].dates![0].startTime).toBe('19:00:00');
+    expect(result[0].dates![0].timezone).toBe('America/New_York');
+    expect(result[0].performers![0].setTime).toBe('21:00');
+    expect(result[0].performers![0].stage).toBe('Main Stage');
+    expect(result[0].ticketPrice).toBe('$25 ADV / $30 DOS');
+    expect(result[0].ageRestriction).toBe('All Ages');
+    expect(result[0].promotersAndSponsors).toContain('Cat\'s Cradle Presents');
   });
 
   it('should extract multiple events for lineup fixture', async () => {
@@ -69,5 +87,12 @@ describe('GeminiExtractionAdapter', () => {
       }),
     } as unknown as ConfigService);
     expect(configuredAdapter.getModelName()).toBe('gemini-3.6-flash');
+  });
+
+  it('exports canonical genres matching Nido catalog standard', () => {
+    expect(CANONICAL_GENRES).toContain('Jazz');
+    expect(CANONICAL_GENRES).toContain('Bluegrass');
+    expect(CANONICAL_GENRES).toContain('Rock');
+    expect(CANONICAL_GENRES).toContain('Electronic');
   });
 });

@@ -891,13 +891,41 @@ export class IngestionService {
       );
 
       // OCR/Extraction state
+      let resolvedVenueName: string | undefined;
+      if (upload.venueId) {
+        try {
+          const venue = await this.venueService.findOne(upload.venueId);
+          if (venue) {
+            resolvedVenueName = venue.name;
+          }
+        } catch {
+          // ignore lookup error
+        }
+      }
+
+      let resolvedBandName: string | undefined;
+      if (upload.bandId) {
+        try {
+          const band = await this.bandService.findOne(upload.bandId);
+          if (band) {
+            resolvedBandName = band.name;
+          }
+        } catch {
+          // ignore lookup error
+        }
+      }
+
       const hints = {
         bandId: upload.bandId ?? undefined,
+        bandName: resolvedBandName,
         venueId: upload.venueId ?? undefined,
+        venueName: resolvedVenueName,
         date: upload.concertDate
           ? upload.concertDate.toISOString().slice(0, 10)
           : undefined,
         genre: upload.genre ?? undefined,
+        city: upload.city ?? undefined,
+        state: upload.state ?? undefined,
       };
 
       let imageBuffer: Buffer | undefined;
@@ -994,6 +1022,14 @@ export class IngestionService {
                     confidence: 0.9,
                   }
                 : undefined,
+            doorsTime:
+              result.dates && result.dates[0] && result.dates[0].doorsTime
+                ? {
+                    rawValue: result.dates[0].doorsTime,
+                    source: 'extraction',
+                    confidence: 0.9,
+                  }
+                : undefined,
             timezone:
               result.dates && result.dates[0] && result.dates[0].timezone
                 ? {
@@ -1036,13 +1072,32 @@ export class IngestionService {
                   confidence: 0.9,
                 }))
               : undefined,
-            genres: result.genre
+            genres: (result.primaryGenre || result.genre)
               ? {
-                  rawValue: result.genre,
+                  rawValue: result.primaryGenre || result.genre,
                   source: 'extraction',
                   confidence: 0.9,
                 }
               : undefined,
+            primaryGenre: result.primaryGenre
+              ? {
+                  rawValue: result.primaryGenre,
+                  source: 'extraction',
+                  confidence: 0.9,
+                }
+              : undefined,
+            genreList:
+              result.genres && result.genres.length > 0
+                ? result.genres
+                : result.primaryGenre
+                ? [result.primaryGenre]
+                : undefined,
+            isFestival: Boolean(result.isFestival),
+            ticketPrice: result.ticketPrice,
+            ageRestriction: result.ageRestriction,
+            promotersAndSponsors: result.promotersAndSponsors,
+            ticketUrlOrInfo: result.ticketUrlOrInfo,
+            rawOcrText: result.rawOcrText,
             modelName:
               this.extractor.getModelName?.() ||
               this.configService.get<string>('GEMINI_MODEL')?.trim() ||

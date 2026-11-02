@@ -50,12 +50,25 @@
       </div>
 
       <div class="ingestion-panel__hints">
-        <div class="ingestion-panel__hints-header">
-          <p class="ingestion-panel__hints-title">Event Details</p>
-          <p class="ingestion-panel__hints-subtitle">Provide known details to help our team match and publish the show faster.</p>
-        </div>
+        <button
+          type="button"
+          class="ingestion-panel__hints-toggle"
+          @click="showOptionalDetails = !showOptionalDetails"
+          :aria-expanded="showOptionalDetails"
+        >
+          <span class="ingestion-panel__hints-toggle-left">
+            <span class="ingestion-panel__hints-toggle-icon">{{ showOptionalDetails ? '▼' : '▶' }}</span>
+            <span class="ingestion-panel__hints-title">
+              {{ showOptionalDetails ? 'Event Details' : 'Add optional details (if missing from poster)' }}
+            </span>
+          </span>
+          <span class="ingestion-panel__hints-badge">Optional</span>
+        </button>
 
-        <div class="ingestion-panel__fields-grid">
+        <div v-show="showOptionalDetails" class="ingestion-panel__hints-body">
+          <p class="ingestion-panel__hints-subtitle">Provide known details to help our team match and publish the show faster.</p>
+
+          <div class="ingestion-panel__fields-grid">
           <label class="ingestion-panel__field">
             <span>Date</span>
             <input
@@ -113,6 +126,7 @@
             <span>State</span>
             <input v-model="state" type="text" maxlength="2" placeholder="NC" />
           </label>
+        </div>
         </div>
       </div>
 
@@ -269,6 +283,7 @@ const acceptedMimeTypes = [
 const selectedFile = ref<File | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 const isDragActive = ref(false);
+const showOptionalDetails = ref(false);
 const concertDate = ref('');
 const venueId = ref('');
 const bandId = ref('');
@@ -878,6 +893,49 @@ const handleSubmit = async () => {
   display: grid;
   gap: 0.85rem;
   text-align: left;
+}
+
+.ingestion-panel__hints-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.ingestion-panel__hints-toggle-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ingestion-panel__hints-toggle-icon {
+  font-size: 0.72rem;
+  color: var(--text-light, #64748b);
+  transition: transform 0.2s ease;
+}
+
+.ingestion-panel__hints-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  background: var(--border);
+  color: var(--text-light, #64748b);
+}
+
+.ingestion-panel__hints-body {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 0.25rem;
 }
 
 .ingestion-panel__hints-header {
