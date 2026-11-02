@@ -260,6 +260,19 @@ describe('IngestionUploadPanel', () => {
     const submissionsLink = wrapper.get('a[href="/my-submissions"]');
     expect(submissionsLink.text()).toContain('View my poster submissions');
   });
+
+  it('supports image-first disclosure toggle for optional details', async () => {
+    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
+    await flushPromises();
+
+    const toggle = wrapper.get<HTMLButtonElement>('.ingestion-panel__hints-toggle');
+    expect(toggle.attributes('aria-expanded')).toBe('false');
+    expect(toggle.text()).toContain('Add optional details');
+
+    await toggle.trigger('click');
+    expect(toggle.attributes('aria-expanded')).toBe('true');
+    expect(toggle.text()).toContain('Event Details');
+  });
 });
 
 async function selectValidFile(wrapper: VueWrapper) {

@@ -28,6 +28,9 @@ export class CandidateProvenanceDto {
   time?: CandidateProvenanceField;
 
   @ApiPropertyOptional({ type: CandidateProvenanceField })
+  doorsTime?: CandidateProvenanceField;
+
+  @ApiPropertyOptional({ type: CandidateProvenanceField })
   timezone?: CandidateProvenanceField;
 
   @ApiPropertyOptional({ type: CandidateProvenanceField })
@@ -41,6 +44,33 @@ export class CandidateProvenanceDto {
 
   @ApiPropertyOptional({ type: CandidateProvenanceField })
   genres?: CandidateProvenanceField;
+
+  @ApiPropertyOptional({ type: CandidateProvenanceField })
+  primaryGenre?: CandidateProvenanceField;
+
+  @ApiPropertyOptional({ type: [String] })
+  genreList?: string[];
+
+  @ApiPropertyOptional()
+  isFestival?: boolean;
+
+  @ApiPropertyOptional()
+  ticketPrice?: string;
+
+  @ApiPropertyOptional()
+  ageRestriction?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  promotersAndSponsors?: string[];
+
+  @ApiPropertyOptional()
+  ticketUrlOrInfo?: string;
+
+  @ApiPropertyOptional()
+  rawOcrText?: string;
+
+  @ApiPropertyOptional()
+  modelName?: string;
 }
 
 export class IngestionCandidateDto {

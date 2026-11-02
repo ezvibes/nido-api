@@ -29,6 +29,7 @@ export interface CandidateProvenance {
   title?: FieldProvenance;
   date?: FieldProvenance;
   time?: FieldProvenance;
+  doorsTime?: FieldProvenance;
   timezone?: FieldProvenance;
   venueHints?: FieldProvenance;
   venueExtracted?: FieldProvenance;
@@ -36,6 +37,13 @@ export interface CandidateProvenance {
   performerLineup?: FieldProvenance;
   bands?: FieldProvenance[];
   genres?: FieldProvenance;
+  primaryGenre?: FieldProvenance;
+  genreList?: string[];
+  isFestival?: boolean;
+  ticketPrice?: string;
+  ageRestriction?: string;
+  promotersAndSponsors?: string[];
+  ticketUrlOrInfo?: string;
   modelName?: string;
   rawOcrText?: string;
   reviewAudit?: CandidateReviewAudit;

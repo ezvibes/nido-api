@@ -4,10 +4,12 @@ import {
   ExtractionResult,
   ExtractionHints,
 } from './iextraction.adapter';
-import { GoogleGenAI, Type, Schema } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ConfigService } from '@nestjs/config';
+import { validateImageBuffer } from '../../utils/image-mime.util';
+import { inferTimezoneFromLocation } from '../../utils/timezone-lookup.util';
 
 const DEFAULT_EXTRACTION_MODEL = 'gemini-3.8-flash';
 const FALLBACK_EXTRACTION_MODEL = 'gemini-flash-latest';
@@ -16,6 +18,19 @@ const RETIRED_GEMINI_MODELS = new Set([
   'gemini-2.0-flash',
   'gemini-2.5-flash',
 ]);
+
+export const CANONICAL_GENRES = [
+  'Jazz',
+  'Bluegrass',
+  'Funk',
+  'Jam',
+  'Reggae',
+  'Hip-Hop',
+  'Rock',
+  'Folk',
+  'Salsa',
+  'Electronic',
+] as const;
 
 @Injectable()
 export class GeminiExtractionAdapter implements IExtractionAdapter {
@@ -74,25 +89,50 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
     imageBuffer?: Buffer,
   ): Promise<ExtractionResult[]> {
     try {
-      const prompt = `Extract the concert details from this poster.
-      If you receive hints, do not let them override what is clearly stated on the poster.`;
+      const validation = validateImageBuffer(imageBuffer, mimeType);
+      if (!validation.isValid || !imageBuffer) {
+        throw new Error(
+          validation.error || 'Invalid or unsupported image buffer for extraction',
+        );
+      }
+
+      const activeMimeType = validation.normalizedMimeType || 'image/jpeg';
+      const todayIso = new Date().toISOString().slice(0, 10);
+
+      const prompt = `You are a high-precision live music concert poster analyzer for Nido (nido.events).
+Your goal is to extract structured, publication-ready show candidates from this event poster.
+
+Rules & Guidelines:
+1. DATE ANCHOR: Today's reference date is ${todayIso}. If the poster omits the year (e.g. "FRIDAY OCT 31"), determine the upcoming calendar year deterministically relative to ${todayIso}.
+2. DOORS vs SHOW TIMES:
+   - Extract "doorsTime" and "startTime" separately in 24-hour HH:MM:SS format (e.g. "19:00:00" for 7 PM).
+   - NEVER output "00:00:00" if no time is printed on the poster; leave it null or omitted.
+3. CANONICAL GENRES & FESTIVALS:
+   - "primaryGenre": Choose the best matching primary genre from: ${CANONICAL_GENRES.join(', ')}. If none fit, use the closest musical genre.
+   - "genres": Array of all applicable genres/subgenres (e.g. ["Folk", "Bluegrass", "Americana"]).
+   - "isFestival": true if the graphic is a festival, multi-stage, or multi-day lineup; false for standard club show.
+4. LINEUP vs PROMOTERS:
+   - "performers": Band/artist names only. Mark the headliner with isHeadliner=true. Optional "setTime" or "stage" if printed.
+   - "promotersAndSponsors": Presenters, venues, radio sponsors, or partners (e.g. "Cat's Cradle Presents", "WKNC 88.1", "AEG Presents"). NEVER put promoters in performers!
+5. PRICING & RESTRICTIONS:
+   - "ticketPrice": Extract door/advance prices (e.g. "$15 ADV / $20 DOS", "Free").
+   - "ageRestriction": Extract age limits (e.g. "21+", "18+", "All Ages").
+   - "ticketUrlOrInfo": Printed ticketing links, box office phone, or sales locations.
+6. HINTS PRECEDENCE:
+   - Clear printed poster text is authoritative. Use hints only to resolve ambiguity or missing details.`;
 
       let hintText = '';
       if (hints) {
         hintText =
-          'Hints provided by user (use these only if the poster is ambiguous, but do not override clear poster evidence):\n' +
+          '\nUser Context Hints (use to resolve missing fields, but poster text is authoritative):\n' +
           JSON.stringify(hints);
       }
 
-      if (!imageBuffer || imageBuffer.length === 0) {
-        throw new Error('Poster image buffer is required for live Gemini extraction');
-      }
-
       const parts: any[] = [
-        { text: prompt + '\n' + hintText },
+        { text: prompt + hintText },
         {
           inlineData: {
-            mimeType: mimeType || 'image/jpeg',
+            mimeType: activeMimeType,
             data: imageBuffer.toString('base64'),
           },
         },
@@ -126,6 +166,8 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
                   properties: {
                     name: { type: Type.STRING },
                     isHeadliner: { type: Type.BOOLEAN },
+                    setTime: { type: Type.STRING },
+                    stage: { type: Type.STRING },
                   },
                 },
               },
@@ -135,12 +177,26 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
                   type: Type.OBJECT,
                   properties: {
                     date: { type: Type.STRING, description: 'YYYY-MM-DD' },
+                    doorsTime: { type: Type.STRING, description: 'HH:MM:SS' },
                     startTime: { type: Type.STRING, description: 'HH:MM:SS' },
                     timezone: { type: Type.STRING },
                   },
                 },
               },
-              genre: { type: Type.STRING },
+              primaryGenre: { type: Type.STRING },
+              genres: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+              isFestival: { type: Type.BOOLEAN },
+              ticketPrice: { type: Type.STRING },
+              ageRestriction: { type: Type.STRING },
+              promotersAndSponsors: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+              ticketUrlOrInfo: { type: Type.STRING },
+              rawOcrText: { type: Type.STRING },
             },
           },
         },
@@ -182,9 +238,32 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
       const flattenedResults: ExtractionResult[] = [];
 
       for (const item of rawResults) {
+        // Normalize primaryGenre & genre
+        if (!item.primaryGenre && item.genre) {
+          item.primaryGenre = item.genre;
+        }
+        if (!item.genre && item.primaryGenre) {
+          item.genre = item.primaryGenre;
+        }
+
         if ((!Array.isArray(item.dates) || item.dates.length === 0) && hints?.date) {
           item.dates = [{ date: hints.date }];
         }
+
+        // Infer timezone if omitted
+        const locationTimezone = inferTimezoneFromLocation(
+          item.venue?.state || hints?.state,
+          item.venue?.city || hints?.city,
+        );
+
+        if (Array.isArray(item.dates)) {
+          for (const d of item.dates) {
+            if (!d.timezone && locationTimezone) {
+              d.timezone = locationTimezone;
+            }
+          }
+        }
+
         if (Array.isArray(item.dates) && item.dates.length > 1) {
           for (const d of item.dates) {
             flattenedResults.push({ ...item, dates: [{ ...d }] });
@@ -228,18 +307,62 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
     // Simple mock logic based on url/filename for tests
     let mockResponse = mocks['test-single'];
     if (imageUrl.includes('multi')) mockResponse = mocks['test-multi'];
+    if (imageUrl.includes('festival')) {
+      mockResponse = {
+        title: 'Carolina Music Festival',
+        venue: {
+          name: 'Cat\'s Cradle Back Room',
+          city: 'Carrboro',
+          state: 'NC',
+        },
+        performers: [
+          { name: 'Chatham County Line', isHeadliner: true, setTime: '21:00', stage: 'Main Stage' },
+          { name: 'Mipso', isHeadliner: false, setTime: '19:30', stage: 'Acoustic Stage' },
+        ],
+        dates: [
+          {
+            date: '2026-10-15',
+            doorsTime: '18:00:00',
+            startTime: '19:00:00',
+            timezone: 'America/New_York',
+          },
+        ],
+        primaryGenre: 'Bluegrass',
+        genres: ['Bluegrass', 'Folk', 'Americana'],
+        isFestival: true,
+        ticketPrice: '$25 ADV / $30 DOS',
+        ageRestriction: 'All Ages',
+        promotersAndSponsors: ['Cat\'s Cradle Presents', 'WUNC Radio'],
+        rawOcrText: 'CAROLINA MUSIC FESTIVAL OCT 15 CATS CRADLE DOORS 6PM SHOW 7PM',
+      };
+    }
     if (imageUrl.includes('malformed')) throw new Error('Malformed JSON');
 
     if (!mockResponse) {
       return [];
     }
 
-    const results = [mockResponse as ExtractionResult];
+    const results = [{ ...(mockResponse as ExtractionResult) }];
+
+    // Auto-fill primaryGenre & timezone if missing in mock
+    const locationTz = inferTimezoneFromLocation(
+      results[0].venue?.state || hints?.state,
+      results[0].venue?.city || hints?.city,
+    );
+    if (results[0].dates && results[0].dates[0] && !results[0].dates[0].timezone && locationTz) {
+      results[0].dates[0].timezone = locationTz;
+    }
+    if (!results[0].primaryGenre && results[0].genre) {
+      results[0].primaryGenre = results[0].genre;
+    }
 
     // Map to array as single event returns one item, multi returns multi
     if (mockResponse.dates && mockResponse.dates.length > 1) {
       return mockResponse.dates.map((d: any) => {
-        let newD = { ...mockResponse, dates: [d] };
+        let newD = { ...mockResponse, dates: [{ ...d }] };
+        if (!newD.dates[0].timezone && locationTz) {
+          newD.dates[0].timezone = locationTz;
+        }
         if (hints && hints.date && newD.dates && newD.dates[0]) {
           if (hints.date !== newD.dates[0].date) {
             newD.dates[0].warning = `Hint conflict: uploader suggested '${hints.date}', poster states '${newD.dates[0].date}'`;
