@@ -2,6 +2,7 @@ import {
   Injectable,
   Logger,
   InternalServerErrorException,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Agent, Runner } from '@google/adk';
@@ -12,6 +13,7 @@ import {
 } from './newsletter-catalog.service';
 import { NewsletterAgentToolRegistry } from './agent/newsletter-agent-tool-registry.service';
 import { TypeOrmSessionService } from '../apis/agents/session/typeorm-session.service';
+import { AgentSupervisorService } from '../apis/agents/agent-supervisor.service';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -68,6 +70,8 @@ export class NewsletterService {
     private readonly beehiivService: BeehiivService,
     private readonly toolRegistry: NewsletterAgentToolRegistry,
     private readonly sessionService: TypeOrmSessionService,
+    @Optional()
+    private readonly supervisorService?: AgentSupervisorService,
   ) {}
 
   /**
@@ -130,10 +134,20 @@ export class NewsletterService {
     this.logger.log(
       `Invoking ADK Agent "Firenze" (${modelName}) to generate newsletter draft...`,
     );
+    let activeSessionId: string | undefined;
     try {
       const session = await this.sessionService.createSession({
         appName: 'nido-newsletter-agent',
         userId: 'admin',
+      });
+      activeSessionId = session.id;
+      this.supervisorService?.recordAgentRunStart({
+        runId: session.id,
+        agentKey: 'firenze',
+        workflow: 'Weekly Top Picks Curation (@google/adk)',
+        missionSummary: `Drafting ${params.editionType || 'weekly'} newsletter (${preview.dateRangeLabel})`,
+        initiator: 'admin',
+        model: modelName,
       });
 
       let text = '';
@@ -208,6 +222,10 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
       // Keep explicit manual push as fallback if ADK agent didn't push when autoPushToBeehiiv is true
       let beehiivDraft: BeehiivDraftResponse | undefined;
 
+      const postTitle =
+        stagedTitle || `EZ Vibes Top Picks: ${preview.dateRangeLabel}`;
+      const htmlContent = this.convertMarkdownToHtml(text);
+
       if (params.autoPushToBeehiiv) {
         if (beehiivDraftInfo) {
           this.logger.log(
@@ -215,10 +233,6 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
           );
           beehiivDraft = beehiivDraftInfo;
         } else {
-          const postTitle =
-            stagedTitle || `EZ Vibes Top Picks: ${preview.dateRangeLabel}`;
-          const htmlContent = this.convertMarkdownToHtml(text);
-
           this.logger.log(
             `Agent did not auto-push. Falling back to auto-pushing generated newsletter to Beehiiv: "${postTitle}"`,
           );
@@ -228,6 +242,27 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
             postTemplateId: params.postTemplateId,
           });
         }
+        if (activeSessionId) {
+          this.supervisorService?.recordAgentRunComplete({
+            runId: activeSessionId,
+            agentKey: 'firenze',
+            status: 'succeeded',
+            outputSummary: `Generated & staged "${postTitle}" (${preview.totalCount} concerts) to Beehiiv.`,
+          });
+        }
+      } else if (activeSessionId) {
+        this.supervisorService?.recordAgentWaitingForHuman({
+          runId: activeSessionId,
+          agentKey: 'firenze',
+          gateTitle: `Confirm Beehiiv Draft: ${postTitle}`,
+          gateSummary: `Firenze curated ${preview.totalCount} concerts for ${preview.dateRangeLabel}. Ready for operator confirmation.`,
+          newsletterDraft: {
+            title: postTitle,
+            dateRangeLabel: preview.dateRangeLabel,
+            concertsCount: preview.totalCount,
+            htmlContent,
+          },
+        });
       }
 
       return {
@@ -236,6 +271,15 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
         beehiivDraft,
       };
     } catch (err) {
+      if (activeSessionId) {
+        this.supervisorService?.recordAgentRunComplete({
+          runId: activeSessionId,
+          agentKey: 'firenze',
+          status: 'failed',
+          outputSummary: `Newsletter generation failed: ${err.message}`,
+          errorCategory: 'GEMINI_ADK_ERROR',
+        });
+      }
       this.logger.error(
         `Gemini API generation failed: ${err.message}`,
         err.stack,

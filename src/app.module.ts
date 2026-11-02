@@ -12,6 +12,7 @@ import { ConcertSyncModule } from './concert-sync/concert-sync.module';
 import { HealthModule } from './health/health.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
 import { GcpLoggingModule } from './common/logging/gcp-logging.module';
+import { AgentModule } from './apis/agents/agent.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { GcpLoggingModule } from './common/logging/gcp-logging.module';
     ConcertSyncModule,
     HealthModule,
     NewsletterModule,
+    AgentModule,
     GcpLoggingModule,
   ],
   controllers: [],

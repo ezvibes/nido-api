@@ -172,6 +172,14 @@ onBeforeUnmount(() => {
                 Weekly top picks
               </router-link>
               <router-link
+                v-if="isAdmin"
+                to="/admin/agents"
+                class="account-menu__item"
+                @click="closeMenu"
+              >
+                Agent operations
+              </router-link>
+              <router-link
                 to="/settings"
                 class="account-menu__item"
                 @click="closeMenu"

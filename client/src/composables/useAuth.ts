@@ -156,8 +156,19 @@ export function useAuth() {
     return null;
   };
 
+  const getIdToken = async (forceRefresh?: boolean): Promise<string | undefined> => {
+    if (auth.currentUser) {
+      return auth.currentUser.getIdToken(forceRefresh);
+    }
+    if (user.value && typeof (user.value as any).getIdToken === 'function') {
+      return (user.value as any).getIdToken(forceRefresh);
+    }
+    return undefined;
+  };
+
   return {
     user,
+    getIdToken,
     signInWithGoogle,
     signUpWithEmail,
     signInWithEmail,

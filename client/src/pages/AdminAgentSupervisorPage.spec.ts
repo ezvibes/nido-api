@@ -1,0 +1,309 @@
+import { flushPromises, mount } from '@vue/test-utils';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ref } from 'vue';
+import AdminAgentSupervisorPage from './AdminAgentSupervisorPage.vue';
+
+const mockGetIdToken = vi.fn().mockResolvedValue('mock-firebase-token');
+const mockUser = ref<{ email: string; getIdToken?: any } | null>({
+  email: 'admin@ezvibes.co',
+  getIdToken: mockGetIdToken,
+});
+const mockFetchStatus = vi.fn();
+const mockResolveAction = vi.fn();
+const mockSteerAgent = vi.fn();
+
+vi.mock('../composables/useAuth', () => ({
+  useAuth: () => ({
+    user: mockUser,
+    getIdToken: mockGetIdToken,
+  }),
+}));
+
+vi.mock('../utils/admin', () => ({
+  isAdminEmail: (email?: string | null) => email === 'admin@ezvibes.co',
+}));
+
+vi.mock('../composables/useApi', () => ({
+  fetchAgentSupervisorStatus: (...args: any[]) => mockFetchStatus(...args),
+  resolveAgentActionItem: (...args: any[]) => mockResolveAction(...args),
+  steerAgentSession: (...args: any[]) => mockSteerAgent(...args),
+}));
+
+const sampleSnapshot = {
+  summary: {
+    environment: 'development',
+    generatedAt: '2026-11-01T18:00:00.000Z',
+    fixtureMode: true,
+    freshness: {
+      status: 'fresh',
+      checkedAt: '2026-11-01T18:00:00.000Z',
+      sources: {
+        agentSessions: 'ok',
+        ingestionPipeline: 'ok',
+        memoryStore: 'ok',
+      },
+      warnings: [],
+    },
+    kpis: {
+      activeRuns: 1,
+      waitingForApproval: 2,
+      attentionCount: 2,
+      staleRuns: 0,
+      completionRate24h: 100,
+      completionRate7d: 95,
+      totalRuns24h: 4,
+      totalRuns7d: 12,
+      medianDurationMs7d: 2400,
+      p95DurationMs7d: 8200,
+      oldestApprovalAgeMinutes: 14,
+    },
+    usage24h: {
+      modelCalls: 5,
+      toolCalls: 9,
+      measuredTokens: 4200,
+      measuredCostUsd: 0.0008,
+      availabilityNote: 'Measured tokens only.',
+    },
+  },
+  agents: [
+    {
+      key: 'frankfurt',
+      name: 'Frankfurt',
+      cityCode: 'FRA',
+      role: 'Mission Coordinator',
+      responsibility: 'Owns mission scope and acceptance synthesis.',
+      readiness: 'operating_role',
+      readinessLabel: 'Operating role',
+      status: 'IDLE',
+      model: 'gemini-3.6-flash',
+      documentationPath: 'developer-docs/frankfurt.md',
+      expectedMaxRuntimeSeconds: null,
+      supportedWorkflows: ['Mission orchestration'],
+      tools: ['verifyMissionAcceptance'],
+      currentTask: null,
+      lastVerifiedOutcome: {
+        summary: 'Documented operating contract active',
+        status: 'verified',
+        timestamp: '2026-11-01T18:00:00.000Z',
+      },
+      nextAction: { label: 'Inspect missions', route: '/admin/agents?tab=missions' },
+    },
+    {
+      key: 'firenze',
+      name: 'Firenze',
+      cityCode: 'FLR',
+      role: 'Newsletter Curation Agent',
+      responsibility: 'Curates Weekly Top Picks and stages Beehiiv drafts.',
+      readiness: 'available_runtime',
+      readinessLabel: 'Available runtime',
+      status: 'WAITING_FOR_HUMAN',
+      model: 'gemini-3.6-flash',
+      documentationPath: '.agents/skills/firenze-newsletter/SKILL.md',
+      expectedMaxRuntimeSeconds: 120,
+      supportedWorkflows: ['Weekly Top Picks Curation'],
+      tools: ['fetchApprovedConcerts', 'stageBeehiivDraft'],
+      currentTask: {
+        runId: 'run-firenze-1',
+        workflow: 'Weekly Top Picks Curation',
+        missionSummary: 'Curate Nov Week 1 Newsletter',
+        activeStep: 'Paused at Beehiiv confirmation gate',
+        startedAt: '2026-11-01T17:50:00.000Z',
+        elapsedMs: 8400,
+        modelCalls: 2,
+        toolCalls: 4,
+        estimatedTokens: 4120,
+        delegatedFrom: 'Frankfurt',
+      },
+      lastVerifiedOutcome: null,
+      nextAction: {
+        label: 'Review 1 pending item(s)',
+        route: '/admin/agents?tab=attention',
+        actionItemCount: 1,
+      },
+    },
+  ],
+  actionItems: [
+    {
+      id: 'firenze-draft-1',
+      type: 'firenze_newsletter_draft',
+      agentKey: 'firenze',
+      agentName: 'Firenze',
+      status: 'pending',
+      priority: 'high',
+      title: 'Approve Weekly Top Picks Draft',
+      summary: 'Firenze curated 6 concerts.',
+      createdAt: '2026-11-01T17:50:00.000Z',
+      ageMinutes: 14,
+      runId: 'run-firenze-1',
+      newsletterDraft: {
+        title: 'Triangle Top Picks',
+        dateRangeLabel: 'Nov 1-8',
+        concertsCount: 6,
+        htmlPreview: '<h2>Triangle Picks</h2>',
+        targetSystem: 'beehiiv',
+      },
+      supportedActions: ['approve_beehiiv_draft', 'reject_with_feedback'],
+    },
+  ],
+  recentRuns: [
+    {
+      id: 'run-firenze-1',
+      agentKey: 'firenze',
+      agentName: 'Firenze',
+      workflow: 'Weekly Top Picks Curation',
+      missionKey: 'NIDO-002',
+      title: 'Curate Nov Week 1 Newsletter',
+      status: 'waiting_for_approval',
+      isStale: false,
+      initiator: 'admin',
+      model: 'gemini-3.6-flash',
+      startedAt: '2026-11-01T17:50:00.000Z',
+      updatedAt: '2026-11-01T17:51:00.000Z',
+      completedAt: null,
+      durationMs: 8400,
+      modelCalls: 2,
+      toolCalls: 4,
+      inputTokens: 3000,
+      outputTokens: 1120,
+      estimatedCostUsd: 0.0006,
+      inputSummary: 'Nov 1-8',
+      outputSummary: 'Waiting for Beehiiv confirmation',
+      errorCategory: null,
+      evidenceLinks: [],
+      events: [
+        {
+          id: 'evt-1',
+          sequence: 1,
+          timestamp: '2026-11-01T17:50:00.000Z',
+          agentKey: 'firenze',
+          runId: 'run-firenze-1',
+          type: 'tool_call',
+          title: 'Tool Call: fetchApprovedConcerts',
+          summary: 'Fetched 6 concerts',
+          toolName: 'fetchApprovedConcerts',
+          arguments: { topPicksOnly: true },
+          latencyMs: 120,
+          httpStatus: 200,
+          status: 'ok',
+        },
+      ],
+    },
+  ],
+  missions: [
+    {
+      missionKey: 'NIDO-001',
+      title: 'Async Poster Ingestion & Human Publication Pipeline',
+      coordinator: 'Frankfurt',
+      integrationSpecialist: 'Innsbruck',
+      status: 'completed',
+      summary: 'End-to-end multimodal poster extraction.',
+      completedSlices: 5,
+      totalSlices: 5,
+      blocker: null,
+      nextStep: 'Start v2 extraction enhancements.',
+      linkedIssues: [],
+      linkedPrs: [],
+      evidence: [
+        {
+          label: 'Direct VPC Egress verified',
+          verified: true,
+          detail: 'Cloud Run revision healthy.',
+        },
+      ],
+    },
+  ],
+};
+
+describe('AdminAgentSupervisorPage.vue', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUser.value = { email: 'admin@ezvibes.co' };
+    mockFetchStatus.mockResolvedValue(sampleSnapshot);
+    mockResolveAction.mockResolvedValue({
+      id: 'firenze-draft-1',
+      status: 'resolved',
+      action: 'approve_beehiiv_draft',
+      result: { staged: true },
+    });
+  });
+
+  it('renders KPI signals, fleet roster cards, and honest readiness labels for admin users', async () => {
+    const wrapper = mount(AdminAgentSupervisorPage, {
+      global: {
+        stubs: {
+          'router-link': { template: '<a><slot /></a>' },
+        },
+      },
+    });
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="kpi-active-runs"]').text()).toBe('1');
+    expect(wrapper.get('[data-testid="kpi-waiting-approval"]').text()).toBe('2');
+    expect(wrapper.get('[data-testid="kpi-completion-rate"]').text()).toBe('95%');
+
+    const frankfurtCard = wrapper.get('[data-testid="agent-card-frankfurt"]');
+    expect(frankfurtCard.text()).toContain('Operating role');
+    expect(frankfurtCard.text()).toContain('IDLE');
+
+    const firenzeCard = wrapper.get('[data-testid="agent-card-firenze"]');
+    expect(firenzeCard.text()).toContain('Available runtime');
+    expect(firenzeCard.text()).toContain('WAITING FOR HUMAN');
+  });
+
+  it('switches to Decision Center tab and resolves a Firenze newsletter draft approval gate', async () => {
+    const wrapper = mount(AdminAgentSupervisorPage, {
+      global: {
+        stubs: {
+          'router-link': { template: '<a><slot /></a>' },
+        },
+      },
+    });
+    await flushPromises();
+
+    await wrapper.get('[data-testid="tab-attention"]').trigger('click');
+    expect(wrapper.find('[data-testid="firenze-draft-gate"]').exists()).toBe(true);
+
+    await wrapper
+      .get('[data-testid="approve-draft-firenze-draft-1"]')
+      .trigger('click');
+    await flushPromises();
+
+    expect(mockResolveAction).toHaveBeenCalledWith(
+      'mock-firebase-token',
+      'firenze-draft-1',
+      expect.objectContaining({
+        action: 'approve_beehiiv_draft',
+      }),
+    );
+  });
+
+  it('opens the Glass Box trace inspector drawer when clicking Inspect Trace & Tools', async () => {
+    const wrapper = mount(AdminAgentSupervisorPage, {
+      global: {
+        stubs: {
+          'router-link': { template: '<a><slot /></a>' },
+        },
+      },
+    });
+    await flushPromises();
+
+    await wrapper.get('[data-testid="inspect-agent-firenze"]').trigger('click');
+    const drawer = wrapper.get('[data-testid="inspector-drawer"]');
+    expect(drawer.text()).toContain('Tool Call: fetchApprovedConcerts');
+  });
+
+  it('blocks non-admin users from loading supervisor data', async () => {
+    mockUser.value = { email: 'fan@example.com' };
+    const wrapper = mount(AdminAgentSupervisorPage, {
+      global: {
+        stubs: {
+          'router-link': { template: '<a><slot /></a>' },
+        },
+      },
+    });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Admin Authorization Required');
+    expect(mockFetchStatus).not.toHaveBeenCalled();
+  });
+});

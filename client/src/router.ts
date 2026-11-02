@@ -12,6 +12,7 @@ import AdminIngestionUploadsPage from './pages/AdminIngestionUploadsPage.vue';
 import AdminVenuesPage from './pages/AdminVenuesPage.vue';
 import AdminConcertsPage from './pages/AdminConcertsPage.vue';
 import AdminWeeklyPicksPage from './pages/AdminWeeklyPicksPage.vue';
+import AdminAgentSupervisorPage from './pages/AdminAgentSupervisorPage.vue';
 import { isAdminEmail } from './utils/admin';
 
 const routes = [
@@ -86,6 +87,13 @@ const routes = [
     path: '/admin/weekly-picks',
     name: 'AdminWeeklyPicks',
     component: AdminWeeklyPicksPage,
+    meta: { requiresAuth: true, requiresAdmin: true },
+  },
+  {
+    path: '/admin/agents',
+    alias: '/supervisor',
+    name: 'AdminAgentSupervisor',
+    component: AdminAgentSupervisorPage,
     meta: { requiresAuth: true, requiresAdmin: true },
   },
 ];
