@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import {
@@ -14,6 +14,7 @@ import {
 } from '@google/adk';
 import type { Event } from '@google/adk';
 import { AgentSession } from '../entities/agent-session.entity';
+import { AgentSupervisorService } from '../agent-supervisor.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -21,6 +22,8 @@ export class TypeOrmSessionService extends BaseSessionService {
   constructor(
     @InjectRepository(AgentSession)
     private readonly sessionRepo: Repository<AgentSession>,
+    @Optional()
+    private readonly supervisorService?: AgentSupervisorService,
   ) {
     super();
   }
@@ -39,6 +42,12 @@ export class TypeOrmSessionService extends BaseSessionService {
     });
 
     await this.sessionRepo.save(newSession);
+
+    this.supervisorService?.ingestAdkSessionEvent({
+      id: newSession.id,
+      appName: newSession.appName,
+      userId: newSession.userId,
+    });
 
     return createSession({
       id: newSession.id,
@@ -162,6 +171,13 @@ export class TypeOrmSessionService extends BaseSessionService {
     sessionRecord.lastUpdateTime = Date.now().toString();
 
     await this.sessionRepo.save(sessionRecord);
+
+    this.supervisorService?.ingestAdkSessionEvent({
+      id: sessionRecord.id,
+      appName: sessionRecord.appName,
+      userId: sessionRecord.userId,
+      event: event as unknown as Record<string, any>,
+    });
 
     return event;
   }
