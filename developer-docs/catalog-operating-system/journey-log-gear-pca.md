@@ -121,7 +121,7 @@ Copy this template for every training session:
 
 - **4. Broadcast (Content Hook for LinkedIn / X):**
   > "Big security milestone on @EZVibes today: completely cut our Cloud SQL database off from the public internet! 🔒
-  > 
+  >
   > By pairing Google Cloud Run v2 with Direct VPC Egress, our NestJS containers and migration jobs now route directly to PostgreSQL via private RFC 1918 IP space. Zero public database ports exposed, zero VPC connector idle cost, and a guarded Terraform pipeline ensuring strict drift protection. Models reason; code enforces boundaries. #GoogleCloud #CloudArchitect #BuildInPublic #DevOps #Security"
 
 ### October 15, 2026 | Week 3: Autonomous ReAct Agents, Guarded Terraform IaC & Universal Tool Framework
