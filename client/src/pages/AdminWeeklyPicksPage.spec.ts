@@ -5,6 +5,7 @@ import AdminWeeklyPicksPage from './AdminWeeklyPicksPage.vue';
 const api = vi.hoisted(() => ({
   generateNewsletter: vi.fn(),
   previewNewsletterSources: vi.fn(),
+  pushBeehiivDraft: vi.fn(),
 }));
 
 const auth = vi.hoisted(() => ({
@@ -54,6 +55,13 @@ describe('AdminWeeklyPicksPage', () => {
     api.generateNewsletter.mockResolvedValue({
       newsletterDraft: '# Weekly Picks',
       concertsCount: 1,
+    });
+    api.pushBeehiivDraft.mockResolvedValue({
+      id: 'post_beehiiv_test_123',
+      title: 'EZ Vibes Top Picks: Tuesday, Sep 8 - Sunday, Sep 13, 2026',
+      status: 'draft',
+      web_url: 'https://ezvibes.beehiiv.com/p/test',
+      edit_url: 'https://app.beehiiv.com/posts/post_beehiiv_test_123/edit',
     });
   });
 
@@ -144,9 +152,9 @@ describe('AdminWeeklyPicksPage', () => {
     await flushPromises();
 
     const checkboxes = wrapper.findAll('input[type="checkbox"]');
-    expect(checkboxes).toHaveLength(4);
-    await checkboxes[1]!.setValue(true);
-    await checkboxes[2]!.setValue(true);
+    expect(checkboxes).toHaveLength(6);
+    await checkboxes[3]!.setValue(true);
+    await checkboxes[4]!.setValue(true);
 
     await wrapper
       .findAll('button')
@@ -187,6 +195,38 @@ describe('AdminWeeklyPicksPage', () => {
       expect.objectContaining({
         excludeConcertIds: ['concert-1'],
       }),
+    );
+  });
+
+  it('stages draft to Beehiiv when Push to Beehiiv button is clicked and displays editor link', async () => {
+    const wrapper = mount(AdminWeeklyPicksPage);
+    await flushPromises();
+
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    const pushButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Push to Beehiiv'));
+    expect(pushButton).toBeDefined();
+
+    await pushButton!.trigger('click');
+    await flushPromises();
+
+    expect(api.pushBeehiivDraft).toHaveBeenCalledWith(
+      'firebase-token',
+      expect.objectContaining({
+        htmlContent: '# Weekly Picks',
+      }),
+    );
+
+    expect(wrapper.text()).toContain('Draft Staged to Beehiiv!');
+    expect(wrapper.text()).toContain('post_beehiiv_test_123');
+
+    const editorLink = wrapper.find('a.btn-beehiiv-link');
+    expect(editorLink.exists()).toBe(true);
+    expect(editorLink.attributes('href')).toBe(
+      'https://app.beehiiv.com/posts/post_beehiiv_test_123/edit',
     );
   });
 });

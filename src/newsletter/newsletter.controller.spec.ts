@@ -11,6 +11,7 @@ describe('NewsletterController', () => {
   const mockNewsletterService = {
     generateNewsletter: jest.fn(),
     previewNewsletterSources: jest.fn(),
+    convertMarkdownToHtml: jest.fn((text: string) => text),
   };
 
   const mockBeehiivService = {

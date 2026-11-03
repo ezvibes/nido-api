@@ -879,6 +879,8 @@ export interface GenerateNewsletterPayload {
   featuredFestival?: string;
   rawCalendarData?: string;
   useDatabase?: boolean;
+  includeJambaseCalendar?: boolean;
+  includeGoogleCalendar?: boolean;
   featuredOnly?: boolean;
   topPicksOnly?: boolean;
   excludeConcertIds?: string[];
@@ -935,6 +937,39 @@ export async function previewNewsletterSources(
 ): Promise<NewsletterSourcePreviewResponse> {
   const response = await apiClient.post<NewsletterSourcePreviewResponse>(
     '/api/newsletter/preview-sources',
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+  return response.data;
+}
+
+export interface PushBeehiivDraftPayload {
+  title: string;
+  htmlContent: string;
+  postTemplateId?: string;
+  publicationId?: string;
+}
+
+export interface BeehiivDraftResponse {
+  id: string;
+  title: string;
+  subtitle?: string;
+  status: string;
+  web_url?: string;
+  edit_url?: string;
+  created_at?: number;
+}
+
+export async function pushBeehiivDraft(
+  token: string,
+  payload: PushBeehiivDraftPayload,
+): Promise<BeehiivDraftResponse> {
+  const response = await apiClient.post<BeehiivDraftResponse>(
+    '/api/newsletter/push-beehiiv-draft',
     payload,
     {
       headers: {

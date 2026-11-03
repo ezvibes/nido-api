@@ -274,7 +274,7 @@ describe('Offline newsletter fixture replay', () => {
               },
             ],
           });
-          expect(transport.drafts[0].blocks[0].html).toContain('<h1>');
+          expect(transport.drafts[0].blocks[0].html).toMatch(/<h1[\s>]/);
         } else {
           expect(result.beehiivDraft).toBeUndefined();
           expect(transport.drafts).toEqual([]);

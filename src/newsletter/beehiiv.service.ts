@@ -18,6 +18,7 @@ export interface BeehiivDraftResponse {
   subtitle?: string;
   status: string;
   web_url?: string;
+  edit_url?: string;
   created_at?: number;
 }
 
@@ -107,6 +108,7 @@ export class BeehiivService {
         subtitle: draftData.subtitle,
         status: draftData.status,
         web_url: draftData.web_url,
+        edit_url: `https://app.beehiiv.com/posts/${draftData.id}/edit`,
         created_at: draftData.created_at,
       };
     } catch (err) {

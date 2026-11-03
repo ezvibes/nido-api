@@ -4,6 +4,8 @@ import { useAuth } from '../composables/useAuth';
 import {
   generateNewsletter,
   previewNewsletterSources,
+  pushBeehiivDraft,
+  type BeehiivDraftResponse,
   type GenerateNewsletterPayload,
   type GenerateNewsletterResponse,
   type NewsletterSourcePreviewResponse,
@@ -12,8 +14,11 @@ import {
 const { user } = useAuth();
 const loading = ref(false);
 const previewLoading = ref(false);
+const pushingToBeehiiv = ref(false);
 const error = ref('');
 const success = ref('');
+const beehiivError = ref('');
+const beehiivDraftResult = ref<BeehiivDraftResponse | null>(null);
 const result = ref<GenerateNewsletterResponse | null>(null);
 const sourcePreview = ref<NewsletterSourcePreviewResponse | null>(null);
 
@@ -27,6 +32,8 @@ const form = reactive({
   featuredFestival: '',
   rawCalendarData: '',
   useDatabase: true,
+  includeJambaseCalendar: true,
+  includeGoogleCalendar: true,
   featuredOnly: false,
   topPicksOnly: false,
   augmentCalendar: false,
@@ -75,6 +82,8 @@ function buildPayload(): GenerateNewsletterPayload {
       ? form.rawCalendarData
       : undefined,
     useDatabase: form.useDatabase,
+    includeJambaseCalendar: form.includeJambaseCalendar,
+    includeGoogleCalendar: form.includeGoogleCalendar,
     featuredOnly: form.featuredOnly,
     topPicksOnly: form.topPicksOnly,
     excludeConcertIds: excludedConcertIds.value.length
@@ -103,6 +112,8 @@ async function handlePreviewSources() {
   previewLoading.value = true;
   error.value = '';
   success.value = '';
+  beehiivError.value = '';
+  beehiivDraftResult.value = null;
 
   try {
     const authToken = await token();
@@ -126,6 +137,8 @@ async function handleGenerate() {
   loading.value = true;
   error.value = '';
   success.value = '';
+  beehiivError.value = '';
+  beehiivDraftResult.value = null;
 
   try {
     const authToken = await token();
@@ -170,6 +183,34 @@ function handleDownload() {
   document.body.appendChild(element);
   element.click();
   document.body.removeChild(element);
+}
+
+async function handlePushToBeehiiv() {
+  if (!result.value?.newsletterDraft) return;
+  pushingToBeehiiv.value = true;
+  beehiivError.value = '';
+
+  try {
+    const authToken = await token();
+    const title = form.dateRangeLabel
+      ? `EZ Vibes Top Picks: ${form.dateRangeLabel}`
+      : `EZ Vibes Top Picks: ${form.startDate} - ${form.endDate}`;
+
+    const draft = await pushBeehiivDraft(authToken, {
+      title,
+      htmlContent: result.value.newsletterDraft,
+    });
+
+    beehiivDraftResult.value = draft;
+  } catch (err: any) {
+    console.error('Failed to push draft to Beehiiv: ', err);
+    const responseErr = err.response?.data?.message;
+    beehiivError.value = Array.isArray(responseErr)
+      ? responseErr.join(' ')
+      : (responseErr || err.message || 'Failed to push draft to Beehiiv.');
+  } finally {
+    pushingToBeehiiv.value = false;
+  }
 }
 </script>
 
@@ -265,6 +306,18 @@ function handleDownload() {
             </div>
             <div class="checkbox-group">
               <label class="checkbox-label">
+                <input type="checkbox" v-model="form.includeJambaseCalendar" />
+                <span>Include JamBase NC Calendar Feed</span>
+              </label>
+            </div>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="form.includeGoogleCalendar" />
+                <span>Include EZ Vibes Google Calendar Feed</span>
+              </label>
+            </div>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
                 <input type="checkbox" v-model="form.featuredOnly" />
                 <span>Only include Featured concerts</span>
               </label>
@@ -322,6 +375,15 @@ function handleDownload() {
         <div class="preview-header">
           <h3 class="panel-title">Draft Preview</h3>
           <div class="preview-actions" v-if="result">
+            <button
+              type="button"
+              :disabled="pushingToBeehiiv"
+              class="btn btn-primary btn-sm btn-beehiiv"
+              @click="handlePushToBeehiiv"
+            >
+              <span v-if="pushingToBeehiiv" class="loader-spinner loader-spinner--sm"></span>
+              <span>{{ pushingToBeehiiv ? 'Staging...' : 'Push to Beehiiv' }}</span>
+            </button>
             <button @click="handleCopy" class="btn btn-outline btn-sm">
               {{ copied ? 'Copied!' : 'Copy to Clipboard' }}
             </button>
@@ -330,6 +392,27 @@ function handleDownload() {
             </button>
           </div>
         </div>
+
+        <div v-if="beehiivDraftResult" class="beehiiv-staged-banner">
+          <div class="beehiiv-staged-info">
+            <span class="beehiiv-icon">🐝</span>
+            <div>
+              <p class="beehiiv-banner-title">Draft Staged to Beehiiv!</p>
+              <p class="beehiiv-banner-sub">
+                ID: <code>{{ beehiivDraftResult.id }}</code> • Status: <code>{{ beehiivDraftResult.status }}</code>
+              </p>
+            </div>
+          </div>
+          <a
+            :href="beehiivDraftResult.edit_url || `https://app.beehiiv.com/posts/${beehiivDraftResult.id}/edit`"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-beehiiv-link btn-sm"
+          >
+            Open in Beehiiv Editor ↗
+          </a>
+        </div>
+        <div v-if="beehiivError" class="error-banner mb-3">{{ beehiivError }}</div>
 
         <div v-if="loading" class="preview-placeholder loading-placeholder">
           <div class="music-loader">
@@ -343,10 +426,13 @@ function handleDownload() {
 
         <div v-else-if="result" class="preview-container">
           <div class="tab-content">
+            <div class="editor-header-hint">
+              <span>✏️ Quick edits welcome below before staging to Beehiiv</span>
+            </div>
             <textarea
-              readonly
+              v-model="result.newsletterDraft"
               class="newsletter-output-editor"
-              :value="result.newsletterDraft"
+              placeholder="Firenze newsletter draft..."
             ></textarea>
           </div>
 
@@ -747,6 +833,15 @@ textarea.form-control {
   flex: 1;
 }
 
+.editor-header-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .newsletter-output-editor {
   width: 100%;
   height: 650px;
@@ -896,5 +991,92 @@ textarea.form-control {
 .expand-enter-from, .expand-leave-to {
   max-height: 0;
   opacity: 0;
+}
+
+/* Beehiiv Staging Styles */
+.btn-beehiiv {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #80E0A0;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-beehiiv:hover:not(:disabled) {
+  background: #1e293b;
+  border-color: #1e293b;
+  color: #9DFF99;
+}
+
+.beehiiv-staged-banner {
+  background: #f0fdf4;
+  border: 1px solid #80E0A0;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.beehiiv-staged-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.beehiiv-icon {
+  font-size: 1.5rem;
+}
+
+.beehiiv-banner-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #166534;
+}
+
+.beehiiv-banner-sub {
+  margin: 0.15rem 0 0 0;
+  font-size: 0.8rem;
+  color: #15803d;
+}
+
+.beehiiv-banner-sub code {
+  background: rgba(22, 101, 52, 0.1);
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+}
+
+.btn-beehiiv-link {
+  background: #80E0A0;
+  color: #064e3b;
+  font-weight: 700;
+  text-decoration: none;
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  border: 1px solid #80E0A0;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-beehiiv-link:hover {
+  background: #9DFF99;
+  color: #022c22;
+}
+
+.loader-spinner--sm {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-width: 1.5px;
+}
+
+.mb-3 {
+  margin-bottom: 0.75rem;
 }
 </style>
