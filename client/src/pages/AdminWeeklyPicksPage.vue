@@ -410,10 +410,13 @@ async function handlePushToBeehiiv() {
 
         <div v-else-if="result" class="preview-container">
           <div class="tab-content">
+            <div class="editor-header-hint">
+              <span>✏️ Quick edits welcome below before staging to Beehiiv</span>
+            </div>
             <textarea
-              readonly
+              v-model="result.newsletterDraft"
               class="newsletter-output-editor"
-              :value="result.newsletterDraft"
+              placeholder="Firenze newsletter draft..."
             ></textarea>
           </div>
 
@@ -812,6 +815,15 @@ textarea.form-control {
   flex-direction: column;
   gap: 1.5rem;
   flex: 1;
+}
+
+.editor-header-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .newsletter-output-editor {
