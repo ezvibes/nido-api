@@ -20,6 +20,7 @@ import {
   GOOGLE_CALENDAR_EZ_VIBES_ICAL_URL,
   EZ_VIBES_CORE_ARTISTS,
   EZ_VIBES_CORE_VENUES,
+  EZ_VIBES_CORE_FESTIVALS,
 } from './newsletter.constants';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -467,6 +468,7 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
 - **Scene DNA:** Jam-adjacent, funk, soul, bluegrass, roots, psychedelic rock, Americana, reggae.
 - **Priority Artist Radar:** ${EZ_VIBES_CORE_ARTISTS.join(', ')}.
 - **Priority Venue Roster:** ${EZ_VIBES_CORE_VENUES.join(', ')}.
+- **Priority Festival Roster:** ${EZ_VIBES_CORE_FESTIVALS.join(', ')}.
 - **Language Discipline:** Natural scene vocabulary ("in the pocket", "heaters", "heads", "bring a friend"). Strictly avoid corporate superlatives ("a night you won't forget", "must-see sensation"), fake firsthand attendance, or forced hype.
 - **Structural Rules:**
   - 5 Quick Hits emojis: 👑 EZ Vibes Update, 🐸 Featured Show, 💫 Featured Festival, ✅ Top Picks, 🤝 Partnership Opportunities.
