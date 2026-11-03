@@ -95,6 +95,24 @@ export class GenerateNewsletterDto {
 
   @ApiPropertyOptional({
     description:
+      'Whether to fetch and merge shows from the official JamBase NC iCal feed',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  includeJambaseCalendar?: boolean = false;
+
+  @ApiPropertyOptional({
+    description:
+      'Whether to fetch and merge shows from the EZ Vibes Google Calendar feed',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  includeGoogleCalendar?: boolean = false;
+
+  @ApiPropertyOptional({
+    description:
       'Restrict database concert inclusion to admin Featured concerts.',
     default: false,
   })

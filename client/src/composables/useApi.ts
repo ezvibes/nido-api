@@ -879,6 +879,8 @@ export interface GenerateNewsletterPayload {
   featuredFestival?: string;
   rawCalendarData?: string;
   useDatabase?: boolean;
+  includeJambaseCalendar?: boolean;
+  includeGoogleCalendar?: boolean;
   featuredOnly?: boolean;
   topPicksOnly?: boolean;
   excludeConcertIds?: string[];

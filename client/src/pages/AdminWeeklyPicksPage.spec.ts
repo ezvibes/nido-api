@@ -152,9 +152,9 @@ describe('AdminWeeklyPicksPage', () => {
     await flushPromises();
 
     const checkboxes = wrapper.findAll('input[type="checkbox"]');
-    expect(checkboxes).toHaveLength(4);
-    await checkboxes[1]!.setValue(true);
-    await checkboxes[2]!.setValue(true);
+    expect(checkboxes).toHaveLength(6);
+    await checkboxes[3]!.setValue(true);
+    await checkboxes[4]!.setValue(true);
 
     await wrapper
       .findAll('button')

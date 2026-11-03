@@ -32,6 +32,8 @@ const form = reactive({
   featuredFestival: '',
   rawCalendarData: '',
   useDatabase: true,
+  includeJambaseCalendar: true,
+  includeGoogleCalendar: true,
   featuredOnly: false,
   topPicksOnly: false,
   augmentCalendar: false,
@@ -80,6 +82,8 @@ function buildPayload(): GenerateNewsletterPayload {
       ? form.rawCalendarData
       : undefined,
     useDatabase: form.useDatabase,
+    includeJambaseCalendar: form.includeJambaseCalendar,
+    includeGoogleCalendar: form.includeGoogleCalendar,
     featuredOnly: form.featuredOnly,
     topPicksOnly: form.topPicksOnly,
     excludeConcertIds: excludedConcertIds.value.length
@@ -298,6 +302,18 @@ async function handlePushToBeehiiv() {
               <label class="checkbox-label">
                 <input type="checkbox" v-model="form.useDatabase" />
                 <span>Fetch from verified Nido Database (NC, active, approved)</span>
+              </label>
+            </div>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="form.includeJambaseCalendar" />
+                <span>Include JamBase NC Calendar Feed</span>
+              </label>
+            </div>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="form.includeGoogleCalendar" />
+                <span>Include EZ Vibes Google Calendar Feed</span>
               </label>
             </div>
             <div class="checkbox-group">

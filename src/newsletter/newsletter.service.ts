@@ -15,6 +15,12 @@ import { NewsletterAgentToolRegistry } from './agent/newsletter-agent-tool-regis
 import { TypeOrmSessionService } from '../apis/agents/session/typeorm-session.service';
 import { AgentSupervisorService } from '../apis/agents/agent-supervisor.service';
 import { formatNewsletterMarkdownToHtml } from './newsletter-html-formatter.util';
+import {
+  JAMBASE_NC_ICAL_URL,
+  GOOGLE_CALENDAR_EZ_VIBES_ICAL_URL,
+  EZ_VIBES_CORE_ARTISTS,
+  EZ_VIBES_CORE_VENUES,
+} from './newsletter.constants';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -41,6 +47,8 @@ export interface NewsletterRequestParams {
   featuredFestival?: string;
   rawCalendarData?: string;
   useDatabase?: boolean;
+  includeJambaseCalendar?: boolean;
+  includeGoogleCalendar?: boolean;
   featuredOnly?: boolean;
   topPicksOnly?: boolean;
   excludeConcertIds?: string[];
@@ -317,13 +325,66 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
       });
     }
 
-    const calendarEvents = params.rawCalendarData
-      ? await this.parseCalendarData(
-          params.rawCalendarData,
+    const rawCalendarEvents: NewsletterSourceConcert[] = [];
+
+    if (params.includeJambaseCalendar) {
+      try {
+        const jambaseEvents = await this.parseCalendarData(
+          JAMBASE_NC_ICAL_URL,
           start.toISOString(),
           end.toISOString(),
-        )
-      : [];
+          'JamBase Calendar',
+        );
+        rawCalendarEvents.push(...jambaseEvents);
+      } catch (err: any) {
+        this.logger.warn(
+          `Failed to fetch or parse JamBase iCal feed: ${err.message}`,
+        );
+      }
+    }
+
+    if (params.includeGoogleCalendar) {
+      try {
+        const gcalEvents = await this.parseCalendarData(
+          GOOGLE_CALENDAR_EZ_VIBES_ICAL_URL,
+          start.toISOString(),
+          end.toISOString(),
+          'Google Calendar',
+        );
+        rawCalendarEvents.push(...gcalEvents);
+      } catch (err: any) {
+        this.logger.warn(
+          `Failed to fetch or parse Google Calendar feed: ${err.message}`,
+        );
+      }
+    }
+
+    if (params.rawCalendarData) {
+      const customEvents = await this.parseCalendarData(
+        params.rawCalendarData,
+        start.toISOString(),
+        end.toISOString(),
+        'Calendar Feed',
+      );
+      rawCalendarEvents.push(...customEvents);
+    }
+
+    // Deduplicate calendar events against database concerts and each other by normalized title + date
+    const seenConcertKeys = new Set(
+      concerts.map(
+        (c) =>
+          `${(c.title || '').toLowerCase().trim()}_${(c.date || '').trim()}`,
+      ),
+    );
+
+    const calendarEvents: NewsletterSourceConcert[] = [];
+    for (const event of rawCalendarEvents) {
+      const key = `${(event.title || '').toLowerCase().trim()}_${(event.date || '').trim()}`;
+      if (!seenConcertKeys.has(key)) {
+        seenConcertKeys.add(key);
+        calendarEvents.push(event);
+      }
+    }
 
     return {
       dateRangeLabel: label,
@@ -400,7 +461,18 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
       .replace(
         /\[Injected programmatically or pasted here\]/g,
         params.rawCalendarData,
-      );
+      ) +
+      `\n\n### EDITORIAL TASTE PROFILE & VOICE GUIDELINES (LEARNED FROM PRODUCTION EDITIONS)
+- **Voice & Identity:** You are the authentic editorial voice of Evan and Camille, founders of EZ Vibes. Warm, soulful, local NC scene insider, community-first.
+- **Scene DNA:** Jam-adjacent, funk, soul, bluegrass, roots, psychedelic rock, Americana, reggae.
+- **Priority Artist Radar:** ${EZ_VIBES_CORE_ARTISTS.join(', ')}.
+- **Priority Venue Roster:** ${EZ_VIBES_CORE_VENUES.join(', ')}.
+- **Language Discipline:** Natural scene vocabulary ("in the pocket", "heaters", "heads", "bring a friend"). Strictly avoid corporate superlatives ("a night you won't forget", "must-see sensation"), fake firsthand attendance, or forced hype.
+- **Structural Rules:**
+  - 5 Quick Hits emojis: 👑 EZ Vibes Update, 🐸 Featured Show, 💫 Featured Festival, ✅ Top Picks, 🤝 Partnership Opportunities.
+  - Top Picks layout: [**Band Name**](Ticket URL) [(FREE!) if applicable] \\n **Venue Name** – City, State \\n *The Vibe:* One punchy sentence.
+  - Partner with EZ Vibes: Highlight the 40%+ open rate.
+  - Sign-off: "Find a show and bring a friend,\\nEvan and Camille from EZ Vibes".`;
   }
 
   public convertMarkdownToHtml(markdown: string): string {
@@ -449,6 +521,7 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
     rawInput: string,
     timeMin?: string,
     timeMax?: string,
+    sourceName: string = 'Calendar Feed (ICS)',
   ): Promise<NewsletterSourceConcert[]> {
     let content = rawInput.trim();
 
@@ -483,7 +556,7 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
           topPickScore: 0,
           isHighlightArtist: false,
           isPartnerArtist: false,
-          source: 'Calendar Feed (ICS)',
+          source: sourceName,
         }));
       } catch {
         // Fall back
