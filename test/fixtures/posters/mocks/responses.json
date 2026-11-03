@@ -5,7 +5,7 @@
       "name": "Test Venue",
       "address": "123 Test St",
       "city": "Test City",
-      "state": "TS"
+      "state": "NC"
     },
     "performers": [
       {
@@ -20,43 +20,60 @@
     "dates": [
       {
         "date": "2026-10-31",
+        "doorsTime": "19:00:00",
         "startTime": "20:00:00",
         "timezone": "America/New_York"
       }
     ],
-    "genre": "Rock"
+    "primaryGenre": "Rock",
+    "genres": ["Rock", "Indie"],
+    "isFestival": false,
+    "ticketPrice": "$15 ADV / $20 DOS",
+    "ageRestriction": "21+",
+    "promotersAndSponsors": ["Cat's Cradle Presents"],
+    "rawOcrText": "Test Title at Test Venue..."
   },
   "test-multi": {
     "title": "Test Festival",
+    "isFestival": true,
     "venue": {
       "name": "Test Venue",
       "address": "123 Test St",
       "city": "Test City",
-      "state": "TS"
+      "state": "NC"
     },
     "performers": [
       {
         "name": "Headliner 1",
-        "isHeadliner": true
+        "isHeadliner": true,
+        "setTime": "21:00:00",
+        "stage": "Main Stage"
       },
       {
         "name": "Headliner 2",
-        "isHeadliner": true
+        "isHeadliner": true,
+        "setTime": "22:00:00",
+        "stage": "Meadow Stage"
       }
     ],
     "dates": [
       {
         "date": "2026-10-31",
-        "startTime": "20:00:00",
+        "doorsTime": "18:00:00",
+        "startTime": "19:00:00",
         "timezone": "America/New_York"
       },
       {
         "date": "2026-11-01",
-        "startTime": "20:00:00",
+        "doorsTime": "18:00:00",
+        "startTime": "19:00:00",
         "timezone": "America/New_York"
       }
     ],
-    "genre": "Electronic"
+    "primaryGenre": "Electronic",
+    "genres": ["Electronic", "Jam", "Funk"],
+    "ticketPrice": "$45 2-Day Pass",
+    "ageRestriction": "All Ages"
   },
   "clean_single_event": {
     "vision": "Summer Jazz Night\\nThe Blue Notes\\nSarah Vaughn Quartet\\nDowntown Jazz Club\\nAugust 15, 2026\\n8:00 PM",

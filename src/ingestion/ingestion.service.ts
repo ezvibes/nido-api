@@ -28,6 +28,7 @@ import type {
   AdminConcertUploadListResponse,
 } from './interfaces/admin-concert-upload.interface';
 import { UploadableFile } from './interfaces/uploadable-file.interface';
+import { validateImageBuffer } from './utils/image-mime.util';
 import { Concert } from '../apis/concerts/entities/concert.entity';
 import { VenueService } from '../apis/venues/venue.service';
 import { BandService } from '../apis/bands/band.service';
@@ -225,6 +226,13 @@ export class IngestionService {
       throw new BadRequestException('Uploaded image payload is empty.');
     }
 
+    const sniffResult = validateImageBuffer(file.buffer);
+    if (!sniffResult.isValid || !sniffResult.mimeType) {
+      throw new BadRequestException('Uploaded file is corrupted or not a supported image format.');
+    }
+
+    const verifiedMimeType = sniffResult.mimeType;
+
     const uploadedAt = new Date().toISOString();
     const normalizedSource = dto.source ?? 'flyer_upload';
     const normalizedGenre = dto.genre?.trim() || undefined;
@@ -247,7 +255,7 @@ export class IngestionService {
     try {
       await object.save(file.buffer, {
         resumable: false,
-        contentType: file.mimetype,
+        contentType: verifiedMimeType,
         metadata: {
           metadata: {
             uploadedByUid: uid,
@@ -278,7 +286,7 @@ export class IngestionService {
         storageUri: `gs://${this.bucketName}/${objectName}`,
         objectName,
         bucket: this.bucketName,
-        mimeType: file.mimetype,
+        mimeType: verifiedMimeType,
         originalFilename: file.originalname,
         city: dto.city,
         state: dto.state,
@@ -890,10 +898,39 @@ export class IngestionService {
         IngestionStage.ASSET_VALIDATED,
       );
 
+      // Resolve human-readable names for hints
+      let hintedVenueName: string | undefined;
+      if (upload.venue?.name) {
+        hintedVenueName = upload.venue.name;
+      } else if (upload.venueId) {
+        try {
+          const v = await this.venueService.findOne(upload.venueId);
+          if (v) hintedVenueName = v.name;
+        } catch {
+          // ignore lookup failure
+        }
+      }
+
+      let hintedBandName: string | undefined;
+      if (upload.band?.name) {
+        hintedBandName = upload.band.name;
+      } else if (upload.bandId) {
+        try {
+          const b = await this.bandService.findOne(upload.bandId);
+          if (b) hintedBandName = b.name;
+        } catch {
+          // ignore lookup failure
+        }
+      }
+
       // OCR/Extraction state
-      const hints = {
+      const hints: ExtractionHints = {
         bandId: upload.bandId ?? undefined,
+        bandName: hintedBandName,
         venueId: upload.venueId ?? undefined,
+        venueName: hintedVenueName,
+        city: upload.city ?? undefined,
+        state: upload.state ?? undefined,
         date: upload.concertDate
           ? upload.concertDate.toISOString().slice(0, 10)
           : undefined,
@@ -989,7 +1026,15 @@ export class IngestionService {
             time:
               result.dates && result.dates[0] && result.dates[0].startTime
                 ? {
-                    rawValue: result.dates[0].startTime,
+                    rawValue: result.dates[0].startTime === '00:00:00' ? undefined : result.dates[0].startTime,
+                    source: 'extraction',
+                    confidence: 0.9,
+                  }
+                : undefined,
+            doorsTime:
+              result.dates && result.dates[0] && result.dates[0].doorsTime
+                ? {
+                    rawValue: result.dates[0].doorsTime === '00:00:00' ? undefined : result.dates[0].doorsTime,
                     source: 'extraction',
                     confidence: 0.9,
                   }
@@ -1036,13 +1081,59 @@ export class IngestionService {
                   confidence: 0.9,
                 }))
               : undefined,
-            genres: result.genre
+            genres: result.genres && result.genres.length > 0
               ? {
-                  rawValue: result.genre,
+                  rawValue: result.genres.join(', '),
+                  normalizedValue: result.genres,
+                  source: 'extraction',
+                  confidence: 0.9,
+                }
+              : result.primaryGenre || result.genre
+                ? {
+                    rawValue: result.primaryGenre || result.genre,
+                    normalizedValue: [result.primaryGenre || result.genre],
+                    source: 'extraction',
+                    confidence: 0.9,
+                  }
+                : undefined,
+            primaryGenre: (result.primaryGenre || result.genre)
+              ? {
+                  rawValue: result.primaryGenre || result.genre,
                   source: 'extraction',
                   confidence: 0.9,
                 }
               : undefined,
+            isFestival: result.isFestival ?? false,
+            ticketPrice: result.ticketPrice
+              ? {
+                  rawValue: result.ticketPrice,
+                  source: 'extraction',
+                  confidence: 0.9,
+                }
+              : undefined,
+            ageRestriction: result.ageRestriction
+              ? {
+                  rawValue: result.ageRestriction,
+                  source: 'extraction',
+                  confidence: 0.9,
+                }
+              : undefined,
+            promotersAndSponsors: result.promotersAndSponsors && result.promotersAndSponsors.length > 0
+              ? {
+                  rawValue: result.promotersAndSponsors.join(', '),
+                  normalizedValue: result.promotersAndSponsors,
+                  source: 'extraction',
+                  confidence: 0.9,
+                }
+              : undefined,
+            ticketUrlOrInfo: result.ticketUrlOrInfo
+              ? {
+                  rawValue: result.ticketUrlOrInfo,
+                  source: 'extraction',
+                  confidence: 0.9,
+                }
+              : undefined,
+            rawOcrText: result.rawOcrText ?? undefined,
             modelName:
               this.extractor.getModelName?.() ||
               this.configService.get<string>('GEMINI_MODEL')?.trim() ||
@@ -1161,6 +1252,12 @@ export class IngestionService {
       throw new BadRequestException('Uploaded image payload is empty.');
     }
 
+    const sniffResult = validateImageBuffer(file.buffer);
+    if (!sniffResult.isValid || !sniffResult.mimeType) {
+      throw new BadRequestException('Uploaded file is corrupted or not a supported image format.');
+    }
+    const verifiedMimeType = sniffResult.mimeType;
+
     const concert = await this.concertRepository.findOne({
       where: { id: concertId },
       relations: ['venue'],
@@ -1177,7 +1274,7 @@ export class IngestionService {
     try {
       await object.save(file.buffer, {
         resumable: false,
-        contentType: file.mimetype,
+        contentType: verifiedMimeType,
         metadata: {
           metadata: {
             uploadedByUid: uid,
@@ -1204,7 +1301,7 @@ export class IngestionService {
         storageUri: `gs://${this.bucketName}/${objectName}`,
         objectName,
         bucket: this.bucketName,
-        mimeType: file.mimetype,
+        mimeType: verifiedMimeType,
         originalFilename: file.originalname,
         city: concert.venue?.city ?? undefined,
         state: concert.venue?.region ?? undefined,

@@ -4,10 +4,11 @@ import {
   ExtractionResult,
   ExtractionHints,
 } from './iextraction.adapter';
-import { GoogleGenAI, Type, Schema } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ConfigService } from '@nestjs/config';
+import { validateImageBuffer } from '../../utils/image-mime.util';
 
 const DEFAULT_EXTRACTION_MODEL = 'gemini-3.8-flash';
 const FALLBACK_EXTRACTION_MODEL = 'gemini-flash-latest';
@@ -16,6 +17,67 @@ const RETIRED_GEMINI_MODELS = new Set([
   'gemini-2.0-flash',
   'gemini-2.5-flash',
 ]);
+
+export const CANONICAL_CONCERT_GENRES = [
+  'Jazz',
+  'Bluegrass',
+  'Funk',
+  'Jam',
+  'Reggae',
+  'Hip-Hop',
+  'Rock',
+  'Folk',
+  'Salsa',
+  'Electronic',
+] as const;
+
+export const US_STATE_TIMEZONE_MAP: Record<string, string> = {
+  NC: 'America/New_York',
+  SC: 'America/New_York',
+  VA: 'America/New_York',
+  GA: 'America/New_York',
+  FL: 'America/New_York',
+  NY: 'America/New_York',
+  PA: 'America/New_York',
+  NJ: 'America/New_York',
+  MA: 'America/New_York',
+  MD: 'America/New_York',
+  DC: 'America/New_York',
+  TN: 'America/Chicago',
+  IL: 'America/Chicago',
+  TX: 'America/Chicago',
+  OH: 'America/New_York',
+  CA: 'America/Los_Angeles',
+  WA: 'America/Los_Angeles',
+  OR: 'America/Los_Angeles',
+  CO: 'America/Denver',
+  AZ: 'America/Phoenix',
+};
+
+export function inferTimezone(state?: string, city?: string): string | undefined {
+  if (state) {
+    const st = state.trim().toUpperCase();
+    if (US_STATE_TIMEZONE_MAP[st]) {
+      return US_STATE_TIMEZONE_MAP[st];
+    }
+  }
+  if (city) {
+    const c = city.trim().toLowerCase();
+    if (['raleigh', 'durham', 'chapel hill', 'carrboro', 'charlotte', 'asheville', 'greensboro', 'wilmington', 'richmond', 'atlanta', 'brooklyn', 'new york'].includes(c)) {
+      return 'America/New_York';
+    }
+    if (['chicago', 'nashville', 'austin', 'dallas', 'houston', 'new orleans'].includes(c)) {
+      return 'America/Chicago';
+    }
+    if (['los angeles', 'san francisco', 'seattle', 'portland', 'oakland', 'san diego'].includes(c)) {
+      return 'America/Los_Angeles';
+    }
+    if (['denver', 'boulder', 'salt lake city'].includes(c)) {
+      return 'America/Denver';
+    }
+  }
+  return undefined;
+}
 
 @Injectable()
 export class GeminiExtractionAdapter implements IExtractionAdapter {
@@ -74,13 +136,36 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
     imageBuffer?: Buffer,
   ): Promise<ExtractionResult[]> {
     try {
-      const prompt = `Extract the concert details from this poster.
-      If you receive hints, do not let them override what is clearly stated on the poster.`;
+      const todayDate = new Date().toISOString().slice(0, 10);
+      const prompt = `You are an expert concert poster extraction engine. Extract concert and live music event details with precision.
+Current Reference Upload Date: ${todayDate}. If the poster mentions a day of the week and month/day without a year (e.g. "SATURDAY OCT 31"), resolve the year deterministically to the upcoming calendar date on or after the reference date.
+
+CRITICAL EXTRACTION RULES:
+1. Canonical Primary Genre & Multi-Genre Arrays:
+   - primaryGenre: Must select the single best matching canonical genre from: [${CANONICAL_CONCERT_GENRES.join(', ')}].
+   - genres: Array of all applicable genres/subgenres stated or implied (e.g. ["Folk", "Bluegrass", "Americana"]).
+   - isFestival: Set to true if the poster represents a multi-act festival, showcase, or special event series.
+2. Times & Timezones:
+   - doorsTime: The doors open time in 24-hour HH:MM:SS format (e.g., "19:00:00" for 7 PM).
+   - startTime: The show / concert start time in 24-hour HH:MM:SS format (e.g., "20:00:00" for 8 PM).
+   - NEVER output "00:00:00" if no time is printed on the poster! If a time is not printed, leave it null/empty.
+   - Infer the IANA timezone (e.g., "America/New_York", "America/Chicago", "America/Los_Angeles") based on the venue city and state.
+3. Performers vs. Promoters/Sponsors:
+   - Separate organizers, presenters, promoters, series names, or radio sponsors ("Presented by Cat's Cradle & WKNC", "Live Nation Presents") into promotersAndSponsors.
+   - NEVER misclassify a presenter or promoter as a performer in the lineup!
+   - Capture optional setTime and stage in performers if printed (e.g., festival schedules).
+4. Additional Metadata:
+   - ticketPrice: Printed ticket prices (e.g., "$15 ADV / $20 DOS", "Free").
+   - ageRestriction: Age limit (e.g., "21+", "18+", "All Ages").
+   - ticketUrlOrInfo: Printed ticket URLs or box office details.
+   - rawOcrText: Verbatim text transcription of the entire poster graphic.
+5. Hints:
+   - Poster evidence is authoritative when clearly printed. Uploader hints should only fill in missing fields (like missing year or city/state) and should never override clear poster text.`;
 
       let hintText = '';
       if (hints) {
         hintText =
-          'Hints provided by user (use these only if the poster is ambiguous, but do not override clear poster evidence):\n' +
+          '\nHints provided by user (use these only if missing or ambiguous on the poster, do not override clear poster evidence):\n' +
           JSON.stringify(hints);
       }
 
@@ -88,11 +173,18 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
         throw new Error('Poster image buffer is required for live Gemini extraction');
       }
 
+      const sniffResult = validateImageBuffer(imageBuffer);
+      if (!sniffResult.isValid || !sniffResult.mimeType) {
+        throw new Error('Corrupted or unsupported image buffer rejected before Gemini extraction');
+      }
+
+      const verifiedMimeType = sniffResult.mimeType;
+
       const parts: any[] = [
-        { text: prompt + '\n' + hintText },
+        { text: prompt + hintText },
         {
           inlineData: {
-            mimeType: mimeType || 'image/jpeg',
+            mimeType: verifiedMimeType,
             data: imageBuffer.toString('base64'),
           },
         },
@@ -100,7 +192,7 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
 
       const requestConfig = {
         responseMimeType: 'application/json',
-        // Cap thinking tokens to keep per-poster OCR fast (~2.5s) and low-cost (~$0.0002/poster)
+        // Cap thinking tokens to keep per-poster OCR fast (~2.5s) and low-cost (< $0.001/poster)
         thinkingConfig: {
           thinkingBudget: 256,
         },
@@ -110,6 +202,7 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
             type: Type.OBJECT,
             properties: {
               title: { type: Type.STRING },
+              isFestival: { type: Type.BOOLEAN },
               venue: {
                 type: Type.OBJECT,
                 properties: {
@@ -126,6 +219,8 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
                   properties: {
                     name: { type: Type.STRING },
                     isHeadliner: { type: Type.BOOLEAN },
+                    setTime: { type: Type.STRING },
+                    stage: { type: Type.STRING },
                   },
                 },
               },
@@ -135,12 +230,29 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
                   type: Type.OBJECT,
                   properties: {
                     date: { type: Type.STRING, description: 'YYYY-MM-DD' },
-                    startTime: { type: Type.STRING, description: 'HH:MM:SS' },
-                    timezone: { type: Type.STRING },
+                    doorsTime: { type: Type.STRING, description: 'HH:MM:SS 24-hr doors time or empty' },
+                    startTime: { type: Type.STRING, description: 'HH:MM:SS 24-hr show time or empty' },
+                    timezone: { type: Type.STRING, description: 'IANA timezone like America/New_York' },
                   },
                 },
               },
+              primaryGenre: {
+                type: Type.STRING,
+                enum: CANONICAL_CONCERT_GENRES as unknown as string[],
+              },
+              genres: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
               genre: { type: Type.STRING },
+              ticketPrice: { type: Type.STRING },
+              ageRestriction: { type: Type.STRING },
+              promotersAndSponsors: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+              ticketUrlOrInfo: { type: Type.STRING },
+              rawOcrText: { type: Type.STRING },
             },
           },
         },
@@ -182,9 +294,44 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
       const flattenedResults: ExtractionResult[] = [];
 
       for (const item of rawResults) {
-        if ((!Array.isArray(item.dates) || item.dates.length === 0) && hints?.date) {
-          item.dates = [{ date: hints.date }];
+        // Deterministic post-processing of times: 00:00:00 -> undefined
+        if (Array.isArray(item.dates)) {
+          for (const d of item.dates) {
+            if (d.startTime === '00:00:00' || d.startTime === '00:00') {
+              delete d.startTime;
+            }
+            if (d.doorsTime === '00:00:00' || d.doorsTime === '00:00') {
+              delete d.doorsTime;
+            }
+            if (!d.timezone) {
+              const inferred = inferTimezone(item.venue?.state || hints?.state, item.venue?.city || hints?.city);
+              if (inferred) d.timezone = inferred;
+            }
+          }
         }
+
+        // Fill in missing date from hints if absent
+        if ((!Array.isArray(item.dates) || item.dates.length === 0) && hints?.date) {
+          item.dates = [{
+            date: hints.date,
+            timezone: inferTimezone(item.venue?.state || hints?.state, item.venue?.city || hints?.city) || 'America/New_York',
+          }];
+        }
+
+        // Canonical primary genre mapping
+        if (!item.primaryGenre && item.genre) {
+          const match = CANONICAL_CONCERT_GENRES.find(
+            (g) => g.toLowerCase() === item.genre?.toLowerCase(),
+          );
+          if (match) {
+            item.primaryGenre = match;
+          }
+        }
+        if (!item.genre && item.primaryGenre) {
+          item.genre = item.primaryGenre;
+        }
+
+        // Split multi-date events
         if (Array.isArray(item.dates) && item.dates.length > 1) {
           for (const d of item.dates) {
             flattenedResults.push({ ...item, dates: [{ ...d }] });
@@ -225,7 +372,6 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
       mocks = JSON.parse(fs.readFileSync(mockFilePath, 'utf-8'));
     }
 
-    // Simple mock logic based on url/filename for tests
     let mockResponse = mocks['test-single'];
     if (imageUrl.includes('multi')) mockResponse = mocks['test-multi'];
     if (imageUrl.includes('malformed')) throw new Error('Malformed JSON');
@@ -234,12 +380,12 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
       return [];
     }
 
-    const results = [mockResponse as ExtractionResult];
+    // Clone to prevent mutating cache
+    const responseClone = JSON.parse(JSON.stringify(mockResponse));
 
-    // Map to array as single event returns one item, multi returns multi
-    if (mockResponse.dates && mockResponse.dates.length > 1) {
-      return mockResponse.dates.map((d: any) => {
-        let newD = { ...mockResponse, dates: [d] };
+    if (responseClone.dates && responseClone.dates.length > 1) {
+      return responseClone.dates.map((d: any) => {
+        let newD = { ...responseClone, dates: [d] };
         if (hints && hints.date && newD.dates && newD.dates[0]) {
           if (hints.date !== newD.dates[0].date) {
             newD.dates[0].warning = `Hint conflict: uploader suggested '${hints.date}', poster states '${newD.dates[0].date}'`;
@@ -249,6 +395,7 @@ export class GeminiExtractionAdapter implements IExtractionAdapter {
       });
     }
 
+    const results = [responseClone as ExtractionResult];
     if (hints && hints.date && results[0].dates && results[0].dates[0]) {
       if (hints.date !== results[0].dates[0].date) {
         results[0].dates[0].warning = `Hint conflict: uploader suggested '${hints.date}', poster states '${results[0].dates[0].date}'`;

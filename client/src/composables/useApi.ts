@@ -666,7 +666,13 @@ export interface AdminIngestionCandidateListItem {
     venueExtracted?: { rawValue: string; confidence?: number; warnings?: string[] };
     performerLineup?: { rawValue: string; normalizedValue?: any[]; confidence?: number; warnings?: string[] };
     bands?: { rawValue: string; confidence?: number }[];
-    genres?: { rawValue: string; confidence?: number }[] | { rawValue: string; confidence?: number };
+    genres?: { rawValue: string; normalizedValue?: string[]; confidence?: number } | { rawValue: string; confidence?: number }[];
+    doorsTime?: { rawValue: string; confidence?: number };
+    primaryGenre?: { rawValue: string; confidence?: number };
+    ticketPrice?: { rawValue: string; confidence?: number };
+    ageRestriction?: { rawValue: string; confidence?: number };
+    promotersAndSponsors?: { rawValue: string; normalizedValue?: string[]; confidence?: number };
+    ticketUrlOrInfo?: { rawValue: string; confidence?: number };
     ticketUrl?: { rawValue: string; confidence?: number };
     price?: { rawValue: string; confidence?: number };
     rawOcrText?: string;

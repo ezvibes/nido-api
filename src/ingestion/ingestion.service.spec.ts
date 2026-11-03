@@ -149,12 +149,14 @@ describe('IngestionService', () => {
     service = module.get<IngestionService>(IngestionService);
   });
 
+  const validJpegBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01]);
+
   it('should use NestJS logger.debug and not console.log when uploading an image', async () => {
     const file = {
       originalname: 'poster.jpg',
       mimetype: 'image/jpeg',
-      buffer: Buffer.from('image'),
-      size: 5,
+      buffer: validJpegBuffer,
+      size: 12,
     } as UploadableFile;
 
     concertUploadRepository.create.mockImplementation((value) => value);
@@ -195,8 +197,8 @@ describe('IngestionService', () => {
     const file = {
       originalname: 'poster.jpg',
       mimetype: 'image/jpeg',
-      buffer: Buffer.from('image'),
-      size: 5,
+      buffer: validJpegBuffer,
+      size: 12,
     } as UploadableFile;
 
     concertUploadRepository.create.mockImplementation((value) => value);
@@ -260,8 +262,8 @@ describe('IngestionService', () => {
       const file = {
         originalname: 'poster.jpg',
         mimetype: 'image/jpeg',
-        buffer: Buffer.from('image'),
-        size: 5,
+        buffer: validJpegBuffer,
+        size: 12,
       } as UploadableFile;
       const objectSave = jest.fn().mockResolvedValue(undefined);
 
@@ -292,8 +294,8 @@ describe('IngestionService', () => {
     const file = {
       originalname: 'poster.jpg',
       mimetype: 'image/jpeg',
-      buffer: Buffer.from('image'),
-      size: 5,
+      buffer: validJpegBuffer,
+      size: 12,
     } as UploadableFile;
     const objectSave = jest.fn().mockResolvedValue(undefined);
 
@@ -738,8 +740,8 @@ describe('IngestionService', () => {
         {
           originalname: 'poster.jpg',
           mimetype: 'image/jpeg',
-          buffer: Buffer.from('image'),
-          size: 5,
+            buffer: validJpegBuffer,
+            size: 12,
         } as UploadableFile,
         {},
         'uid-1',

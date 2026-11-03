@@ -49,72 +49,77 @@
         </div>
       </div>
 
-      <div class="ingestion-panel__hints">
-        <div class="ingestion-panel__hints-header">
-          <p class="ingestion-panel__hints-title">Event Details</p>
-          <p class="ingestion-panel__hints-subtitle">Provide known details to help our team match and publish the show faster.</p>
-        </div>
-
-        <div class="ingestion-panel__fields-grid">
-          <label class="ingestion-panel__field">
-            <span>Date</span>
-            <input
-              v-model="concertDate"
-              type="date"
-              aria-label="Concert date"
-            />
-          </label>
-
-          <label class="ingestion-panel__field">
-            <span>Venue</span>
-            <select v-model="venueId" aria-label="Venue" @change="onVenueChange">
-              <option value="">Select a venue (optional)</option>
-              <option v-for="v in venues" :key="v.id" :value="v.id">
-                {{ v.name }} ({{ v.city }}, {{ v.region || v.city }})
-              </option>
-            </select>
-          </label>
-
-          <div class="ingestion-panel__field ingestion-panel__genre-field">
-            <GenreCombobox
-              v-model="genre"
-              :options="userGenreOptions"
-              placeholder="Select a genre"
-              :loading="genreLoadState === 'loading'"
-              :allow-custom="false"
-              :max-visible-options="25"
-              :described-by="genreHelpMessage ? 'genre-help' : undefined"
-            />
-            <small
-              v-if="genreHelpMessage"
-              id="genre-help"
-              class="ingestion-panel__field-help"
-            >
-              {{ genreHelpMessage }}
-            </small>
+      <details class="ingestion-panel__hints-disclosure">
+        <summary class="ingestion-panel__hints-summary">
+          <span>▸ Add optional details (if missing from the poster)</span>
+        </summary>
+        <div class="ingestion-panel__hints">
+          <div class="ingestion-panel__hints-header">
+            <p class="ingestion-panel__hints-title">Event Details</p>
+            <p class="ingestion-panel__hints-subtitle">Provide known details to help our team match and publish the show faster.</p>
           </div>
 
-          <label class="ingestion-panel__field">
-            <span>Band / Artist</span>
-            <select v-model="bandId" aria-label="Band or artist">
-              <option value="">Select an artist (optional)</option>
-              <option v-for="b in bands" :key="b.id" :value="b.id">
-                {{ b.name }}
-              </option>
-            </select>
-          </label>
+          <div class="ingestion-panel__fields-grid">
+            <label class="ingestion-panel__field">
+              <span>Date</span>
+              <input
+                v-model="concertDate"
+                type="date"
+                aria-label="Concert date"
+              />
+            </label>
 
-          <label class="ingestion-panel__field">
-            <span>City</span>
-            <input v-model="city" type="text" placeholder="Raleigh" />
-          </label>
+            <label class="ingestion-panel__field">
+              <span>Venue</span>
+              <select v-model="venueId" aria-label="Venue" @change="onVenueChange">
+                <option value="">Select a venue (optional)</option>
+                <option v-for="v in venues" :key="v.id" :value="v.id">
+                  {{ v.name }} ({{ v.city }}, {{ v.region || v.city }})
+                </option>
+              </select>
+            </label>
 
-          <label class="ingestion-panel__field">
-            <span>State</span>
-            <input v-model="state" type="text" maxlength="2" placeholder="NC" />
-          </label>
+            <div class="ingestion-panel__field ingestion-panel__genre-field">
+              <GenreCombobox
+                v-model="genre"
+                :options="userGenreOptions"
+                placeholder="Select a genre"
+                :loading="genreLoadState === 'loading'"
+                :allow-custom="false"
+                :max-visible-options="25"
+                :described-by="genreHelpMessage ? 'genre-help' : undefined"
+              />
+              <small
+                v-if="genreHelpMessage"
+                id="genre-help"
+                class="ingestion-panel__field-help"
+              >
+                {{ genreHelpMessage }}
+              </small>
+            </div>
+
+            <label class="ingestion-panel__field">
+              <span>Band / Artist</span>
+              <select v-model="bandId" aria-label="Band or artist">
+                <option value="">Select an artist (optional)</option>
+                <option v-for="b in bands" :key="b.id" :value="b.id">
+                  {{ b.name }}
+                </option>
+              </select>
+            </label>
+
+            <label class="ingestion-panel__field">
+              <span>City</span>
+              <input v-model="city" type="text" placeholder="Raleigh" />
+            </label>
+
+            <label class="ingestion-panel__field">
+              <span>State</span>
+              <input v-model="state" type="text" maxlength="2" placeholder="NC" />
+            </label>
+          </div>
         </div>
-      </div>
+      </details>
 
       <p v-if="message" :class="messageClass">{{ message }}</p>
 
@@ -868,8 +873,33 @@ const handleSubmit = async () => {
   justify-items: center;
 }
 
-.ingestion-panel__hints {
+.ingestion-panel__hints-disclosure {
   width: min(100%, 34rem);
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.ingestion-panel__hints-summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-light, #64748b);
+  padding: 0.4rem 0.2rem;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+
+.ingestion-panel__hints-summary::-webkit-details-marker {
+  display: none;
+}
+
+.ingestion-panel__hints-summary:hover {
+  color: var(--accent, #f05537);
+}
+
+.ingestion-panel__hints {
+  width: 100%;
   box-sizing: border-box;
   padding: 1.15rem;
   border-radius: 1.25rem;
@@ -878,6 +908,7 @@ const handleSubmit = async () => {
   display: grid;
   gap: 0.85rem;
   text-align: left;
+  margin-top: 0.5rem;
 }
 
 .ingestion-panel__hints-header {

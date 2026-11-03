@@ -230,13 +230,43 @@
                 </div>
               </div>
 
-              <!-- Genre Selection -->
+              <!-- Genre Selection & Extracted Multi-Genre Tags -->
               <div class="show-editor-field">
                 <label>Genre</label>
                 <select v-model="showForm.genre" class="show-editor-select">
                   <option value="">— Select Genre —</option>
                   <option v-for="g in genres" :key="g" :value="g">{{ g }}</option>
                 </select>
+                <div v-if="extractedGenreList.length > 0" class="extracted-genres-tags">
+                  <span class="extracted-genres-label">Extracted Genres:</span>
+                  <span
+                    v-for="(gTag, gIdx) in extractedGenreList"
+                    :key="gIdx"
+                    class="extracted-genre-pill"
+                  >
+                    {{ gTag }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Ticket & Event Info Metadata (Doors, Price, Age, Promoters) -->
+              <div v-if="selectedCandidate.provenance?.doorsTime || selectedCandidate.provenance?.ticketPrice || selectedCandidate.provenance?.ageRestriction || selectedCandidate.provenance?.promotersAndSponsors" class="event-meta-banner">
+                <div v-if="selectedCandidate.provenance.doorsTime?.rawValue" class="event-meta-item">
+                  <span class="event-meta-label">Doors:</span>
+                  <span class="event-meta-value">{{ selectedCandidate.provenance.doorsTime.rawValue }}</span>
+                </div>
+                <div v-if="selectedCandidate.provenance.ticketPrice?.rawValue" class="event-meta-item">
+                  <span class="event-meta-label">Tickets:</span>
+                  <span class="event-meta-value">{{ selectedCandidate.provenance.ticketPrice.rawValue }}</span>
+                </div>
+                <div v-if="selectedCandidate.provenance.ageRestriction?.rawValue" class="event-meta-item">
+                  <span class="event-meta-label">Age:</span>
+                  <span class="event-meta-value">{{ selectedCandidate.provenance.ageRestriction.rawValue }}</span>
+                </div>
+                <div v-if="selectedCandidate.provenance.promotersAndSponsors?.rawValue" class="event-meta-item">
+                  <span class="event-meta-label">Presenter / Promoter:</span>
+                  <span class="event-meta-value">{{ selectedCandidate.provenance.promotersAndSponsors.rawValue }}</span>
+                </div>
               </div>
 
               <!-- Performers & Lineup Tags -->
@@ -765,6 +795,21 @@ const showForm = ref({
   notes: '',
 });
 const newBandInput = ref('');
+
+const extractedGenreList = computed(() => {
+  const pGenres = selectedCandidate.value?.provenance?.genres as any;
+  if (!pGenres) return [];
+  if (Array.isArray(pGenres.normalizedValue)) {
+    return pGenres.normalizedValue;
+  }
+  if (Array.isArray(pGenres)) {
+    return pGenres.map((g: any) => g.rawValue || g).filter(Boolean);
+  }
+  if (typeof pGenres.rawValue === 'string') {
+    return pGenres.rawValue.split(',').map((s: string) => s.trim()).filter(Boolean);
+  }
+  return [];
+});
 
 // VENUES & GENRES CATALOG
 const venues = ref<VenueListItem[]>([]);
@@ -1895,6 +1940,56 @@ onBeforeUnmount(() => {
   font-size: 0.9rem;
   background: var(--surface, #ffffff);
   color: var(--text, #0f172a);
+}
+
+.extracted-genres-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.extracted-genres-label {
+  font-size: 0.75rem;
+  color: var(--text-light, #64748b);
+  font-weight: 600;
+}
+
+.extracted-genre-pill {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(53, 211, 153, 0.12);
+  color: #0f766e;
+  font-weight: 600;
+}
+
+.event-meta-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.65rem;
+  background: var(--background, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+}
+
+.event-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+}
+
+.event-meta-label {
+  font-weight: 700;
+  color: var(--text-light, #64748b);
+}
+
+.event-meta-value {
+  color: var(--text-dark, #1e293b);
+  font-weight: 600;
 }
 
 .show-editor-input--secondary {

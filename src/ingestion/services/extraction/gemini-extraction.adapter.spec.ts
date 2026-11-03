@@ -28,6 +28,11 @@ describe('GeminiExtractionAdapter', () => {
     const result = await adapter.extract('test-single', 'image/jpeg');
     expect(result).toHaveLength(1);
     expect(result[0].title).toBe('Test Title');
+    expect(result[0].primaryGenre).toBe('Rock');
+    expect(result[0].genres).toEqual(['Rock', 'Indie']);
+    expect(result[0].dates![0].doorsTime).toBe('19:00:00');
+    expect(result[0].ticketPrice).toBe('$15 ADV / $20 DOS');
+    expect(result[0].promotersAndSponsors).toContain("Cat's Cradle Presents");
   });
 
   it('should extract multiple events for lineup fixture', async () => {
