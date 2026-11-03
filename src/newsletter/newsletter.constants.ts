@@ -257,4 +257,3 @@ export const EZ_VIBES_CORE_FESTIVALS = [
   'The Graveyard Getdown',
   'Toe Down',
 ];
-

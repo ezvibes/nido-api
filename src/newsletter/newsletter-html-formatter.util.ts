@@ -1,6 +1,6 @@
 /**
  * EZ Vibes Newsletter HTML Formatter
- * 
+ *
  * Formats curated markdown copy into email-safe HTML adhering to the
  * production 7-section design system and brand palette:
  * - Brand Accent: #80E0A0 (Soft Green)
