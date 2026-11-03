@@ -121,4 +121,71 @@ describe('BeehiivService', () => {
       ).rejects.toThrow('Beehiiv API error (422)');
     });
   });
+
+  describe('getPost', () => {
+    it('should fetch published post content from Beehiiv v2 publications endpoint', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: {
+            id: 'post_123',
+            title: 'Published Weekly Top Picks',
+            status: 'confirmed',
+            content: { free: { web: '<p>Published copy</p>' } },
+          },
+        }),
+      });
+
+      const result = await service.getPost('post_123');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.beehiiv.com/v2/publications/pub_12345/posts/post_123?expand[]=free_web_content',
+        expect.objectContaining({
+          method: 'GET',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer test-beehiiv-key',
+          }),
+        }),
+      );
+      expect(result.id).toBe('post_123');
+      expect(result.status).toBe('confirmed');
+    });
+  });
+
+  describe('getPostStats', () => {
+    it('should fetch post stats and link click records', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: {
+            id: 'post_123',
+            stats: {
+              open_rate: 0.48,
+              click_rate: 0.14,
+              total_clicks: 120,
+              links: [
+                {
+                  url: 'https://etix.com/tickets/1',
+                  clicks: 50,
+                  unique_clicks: 45,
+                },
+              ],
+            },
+          },
+        }),
+      });
+
+      const result = await service.getPostStats('post_123');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.beehiiv.com/v2/publications/pub_12345/posts/post_123?expand[]=stats',
+        expect.objectContaining({
+          method: 'GET',
+        }),
+      );
+      expect(result.id).toBe('post_123');
+      expect(result.total_clicks).toBe(120);
+      expect(result.links).toHaveLength(1);
+    });
+  });
 });

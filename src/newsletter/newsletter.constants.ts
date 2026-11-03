@@ -25,6 +25,7 @@ export const EZ_VIBES_CORE_ARTISTS = [
   'Bela Fleck',
   'Big Fur',
   'Big Shrimp',
+  'Big Something',
   'Billy Strings',
   'Black Pumas',
   'Blue Footed Boobies',
