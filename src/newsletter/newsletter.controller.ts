@@ -73,9 +73,12 @@ export class NewsletterController {
   async pushBeehiivDraft(
     @Body() dto: PushBeehiivDraftDto,
   ): Promise<BeehiivDraftResponse> {
+    const formattedHtml = this.newsletterService.convertMarkdownToHtml(
+      dto.htmlContent,
+    );
     return this.beehiivService.createDraftFromHtml({
       title: dto.title,
-      htmlContent: dto.htmlContent,
+      htmlContent: formattedHtml,
       postTemplateId: dto.postTemplateId,
       publicationId: dto.publicationId,
     });

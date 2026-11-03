@@ -33,7 +33,8 @@ export const stageBeehiivDraftOutputSchema = z
     title: z.string().min(1).max(200),
     subtitle: z.string().optional(),
     status: z.literal('draft'),
-    web_url: z.url().optional(),
+    web_url: z.string().optional(),
+    edit_url: z.string().optional(),
     created_at: z.number().int().nonnegative().optional(),
   })
   .strict();

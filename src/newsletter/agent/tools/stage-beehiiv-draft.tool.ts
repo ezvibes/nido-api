@@ -32,7 +32,13 @@ export function createStageBeehiivDraftTool(
             title,
             content_html: htmlContent,
           });
-          return stageBeehiivDraftOutputSchema.parse(mcpResult);
+          if (
+            mcpResult &&
+            !mcpResult.id.startsWith('offline_draft_') &&
+            !mcpResult.id.startsWith('local_staged_')
+          ) {
+            return stageBeehiivDraftOutputSchema.parse(mcpResult);
+          }
         } catch {
           // Fall back to REST/local staging
         }

@@ -14,6 +14,7 @@ import {
 import { NewsletterAgentToolRegistry } from './agent/newsletter-agent-tool-registry.service';
 import { TypeOrmSessionService } from '../apis/agents/session/typeorm-session.service';
 import { AgentSupervisorService } from '../apis/agents/agent-supervisor.service';
+import { formatNewsletterMarkdownToHtml } from './newsletter-html-formatter.util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -403,23 +404,7 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
   }
 
   public convertMarkdownToHtml(markdown: string): string {
-    if (markdown.trim().startsWith('<')) {
-      return markdown;
-    }
-    let html = markdown
-      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/^\- (.*$)/gim, '<li>$1</li>')
-      .replace(/\n\n/g, '<br/><br/>');
-
-    if (html.includes('<li>')) {
-      html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
-    }
-
-    return html;
+    return formatNewsletterMarkdownToHtml(markdown);
   }
 
   private resolveDates(
