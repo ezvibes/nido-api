@@ -1,0 +1,65 @@
+name: Frankfurt Mission Runner
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'GitHub issue number to execute'
+        required: true
+        type: number
+      dry_run:
+        description: 'Run in dry-run mode without pushing branch or opening PR'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: frankfurt-mission-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  run-mission:
+    name: Execute Frankfurt Mission
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'agent:frankfurt' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install client dependencies
+        run: npm ci --prefix client
+
+      - name: Configure Git User
+        run: |
+          git config --global user.name "Frankfurt Mission Runner [bot]"
+          git config --global user.email "frankfurt-agent@ezvibes.co"
+
+      - name: Run Frankfurt Mission Runner
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_NUM="${{ github.event.issue.number || inputs.issue_number }}"
+          DRY_RUN_FLAG="${{ (inputs.dry_run && '--dry-run') || '' }}"
+          echo "Executing Frankfurt Mission for Issue #${ISSUE_NUM}..."
+          npm run mission:frankfurt -- --issue "${ISSUE_NUM}" ${DRY_RUN_FLAG}

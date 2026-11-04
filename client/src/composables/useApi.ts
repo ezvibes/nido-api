@@ -1101,6 +1101,7 @@ export interface AgentActionItem {
     | 'venezia_candidate_review'
     | 'venezia_duplicate_conflict'
     | 'firenze_newsletter_draft'
+    | 'frankfurt_mission_pr'
     | 'agent_error_attention';
   agentKey: string;
   agentName: string;
@@ -1141,6 +1142,18 @@ export interface AgentActionItem {
     htmlPreview: string;
     targetSystem: 'beehiiv';
   };
+  missionPr?: {
+    issueNumber: number;
+    issueTitle: string;
+    prUrl?: string;
+    branchName: string;
+    diffStat: string;
+    summary: string;
+    rubric?: {
+      optimizations: string[];
+      concern: string;
+    };
+  };
   supportedActions: Array<
     | 'publish'
     | 'link'
@@ -1150,6 +1163,7 @@ export interface AgentActionItem {
     | 'approve_beehiiv_draft'
     | 'reject_with_feedback'
     | 'acknowledge'
+    | 'approve_pr'
   >;
 }
 
@@ -1232,7 +1246,8 @@ export interface ResolveAgentActionItemPayload {
     | 'reject'
     | 'approve_beehiiv_draft'
     | 'reject_with_feedback'
-    | 'acknowledge';
+    | 'acknowledge'
+    | 'approve_pr';
   targetConcertId?: string;
   feedback?: string;
   reviewDurationMs?: number;

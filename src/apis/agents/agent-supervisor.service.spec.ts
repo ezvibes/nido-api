@@ -237,5 +237,59 @@ describe('AgentSupervisorService', () => {
         ),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('stages a Frankfurt mission PR, lists it in getActionItems, and approves it', async () => {
+      const runId = 'frankfurt-test-run-176';
+
+      // 1. Report mission started
+      const startRes = service.recordMissionReport({
+        runId,
+        issueNumber: 176,
+        issueTitle: 'Transition overnight builds to Frankfurt',
+        state: 'started',
+      });
+      expect(startRes.received).toBe(true);
+
+      // 2. Report PR staged
+      const stageRes = service.recordMissionReport({
+        runId,
+        issueNumber: 176,
+        issueTitle: 'Transition overnight builds to Frankfurt',
+        state: 'pr_staged',
+        branchName: 'feat/frankfurt-issue-176',
+        prUrl: 'https://github.com/ezvibes/nido-api/pull/177',
+        diffStat: '5 files changed, 200 insertions(+)',
+        summary: 'Autonomously implemented issue #176',
+        rubric: {
+          optimizations: ['Opt 1', 'Opt 2', 'Opt 3'],
+          concern: 'Concern 1',
+        },
+      });
+      expect(stageRes.received).toBe(true);
+
+      // 3. Inspect action items
+      const actionItems = await service.getActionItems({ fixture: 'false' });
+      const frankfurtItem = actionItems.find(
+        (item) => item.id === `frankfurt-pr-${runId}`,
+      );
+      expect(frankfurtItem).toBeDefined();
+      expect(frankfurtItem?.type).toBe('frankfurt_mission_pr');
+      expect(frankfurtItem?.agentKey).toBe('frankfurt');
+      expect(frankfurtItem?.missionPr?.prUrl).toBe(
+        'https://github.com/ezvibes/nido-api/pull/177',
+      );
+
+      // 4. Resolve action item with approve_pr
+      const resolveRes = await service.resolveActionItem(
+        `frankfurt-pr-${runId}`,
+        { action: 'approve_pr' },
+        1,
+      );
+      expect(resolveRes.status).toBe('resolved');
+      expect(resolveRes.action).toBe('approve_pr');
+
+      const run = await service.getRunById(runId);
+      expect(run.status).toBe('succeeded');
+    });
   });
 });

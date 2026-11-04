@@ -893,6 +893,87 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
+
+            <!-- Frankfurt Autonomous Mission PR Confirmation Gate -->
+            <div
+              v-if="item.missionPr"
+              class="pr-decision-box draft-preview-box"
+              data-testid="frankfurt-pr-gate"
+            >
+              <div class="draft-preview-box__meta">
+                <span>
+                  <strong>Target Issue:</strong>
+                  #{{ item.missionPr.issueNumber }} — {{ item.missionPr.issueTitle }}
+                </span>
+                <span>
+                  <strong>Branch:</strong>
+                  <code>{{ item.missionPr.branchName }}</code>
+                </span>
+                <span v-if="item.missionPr.prUrl">
+                  <strong>Pull Request:</strong>
+                  <a
+                    :href="item.missionPr.prUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {{ item.missionPr.prUrl }}
+                  </a>
+                </span>
+              </div>
+
+              <div class="draft-preview-box__code">
+                <div class="pr-summary-text">{{ item.missionPr.summary }}</div>
+                <div v-if="item.missionPr.rubric" class="pr-rubric-summary">
+                  <div class="rubric-title">
+                    Staff Architect Review Gate (GEAR Level 2):
+                  </div>
+                  <ul class="rubric-list">
+                    <li
+                      v-for="(opt, idx) in item.missionPr.rubric.optimizations"
+                      :key="idx"
+                    >
+                      🟢 {{ opt }}
+                    </li>
+                    <li v-if="item.missionPr.rubric.concern">
+                      ⚠️ {{ item.missionPr.rubric.concern }}
+                    </li>
+                  </ul>
+                </div>
+                <div v-if="item.missionPr.diffStat" class="pr-diff-stat">
+                  <code>{{ item.missionPr.diffStat }}</code>
+                </div>
+              </div>
+
+              <div class="action-card__controls">
+                <input
+                  v-model="rejectFeedbackMap[item.id]"
+                  type="text"
+                  class="feedback-input"
+                  placeholder="Optional review feedback or change request notes…"
+                  :aria-label="`Review feedback for ${item.title}`"
+                />
+                <div class="button-row">
+                  <button
+                    type="button"
+                    class="btn btn--primary"
+                    :disabled="resolvingItemId === item.id"
+                    :data-testid="`approve-pr-${item.id}`"
+                    @click="handleResolveAction(item, 'approve_pr')"
+                  >
+                    1-Click Approve PR
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--danger"
+                    :disabled="resolvingItemId === item.id"
+                    :data-testid="`reject-pr-${item.id}`"
+                    @click="handleResolveAction(item, 'reject_with_feedback')"
+                  >
+                    Request Changes / Reject
+                  </button>
+                </div>
+              </div>
+            </div>
           </article>
         </div>
       </section>
@@ -1703,6 +1784,43 @@ onBeforeUnmount(() => {
   font-size: 0.82rem;
   overflow-x: auto;
   margin-bottom: 0.85rem;
+}
+
+.pr-summary-text {
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: var(--text, #1f2933);
+}
+
+.pr-rubric-summary {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  background: #f8fafc;
+  border-radius: 6px;
+  border-left: 3px solid #3b82f6;
+}
+
+.rubric-title {
+  font-weight: 700;
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+  color: #1e3a8a;
+}
+
+.rubric-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.pr-diff-stat {
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: #1e293b;
+  color: #f1f5f9;
+  border-radius: 6px;
+  font-size: 0.78rem;
 }
 
 .comparison-grid {

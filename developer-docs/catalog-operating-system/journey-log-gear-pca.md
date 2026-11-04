@@ -79,6 +79,39 @@ Copy this template for every training session:
 
 ## 📖 Session Logs
 
+### 🗓️ 2026-11-04 | Week 5: Autonomous Frankfurt Mission Execution: Issue #176
+
+- **1. Breakthrough (The Concept):**
+  - Replacing external black-box coding bots with first-party TypeScript ADK mission runners enforcing closed-loop verification before PR creation.
+- **2. Build (The Code):**
+  - Implemented autonomous mission runner for Issue #176 ("feat(agents): Transition autonomous overnight builds from Jules to native Frankfurt Mission Runner and GEAR Flywheel").
+- **3. Boundary / Bug (The Real-World Lesson):**
+  - Enforced non-zero diff validation and hygiene check passing before PR dispatch.
+- **4. Broadcast (Content Hook for LinkedIn / X):**
+  > "Transitioned Nido overnight builds from external bots to native Frankfurt orchestrator with deterministic GEAR verification! #AIagents #GoogleCloud #ADK"
+
+### November 3, 2026 | Week 5: Transitioning Overnight Builds from Jules to Native Frankfurt Mission Runner & Closed-Loop GEAR Flywheel (#176)
+
+- **1. Breakthrough (The Concept):**
+  - **First-Party Control Beats Third-Party Black Boxes:** With Google Labs Jules sunsetting by year-end, relying on external async coding bots introduces platform risk, unobservable execution failures, and empty `--allow-empty` commits. By packaging **Frankfurt** (our Lead Mission Coordinator) as a native TypeScript `@google/adk` ReAct runner, we own the full execution lifecycle directly in-process.
+  - **Closed-Loop Self-Correction in Agentic Coding:** Rather than failing a build or opening a broken PR, the mission runner captures compiler errors and test failures (`check-hygiene.mjs`, Jest, Vitest), feeds the stderr directly back into Frankfurt's prompt context, and allows the model to self-heal up to bounded retry limits.
+  - **Non-Zero Diff Enforcement:** Prohibits automated empty PRs: `git diff --stat` must show real code modifications before branch dispatch is allowed.
+  - **Integrated Staff Architect Review Gate:** Automatically embeds the GEAR Level 2 rubric (3 Technical Optimizations + 1 Boundary Concern) alongside raw verification evidence into every generated PR description.
+
+- **2. Build (The Code, Tools & Workflows):**
+  - **Frankfurt Mission Runner (`src/scripts/run-frankfurt-mission.ts`):** Created native CLI and programmatic runner with 5 bounded tools (`readFile`, `writeFile`, `editFile`, `listFiles`, `runVerificationGate`). Added `npm run mission:frankfurt` to `package.json`.
+  - **Dual Execution Triggers:** Built both local/overnight CLI execution (`npm run mission:frankfurt -- --issue <number>`) and Cloud CI trigger (`.github/workflows/frankfurt-mission.yml` listening for `agent:frankfurt` labels).
+  - **GitHub Protocol:** Created `agent:frankfurt` label on GitHub, added `.github/ISSUE_TEMPLATE/frankfurt_mission.md`, and retired the legacy `jules` label workflow across canonical docs.
+  - **Living Documentation Hook:** Automated Bologna session logging directly into `journey-log-gear-pca.md`.
+  - **Unit Test Coverage:** Added `src/scripts/run-frankfurt-mission.spec.ts` covering CLI option parsing, rubric formatting, non-zero diff validation, and path traversal protection (9/9 tests passing).
+
+- **3. Boundary / Bug (The Real-World Lesson):**
+  - **Private Method Accessibility in TypeScript Testing:** Testing ADK `FunctionTool` execution directly in Jest revealed that `FunctionTool.execute` is private in `@google/adk`. Casting `(tool as any).execute` allows isolated unit testing of tool business logic without running a full LLM invocation.
+  - **Dual Trigger Idempotency:** When both local CLI and GitHub Actions workflows target the same issue, branch naming (`feat/frankfurt-issue-<number>-<slug>`) and concurrency grouping prevent overlapping git conflicts.
+
+- **4. Broadcast (Content Hook for LinkedIn / X):**
+  > "Google is sunsetting Jules, so we did what any engineering team should do: we built our own. We just shipped Nido's native Frankfurt Mission Runner on Google ADK—running autonomous overnight feature builds with a closed-loop self-correction test loop, zero-empty-diff enforcement, and automated Staff Architect review rubrics. Models code; deterministic gates govern. #AIagents #GoogleCloud #ADK #TypeScript #SoftwareArchitecture #BuildInPublic"
+
 ### October 27–28, 2026 | Week 4: Closing the Loop on Multimodal Poster Ingestion (`NIDO-001`), Cross-Slice Agent Verification & Live Cloud Run Telemetry
 
 - **1. Breakthrough (The Concept):**

@@ -19,17 +19,18 @@ import type { DecodedIdToken } from 'firebase-admin/auth';
 import { Observable } from 'rxjs';
 import { FirebaseAuthGuard } from '../../auth/firebase-auth/firebase-auth.guard';
 import { AdminEmailGuard } from '../../auth/guards/admin-email.guard';
+import { SchedulerOrAdminGuard } from '../../auth/guards/scheduler-or-admin.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { UserService } from '../users/user.service';
 import { AgentSupervisorService } from './agent-supervisor.service';
 import {
   ListAgentRunsQueryDto,
+  ReportMissionTelemetryDto,
   ResolveAgentActionItemDto,
   SteerAgentDto,
 } from './dto/agent-supervisor.dto';
 
 @Controller(['api/agents', 'admin/agents'])
-@UseGuards(FirebaseAuthGuard, AdminEmailGuard)
 @ApiTags('Admin Agent Supervisor')
 @ApiBearerAuth()
 export class AgentSupervisorController {
@@ -39,6 +40,7 @@ export class AgentSupervisorController {
   ) {}
 
   @Get('status')
+  @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
   @ApiOperation({
     summary:
       'Get full multi-agent fleet roster, active runs, KPIs, and pending HITL action items',
@@ -53,6 +55,7 @@ export class AgentSupervisorController {
   }
 
   @Get('runs')
+  @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
   @ApiOperation({
     summary: 'List recent agent workflow executions with pagination and filters',
   })
@@ -61,6 +64,7 @@ export class AgentSupervisorController {
   }
 
   @Get('runs/:id')
+  @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
   @ApiOperation({
     summary:
       'Get a single agent run with ordered tool trace events and approval state',
@@ -75,9 +79,10 @@ export class AgentSupervisorController {
   }
 
   @Get('action-items')
+  @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
   @ApiOperation({
     summary:
-      'List pending Human-in-the-Loop (HITL) action items across Venezia and Firenze',
+      'List pending Human-in-the-Loop (HITL) action items across Venezia, Firenze, and Frankfurt',
   })
   @ApiQuery({ name: 'fixture', required: false })
   async getActionItems(@Query('fixture') fixture?: string) {
@@ -85,9 +90,10 @@ export class AgentSupervisorController {
   }
 
   @Post('action-items/:id/resolve')
+  @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
   @ApiOperation({
     summary:
-      'Resolve a pending HITL action item (approve/stage newsletter draft, publish/link/merge/reject poster candidate)',
+      'Resolve a pending HITL action item (approve PR, stage newsletter draft, publish/link/merge/reject poster candidate)',
   })
   @ApiParam({ name: 'id', description: 'Action item ID' })
   async resolveActionItem(
@@ -99,7 +105,18 @@ export class AgentSupervisorController {
     return this.supervisorService.resolveActionItem(id, dto, profile.id);
   }
 
+  @Post('missions/report')
+  @UseGuards(SchedulerOrAdminGuard)
+  @ApiOperation({
+    summary:
+      'Ingest live mission telemetry, progress trace events, and staged PR action items from Frankfurt Mission Runner',
+  })
+  async reportMissionTelemetry(@Body() dto: ReportMissionTelemetryDto) {
+    return this.supervisorService.recordMissionReport(dto);
+  }
+
   @Post(':agentKey/steer')
+  @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
   @ApiOperation({
     summary:
       'Send a bounded steering instruction or operator note to an agent',
@@ -121,6 +138,7 @@ export class AgentSupervisorController {
   }
 
   @Sse('stream')
+  @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
   @ApiOperation({
     summary:
       'Server-Sent Events (SSE) stream for live agent state transitions and tool call traces',

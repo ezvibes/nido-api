@@ -135,6 +135,7 @@ export interface AgentActionItem {
     | 'venezia_candidate_review'
     | 'venezia_duplicate_conflict'
     | 'firenze_newsletter_draft'
+    | 'frankfurt_mission_pr'
     | 'agent_error_attention';
   agentKey: string;
   agentName: string;
@@ -175,6 +176,18 @@ export interface AgentActionItem {
     htmlPreview: string;
     targetSystem: 'beehiiv';
   };
+  missionPr?: {
+    issueNumber: number;
+    issueTitle: string;
+    prUrl?: string;
+    branchName: string;
+    diffStat: string;
+    summary: string;
+    rubric?: {
+      optimizations: string[];
+      concern: string;
+    };
+  };
   supportedActions: Array<
     | 'publish'
     | 'link'
@@ -184,6 +197,7 @@ export interface AgentActionItem {
     | 'approve_beehiiv_draft'
     | 'reject_with_feedback'
     | 'acknowledge'
+    | 'approve_pr'
   >;
 }
 
@@ -349,6 +363,7 @@ export class ResolveAgentActionItemDto {
       'approve_beehiiv_draft',
       'reject_with_feedback',
       'acknowledge',
+      'approve_pr',
     ],
   })
   @IsString()
@@ -361,6 +376,7 @@ export class ResolveAgentActionItemDto {
     'approve_beehiiv_draft',
     'reject_with_feedback',
     'acknowledge',
+    'approve_pr',
   ])
   action:
     | 'publish'
@@ -370,7 +386,8 @@ export class ResolveAgentActionItemDto {
     | 'reject'
     | 'approve_beehiiv_draft'
     | 'reject_with_feedback'
-    | 'acknowledge';
+    | 'acknowledge'
+    | 'approve_pr';
 
   @ApiPropertyOptional({ description: 'Target concert ID when linking or merging a duplicate' })
   @IsOptional()
@@ -409,4 +426,81 @@ export class SteerAgentDto {
   @IsOptional()
   @IsString()
   runId?: string;
+}
+
+export class ReportMissionTelemetryDto {
+  @ApiProperty({ description: 'Unique mission execution ID' })
+  @IsString()
+  @IsNotEmpty()
+  runId: string;
+
+  @ApiProperty({ description: 'Target GitHub issue number' })
+  @IsInt()
+  issueNumber: number;
+
+  @ApiProperty({ description: 'Target GitHub issue title' })
+  @IsString()
+  @IsNotEmpty()
+  issueTitle: string;
+
+  @ApiProperty({
+    description: 'Telemetry state transition',
+    enum: ['started', 'progress', 'pr_staged', 'completed', 'failed'],
+  })
+  @IsString()
+  @IsIn(['started', 'progress', 'pr_staged', 'completed', 'failed'])
+  state: 'started' | 'progress' | 'pr_staged' | 'completed' | 'failed';
+
+  @ApiPropertyOptional({ description: 'Active step summary' })
+  @IsOptional()
+  @IsString()
+  activeStep?: string;
+
+  @ApiPropertyOptional({ description: 'Created Git branch name' })
+  @IsOptional()
+  @IsString()
+  branchName?: string;
+
+  @ApiPropertyOptional({ description: 'Created GitHub Pull Request URL' })
+  @IsOptional()
+  @IsString()
+  prUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Git diff statistics summary' })
+  @IsOptional()
+  @IsString()
+  diffStat?: string;
+
+  @ApiPropertyOptional({ description: 'Summary of changes or outcome' })
+  @IsOptional()
+  @IsString()
+  summary?: string;
+
+  @ApiPropertyOptional({ description: 'Staff Architect 3-Optimization + 1-Concern rubric' })
+  @IsOptional()
+  @IsObject()
+  rubric?: {
+    optimizations: string[];
+    concern: string;
+  };
+
+  @ApiPropertyOptional({ description: 'Count of Gemini model calls' })
+  @IsOptional()
+  @IsInt()
+  modelCalls?: number;
+
+  @ApiPropertyOptional({ description: 'Count of tool executions' })
+  @IsOptional()
+  @IsInt()
+  toolCalls?: number;
+
+  @ApiPropertyOptional({ description: 'Total estimated Gemini tokens' })
+  @IsOptional()
+  @IsInt()
+  estimatedTokens?: number;
+
+  @ApiPropertyOptional({ description: 'Error message if failed' })
+  @IsOptional()
+  @IsString()
+  error?: string;
 }

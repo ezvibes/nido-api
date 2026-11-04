@@ -46,9 +46,10 @@ preserving the longer-term ingestion, catalog, public API, and partner vision.
   preparation: use `.agents/skills/firenze-newsletter/SKILL.md`. TPS2 is the
   Weekly Top Picks program; Firenze is the Newsletter and Editorial Agent.
 - ADK orchestration or multimodal agent architecture: use
-  `.agents/skills/gear-agent-flywheel/SKILL.md`. Venezia is the proposed
-  Multimodal Poster and Concert Ingestion Agent; recheck its ADR before claiming
-  runtime readiness.
+  `.agents/skills/gear-agent-flywheel/SKILL.md`. Autonomous overnight builds
+  use the Frankfurt Mission Runner (`npm run mission:frankfurt`) triggered by
+  the `agent:frankfurt` GitHub label; the legacy `jules` label is retired.
+  Venezia is the deployed Multimodal Poster and Concert Ingestion Agent.
 - Plain-English agent guides and learning history: follow
   `developer-docs/catalog-operating-system/bologna-documentation-agent.md`.
 - Vue interaction and design work: use the local frontend specialist when
