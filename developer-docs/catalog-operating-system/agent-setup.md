@@ -12,15 +12,15 @@ into lasting improvements.
 
 ## Roles And Authority
 
-| Role                                     | Responsibility                                                                                 | How it operates                                                            |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Maintainer                               | Product priority, architecture decisions, merge and production approval, sensitive operations  | Human owner of the project                                                 |
-| Frankfurt (Mission Coordinator)         | Mission scope, routing, evidence continuity, acceptance recommendation                     | Lead coding-agent role; not a separately deployed service                    |
-| Innsbruck (Integration Specialist)      | Integration contracts, provider boundaries, and handoff verification                        | Specialist guidance; not a required runtime hop                               |
-| Implementation owner                     | Changes within the agreed file and behavior boundaries                                         | Usually the coordinator; a delegated agent when authorized                 |
-| Verifier                                 | Independent review of substantial changes and raw evidence                                     | A separate reviewer when available and justified by risk                   |
-| Domain specialist                        | Feature, deployment, instruction maintenance, or curation guidance                             | A skill loaded for the relevant task                                       |
-| GitHub Actions                           | Repeatable checks and configured deployment steps                                              | Workflows triggered by repository events                                   |
+| Role                               | Responsibility                                                                                | How it operates                                            |
+| ---------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Maintainer                         | Product priority, architecture decisions, merge and production approval, sensitive operations | Human owner of the project                                 |
+| Frankfurt (Mission Coordinator)    | Mission scope, routing, evidence continuity, acceptance recommendation                        | Lead coding-agent role; not a separately deployed service  |
+| Innsbruck (Integration Specialist) | Integration contracts, provider boundaries, and handoff verification                          | Specialist guidance; not a required runtime hop            |
+| Implementation owner               | Changes within the agreed file and behavior boundaries                                        | Usually the coordinator; a delegated agent when authorized |
+| Verifier                           | Independent review of substantial changes and raw evidence                                    | A separate reviewer when available and justified by risk   |
+| Domain specialist                  | Feature, deployment, instruction maintenance, or curation guidance                            | A skill loaded for the relevant task                       |
+| GitHub Actions                     | Repeatable checks and configured deployment steps                                             | Workflows triggered by repository events                   |
 
 These roles do not imply that separate agents are installed or continuously
 running. A skill is a reusable instruction package. Delegation requires the
@@ -32,14 +32,14 @@ If independent verification is unavailable, report the gap explicitly.
 The city names make recurring responsibilities memorable without turning every
 procedure into another autonomous service.
 
-| Name                                        | Formal role                                   | Current state                                                                              | Use it for                                                                    |
-| ------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| [Frankfurt](frankfurt-mission-orchestrator.md) | Mission Coordinator                         | Operating identity for the lead coding agent; not a deployed runtime                       | Scope, routing, evidence continuity, and acceptance recommendations           |
-| [Innsbruck](innsbruck-integration-specialist.md) | Integration Specialist                     | Documented specialist role; not a deployed runtime or mandatory hop                        | Typed contracts, provider boundaries, retries, and handoff verification       |
-| [Venezia](venezia-ingestion-agent.md)       | Multimodal Poster and Concert Ingestion Agent | Partial upload/review foundation; multimodal agent runtime is proposed                     | Turning poster evidence into human-reviewable concert candidates              |
-| [Munchen](munchen-venue-scout-agent.md)     | Venue Scout Agent                             | Local ADK experiment over seeded data                                                      | Venue identity and scene research experiments                                 |
-| [Firenze](firenze-newsletter-agent.md)      | Newsletter and Editorial Agent                | Tested tool foundation and existing newsletter workflow; full ADK orchestration is planned | Approved-catalog curation, link checks, editorial drafting, and draft staging |
-| [Bologna](bologna-documentation-agent.md)   | Documentation and Teaching Agent              | Documentation role used during development; not a deployed runtime                         | Plain-English guides, decision history, and reusable learning                 |
+| Name                                             | Formal role                                   | Current state                                                                              | Use it for                                                                    |
+| ------------------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| [Frankfurt](frankfurt-mission-orchestrator.md)   | Mission Coordinator                           | Operating identity for the lead coding agent; not a deployed runtime                       | Scope, routing, evidence continuity, and acceptance recommendations           |
+| [Innsbruck](innsbruck-integration-specialist.md) | Integration Specialist                        | Documented specialist role; not a deployed runtime or mandatory hop                        | Typed contracts, provider boundaries, retries, and handoff verification       |
+| [Venezia](venezia-ingestion-agent.md)            | Multimodal Poster and Concert Ingestion Agent | Partial upload/review foundation; multimodal agent runtime is proposed                     | Turning poster evidence into human-reviewable concert candidates              |
+| [Munchen](munchen-venue-scout-agent.md)          | Venue Scout Agent                             | Local ADK experiment over seeded data                                                      | Venue identity and scene research experiments                                 |
+| [Firenze](firenze-newsletter-agent.md)           | Newsletter and Editorial Agent                | Tested tool foundation and existing newsletter workflow; full ADK orchestration is planned | Approved-catalog curation, link checks, editorial drafting, and draft staging |
+| [Bologna](bologna-documentation-agent.md)        | Documentation and Teaching Agent              | Documentation role used during development; not a deployed runtime                         | Plain-English guides, decision history, and reusable learning                 |
 
 TPS2 is the Weekly Top Picks newsletter program and workflow operated by
 Firenze. It is not a separate agent. Skills such as the feature flywheel,
@@ -90,6 +90,8 @@ are not part of this portable repository contract.
 | -------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
 | Local edits and Git history      | Current checkout and Git                                                             | File access; inspect branch and working tree first                           |
 | API/client tests and builds      | [package.json](../../package.json), [client/package.json](../../client/package.json) | Installed dependencies and compatible Node runtime                           |
+| Fast inner loop & auto-hygiene   | `npm run test:changed`, `npm run hygiene:fix`                                        | Incremental Jest testing and self-healing Prettier/ESLint/whitespace fix     |
+| Adapter generator                | `npm run generate:adapter`                                                           | Rapid scaffolding for provider adapters and unit test skeletons              |
 | Issues, PRs, and CI inspection   | GitHub connector or `gh`                                                             | Available connection and authenticated repository access                     |
 | Cloud inspection and smoke tests | Deployment skill and [smoke script](../../scripts/smoke-test-api.mjs)                | Appropriate GCP identity, network access, and test credentials when required |
 | Browser verification             | Vue client and browser/Playwright tooling                                            | Running application and available browser tools                              |
@@ -101,9 +103,14 @@ inputs, and environment-specific logs out of tracked evidence.
 
 ## Delivery And Learning
 
+Agents use a **2-Phase Testing Model** to maintain rapid iteration while guaranteeing zero-breakage production releases:
+
+- **Phase 1: Fast Inner Loop (development):** Run `npm run test:changed` or `npm run test:related <file>` during code drafting. If minor formatting or whitespace warnings arise, run `npm run hygiene:fix` to auto-heal before proceeding.
+- **Phase 2: Pre-PR Gate (verification):** Once all edits are complete and focused tests pass, run `npm run agent:gate` to execute the full suite and strict hygiene assertions.
+
 1. Read the contract and relevant entries in the context map.
 2. Inspect the issue, code, branch, and working tree; establish scope and ownership.
-3. Implement and run focused checks, then the required shared gate.
+3. Implement using the fast inner loop (`npm run test:changed`, `npm run hygiene:fix`), then run the required shared gate (`npm run agent:gate`).
 4. Review substantial changes independently and record any missing evidence.
 5. Prepare the PR and obtain maintainer approval for merge and production actions.
 6. For a release task, verify the deployed revision and relevant user behavior.
