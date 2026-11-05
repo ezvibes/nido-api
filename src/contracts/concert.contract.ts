@@ -55,16 +55,15 @@ export function toCanonicalConcert(
   // Map ordered lineup
   let lineup: any[] = [];
   if (Array.isArray(rawConcert.lineup)) {
-    lineup = rawConcert.lineup
-      .map((item: any) => {
-        const bandSource = item.band ?? item;
-        return toCanonicalBand(bandSource, item);
-      })
-      .sort((a, b) => {
-        const orderA = a.billingOrder ?? 999;
-        const orderB = b.billingOrder ?? 999;
-        return orderA - orderB;
-      });
+    const sorted = [...rawConcert.lineup].sort((a, b) => {
+      const orderA = a.performanceOrder ?? a.billingOrder ?? 999;
+      const orderB = b.performanceOrder ?? b.billingOrder ?? 999;
+      return orderA - orderB;
+    });
+    lineup = sorted.map((item: any) => {
+      const bandSource = item.band ?? item;
+      return toCanonicalBand(bandSource);
+    });
   }
 
   // Derive date and time from startsAt or explicit fields

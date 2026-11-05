@@ -97,15 +97,13 @@ describe('Centralized Runtime Contract Matrix', () => {
         id: 'band-uuid-001',
         name: 'Chatham County Line',
         genres: ['Bluegrass', 'Americana'],
-        isHeadliner: true,
-        billingOrder: 0,
       };
 
       const parsed = CanonicalBandSchema.parse(fixture);
       expect(parsed).toEqual(fixture);
     });
 
-    it('maps TypeORM Band entity with ConcertBandLineup context non-destructively', () => {
+    it('maps TypeORM Band entity non-destructively without mutating source entity', () => {
       const typeOrmBand = Object.freeze({
         id: 'band-uuid-002',
         name: 'Mipso',
@@ -116,38 +114,26 @@ describe('Centralized Runtime Contract Matrix', () => {
         updatedAt: new Date('2026-01-02'),
       });
 
-      const lineupContext = Object.freeze({
-        concertId: 'concert-001',
-        bandId: 'band-uuid-002',
-        performanceRole: 'co-headliner',
-        performanceOrder: 1,
-      });
-
-      const canonical = toCanonicalBand(typeOrmBand, lineupContext);
+      const canonical = toCanonicalBand(typeOrmBand);
 
       expect(canonical.id).toBe('band-uuid-002');
       expect(canonical.name).toBe('Mipso');
       expect(canonical.genres).toEqual(['Folk', 'Indie']);
-      expect(canonical.isHeadliner).toBe(true);
-      expect(canonical.billingOrder).toBe(1);
 
       // Verify no mutation
       expect(typeOrmBand.name).toBe('Mipso');
-      expect(lineupContext.performanceOrder).toBe(1);
     });
 
-    it('rejects negative billingOrder or missing name', () => {
+    it('rejects band with missing required properties', () => {
       expect(() =>
         CanonicalBandSchema.parse({
           id: 'b1',
-          name: 'Band',
-          billingOrder: -1,
         }),
       ).toThrow(z.ZodError);
 
       expect(() =>
         CanonicalBandSchema.parse({
-          id: 'b1',
+          name: 'Band without ID',
         }),
       ).toThrow(z.ZodError);
     });
@@ -168,14 +154,10 @@ describe('Centralized Runtime Contract Matrix', () => {
           {
             id: 'band-1',
             name: 'Chatham County Line',
-            isHeadliner: true,
-            billingOrder: 0,
           },
           {
             id: 'band-2',
             name: 'Mipso',
-            isHeadliner: false,
-            billingOrder: 1,
           },
         ],
         localEventDate: '2026-10-31',
