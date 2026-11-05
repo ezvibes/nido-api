@@ -20,9 +20,11 @@ import {
   IngestionStage,
   IngestionTerminalStatus,
 } from '../interfaces/ingestion-enums';
+import { CloudTasksWorkerPayloadSchema } from '../../contracts';
 
 interface WorkerPayload {
   jobId: string;
+  attempt?: number;
 }
 
 @Controller('internal/ingestion')
@@ -44,12 +46,18 @@ export class IngestionWorkerController {
   async processJob(
     @Body() payload: WorkerPayload,
   ): Promise<{ success: boolean; skipped?: boolean }> {
-    const { jobId } = payload;
-
-    if (!jobId) {
-      this.logger.warn('Received payload without jobId');
-      return { success: true, skipped: true }; // ACK bad payload
+    const validation = CloudTasksWorkerPayloadSchema.safeParse(payload);
+    if (!validation.success) {
+      if (!payload?.jobId) {
+        this.logger.warn('Received payload without jobId');
+        return { success: true, skipped: true }; // ACK bad payload
+      }
+      this.logger.warn(
+        `Cloud Tasks payload warning: ${validation.error.message}`,
+      );
     }
+
+    const { jobId } = payload;
 
     try {
       const workerId = `worker-${Math.random().toString(36).substring(7)}`;

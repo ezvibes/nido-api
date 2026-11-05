@@ -67,7 +67,10 @@ export class IngestionTasksDispatcherService {
 
     // Step 2: Generate stable, deterministic task name (without retryCount)
     const taskName = `${queuePath}/tasks/job-${jobId}`;
-    const payload = { jobId };
+    const payload = {
+      jobId,
+      attempt: (outbox.retryCount ?? 0) + 1,
+    };
 
     let dispatchSuccess = false;
 
