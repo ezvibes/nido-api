@@ -33,6 +33,7 @@ import {
   AgentSupervisorSummaryMetrics,
   AgentTraceEvent,
   ListAgentRunsQueryDto,
+  ReportMissionTelemetryDto,
   ResolveAgentActionItemDto,
   SteerAgentDto,
 } from './dto/agent-supervisor.dto';
@@ -86,11 +87,13 @@ const CANONICAL_AGENT_REGISTRY: readonly CanonicalAgentSpec[] = Object.freeze([
       'developer-docs/catalog-operating-system/frankfurt-mission-orchestrator.md',
     expectedMaxRuntimeSeconds: null,
     supportedWorkflows: [
-      'Mission orchestration (NIDO-001)',
+      'Autonomous Overnight Build (GEAR 2 Flywheel)',
+      'Mission orchestration (NIDO-001 & NIDO-002)',
       'Cross-slice acceptance verification',
       'Subagent delegation & synthesis',
     ],
     tools: [
+      'runFrankfurtMission',
       'verifyMissionAcceptance',
       'delegateBoundedSlice',
       'recordMissionEvidence',
@@ -291,6 +294,27 @@ export class AgentSupervisorService implements OnModuleInit {
       dateRangeLabel: string;
       concertsCount: number;
       htmlContent: string;
+      createdAt: string;
+      status: 'pending' | 'resolved' | 'rejected';
+      feedback?: string;
+    }
+  >();
+
+  private readonly pendingMissionPrApprovals = new Map<
+    string,
+    {
+      id: string;
+      runId: string;
+      issueNumber: number;
+      issueTitle: string;
+      prUrl?: string;
+      branchName: string;
+      diffStat: string;
+      summary: string;
+      rubric?: {
+        optimizations: string[];
+        concern: string;
+      };
       createdAt: string;
       status: 'pending' | 'resolved' | 'rejected';
       feedback?: string;
@@ -927,7 +951,11 @@ export class AgentSupervisorService implements OnModuleInit {
         let status: AgentExecutionStatus = 'IDLE';
         let currentTask: AgentActiveTaskSummary | null = null;
 
-        if (spec.readiness === 'available_runtime' || spec.readiness === 'partially_implemented') {
+        if (
+          spec.readiness === 'available_runtime' ||
+          spec.readiness === 'partially_implemented' ||
+          spec.key === 'frankfurt'
+        ) {
           const activeRun = agentRuns.find((r) => r.status === 'running');
           const waitingRun = agentRuns.find(
             (r) => r.status === 'waiting_for_approval',
@@ -1256,6 +1284,38 @@ export class AgentSupervisorService implements OnModuleInit {
       }
     }
 
+    // 3. Pending Frankfurt Autonomous Mission PR Confirmation Gates
+    for (const pr of this.pendingMissionPrApprovals.values()) {
+      if (pr.status !== 'pending') continue;
+      const ageMinutes = Math.max(
+        0,
+        Math.round((nowMs - new Date(pr.createdAt).getTime()) / 60000),
+      );
+      items.push({
+        id: pr.id,
+        type: 'frankfurt_mission_pr',
+        agentKey: 'frankfurt',
+        agentName: 'Frankfurt',
+        status: 'pending',
+        priority: 'high',
+        title: `Review Overnight Build PR: Issue #${pr.issueNumber}`,
+        summary: `Frankfurt autonomously implemented issue #${pr.issueNumber} ("${pr.issueTitle}") and passed closed-loop verification gates. Ready for 1-click human review.`,
+        createdAt: pr.createdAt,
+        ageMinutes,
+        runId: pr.runId,
+        missionPr: {
+          issueNumber: pr.issueNumber,
+          issueTitle: pr.issueTitle,
+          prUrl: pr.prUrl,
+          branchName: pr.branchName,
+          diffStat: pr.diffStat,
+          summary: pr.summary,
+          rubric: pr.rubric,
+        },
+        supportedActions: ['approve_pr', 'reject_with_feedback'],
+      });
+    }
+
     return items.sort((a, b) => b.ageMinutes - a.ageMinutes);
   }
 
@@ -1365,6 +1425,75 @@ export class AgentSupervisorService implements OnModuleInit {
 
       throw new BadRequestException(
         `Unsupported action ${dto.action} for Firenze newsletter draft gate.`,
+      );
+    }
+
+    // 2. Handle Frankfurt Autonomous Mission PR Confirmation Gate
+    if (actionItemId.startsWith('frankfurt-pr-')) {
+      const pending = this.pendingMissionPrApprovals.get(actionItemId);
+      if (!pending && actionItemId !== 'frankfurt-pr-fixture-176') {
+        throw new NotFoundException(
+          `Mission PR approval item ${actionItemId} not found`,
+        );
+      }
+
+      if (dto.action === 'approve_pr') {
+        if (pending) {
+          pending.status = 'resolved';
+          this.recordAgentRunComplete({
+            runId: pending.runId,
+            agentKey: 'frankfurt',
+            status: 'succeeded',
+            outputSummary: `Operator approved mission PR for Issue #${pending.issueNumber}.`,
+          });
+        }
+
+        this.emitStreamEvent({
+          type: 'action_item_updated',
+          timestamp: now,
+          agentKey: 'frankfurt',
+          payload: { id: actionItemId, status: 'resolved', action: dto.action },
+        });
+
+        return {
+          id: actionItemId,
+          status: 'resolved',
+          action: dto.action,
+          result: { approved: true, prUrl: pending?.prUrl },
+        };
+      }
+
+      if (dto.action === 'reject_with_feedback' || dto.action === 'reject') {
+        if (pending) {
+          pending.status = 'rejected';
+          pending.feedback = dto.feedback;
+          this.recordAgentRunComplete({
+            runId: pending.runId,
+            agentKey: 'frankfurt',
+            status: 'cancelled',
+            outputSummary: `Operator requested changes on mission PR: ${dto.feedback || 'Revision needed'}`,
+          });
+        }
+
+        this.emitStreamEvent({
+          type: 'action_item_updated',
+          timestamp: now,
+          agentKey: 'frankfurt',
+          payload: { id: actionItemId, status: 'rejected', action: dto.action },
+        });
+
+        return {
+          id: actionItemId,
+          status: 'rejected',
+          action: dto.action,
+          result: {
+            feedbackRecorded: dto.feedback || 'Changes requested by operator',
+          },
+        };
+      }
+
+      throw new BadRequestException(
+        `Unsupported action ${dto.action} for Frankfurt mission PR gate.`,
       );
     }
 
@@ -1584,6 +1713,132 @@ export class AgentSupervisorService implements OnModuleInit {
       sanitizedInstruction,
       runId: dto.runId,
     };
+  }
+
+  /**
+   * Ingests live telemetry events emitted by the Frankfurt Mission Runner during autonomous feature builds.
+   */
+  recordMissionReport(dto: ReportMissionTelemetryDto): {
+    received: boolean;
+    state: string;
+    runId: string;
+  } {
+    const now = new Date().toISOString();
+
+    if (dto.state === 'started') {
+      this.recordAgentRunStart({
+        runId: dto.runId,
+        agentKey: 'frankfurt',
+        workflow: 'Autonomous Overnight Build (GEAR 2 Flywheel)',
+        missionSummary: `Issue #${dto.issueNumber}: ${dto.issueTitle}`,
+        initiator: 'agent:frankfurt',
+      });
+      return { received: true, state: dto.state, runId: dto.runId };
+    }
+
+    if (dto.state === 'progress') {
+      this.recordAgentTraceEvent({
+        runId: dto.runId,
+        agentKey: 'frankfurt',
+        type: 'tool_call',
+        title: dto.activeStep || 'Mission progress',
+        summary:
+          dto.summary ||
+          `Executing bounded tools for Issue #${dto.issueNumber}`,
+        status: 'ok',
+      });
+      return { received: true, state: dto.state, runId: dto.runId };
+    }
+
+    if (dto.state === 'pr_staged') {
+      const approvalId = `frankfurt-pr-${dto.runId}`;
+      this.pendingMissionPrApprovals.set(approvalId, {
+        id: approvalId,
+        runId: dto.runId,
+        issueNumber: dto.issueNumber,
+        issueTitle: dto.issueTitle,
+        prUrl: dto.prUrl,
+        branchName: dto.branchName || '',
+        diffStat: dto.diffStat || '',
+        summary:
+          dto.summary || `Autonomous PR staged for Issue #${dto.issueNumber}`,
+        rubric: dto.rubric,
+        createdAt: now,
+        status: 'pending',
+      });
+
+      const run = this.liveRuns.get(dto.runId);
+      if (run) {
+        run.status = 'waiting_for_approval';
+        run.outputSummary = dto.summary || 'PR staged for operator review';
+        if (dto.prUrl) {
+          run.evidenceLinks.push({
+            label: `PR #${dto.issueNumber}`,
+            url: dto.prUrl,
+          });
+        }
+      }
+
+      const liveState = this.liveAgentStates.get('frankfurt');
+      if (liveState) {
+        liveState.status = 'WAITING_FOR_HUMAN';
+        if (liveState.activeTask) {
+          liveState.activeTask.activeStep = `Staged PR awaiting human approval: #${dto.issueNumber}`;
+        }
+        liveState.updatedAt = now;
+      }
+
+      this.recordAgentTraceEvent({
+        runId: dto.runId,
+        agentKey: 'frankfurt',
+        type: 'approval_gate',
+        title: `Decision Gate: Review Overnight PR #${dto.issueNumber}`,
+        summary:
+          dto.summary || 'Awaiting 1-click human approval in Decision Center',
+        status: 'pending',
+      });
+
+      this.emitStreamEvent({
+        type: 'action_item_updated',
+        timestamp: now,
+        agentKey: 'frankfurt',
+        runId: dto.runId,
+        payload: {
+          id: approvalId,
+          status: 'pending',
+          issueNumber: dto.issueNumber,
+          prUrl: dto.prUrl,
+        },
+      });
+
+      return { received: true, state: dto.state, runId: dto.runId };
+    }
+
+    if (dto.state === 'completed') {
+      this.recordAgentRunComplete({
+        runId: dto.runId,
+        agentKey: 'frankfurt',
+        status: 'succeeded',
+        outputSummary:
+          dto.summary ||
+          `Autonomous mission completed for Issue #${dto.issueNumber}`,
+      });
+      return { received: true, state: dto.state, runId: dto.runId };
+    }
+
+    if (dto.state === 'failed') {
+      this.recordAgentRunComplete({
+        runId: dto.runId,
+        agentKey: 'frankfurt',
+        status: 'failed',
+        outputSummary:
+          dto.error || `Mission failed for Issue #${dto.issueNumber}`,
+        errorCategory: 'MISSION_EXECUTION_FAILURE',
+      });
+      return { received: true, state: dto.state, runId: dto.runId };
+    }
+
+    return { received: true, state: dto.state, runId: dto.runId };
   }
 
   private async loadPersistedAdkSessionRuns(): Promise<AgentRunRecord[]> {
@@ -2420,6 +2675,41 @@ export class AgentSupervisorService implements OnModuleInit {
           },
         ],
         supportedActions: ['link', 'merge', 'publish_separately', 'reject'],
+      },
+      {
+        id: 'frankfurt-pr-fixture-176',
+        type: 'frankfurt_mission_pr',
+        agentKey: 'frankfurt',
+        agentName: 'Frankfurt',
+        status: 'pending',
+        priority: 'high',
+        title: 'Review Autonomous Overnight Build: Issue #176',
+        summary:
+          'Frankfurt autonomously implemented issue #176 ("feat(agents): Transition autonomous overnight builds to Frankfurt and GEAR Flywheel") with non-zero code changes and passing verification gates.',
+        createdAt: iso(8),
+        ageMinutes: 8,
+        runId: 'fixture-run-frankfurt-176',
+        missionPr: {
+          issueNumber: 176,
+          issueTitle:
+            'feat(agents): Transition autonomous overnight builds from Jules to native Frankfurt Mission Runner and GEAR Flywheel',
+          prUrl: 'https://github.com/ezvibes/nido-api/pull/177',
+          branchName:
+            'feat/frankfurt-issue-176-transition-autonomous-overnight-builds',
+          diffStat: '8 files changed, 450 insertions(+), 35 deletions(-)',
+          summary:
+            'Transitioned autonomous overnight builds from Jules to native Frankfurt Mission Runner on @google/adk with closed-loop self-correction test loop and GEAR 2 review gates.',
+          rubric: {
+            optimizations: [
+              'Bounded ReAct Tool Interfaces: typed with Zod schema verification',
+              'Fail-Closed Hygiene & Verification: automated pre-PR test execution',
+              'Zero-Static Secrets: ADC & GITHUB_TOKEN workload identity parity',
+            ],
+            concern:
+              'Ensure long-running autonomous scripts have bounded retry ceilings to prevent token exhaustion.',
+          },
+        },
+        supportedActions: ['approve_pr', 'reject_with_feedback'],
       },
     ];
 

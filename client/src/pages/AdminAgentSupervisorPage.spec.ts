@@ -144,6 +144,32 @@ const sampleSnapshot = {
       },
       supportedActions: ['approve_beehiiv_draft', 'reject_with_feedback'],
     },
+    {
+      id: 'frankfurt-pr-fixture-176',
+      type: 'frankfurt_mission_pr',
+      agentKey: 'frankfurt',
+      agentName: 'Frankfurt',
+      status: 'pending',
+      priority: 'high',
+      title: 'Review Autonomous Overnight Build: Issue #176',
+      summary: 'Frankfurt autonomously implemented issue #176.',
+      createdAt: '2026-11-01T17:55:00.000Z',
+      ageMinutes: 8,
+      runId: 'fixture-run-frankfurt-176',
+      missionPr: {
+        issueNumber: 176,
+        issueTitle: 'Transition autonomous overnight builds to Frankfurt',
+        prUrl: 'https://github.com/ezvibes/nido-api/pull/177',
+        branchName: 'feat/frankfurt-issue-176',
+        diffStat: '8 files changed, 450 insertions(+)',
+        summary: 'Transitioned overnight builds to Frankfurt.',
+        rubric: {
+          optimizations: ['Opt 1', 'Opt 2', 'Opt 3'],
+          concern: 'Concern 1',
+        },
+      },
+      supportedActions: ['approve_pr', 'reject_with_feedback'],
+    },
   ],
   recentRuns: [
     {
@@ -273,6 +299,33 @@ describe('AdminAgentSupervisorPage.vue', () => {
       'firenze-draft-1',
       expect.objectContaining({
         action: 'approve_beehiiv_draft',
+      }),
+    );
+  });
+
+  it('switches to Decision Center tab and resolves a Frankfurt mission PR approval gate', async () => {
+    const wrapper = mount(AdminAgentSupervisorPage, {
+      global: {
+        stubs: {
+          'router-link': { template: '<a><slot /></a>' },
+        },
+      },
+    });
+    await flushPromises();
+
+    await wrapper.get('[data-testid="tab-attention"]').trigger('click');
+    expect(wrapper.find('[data-testid="frankfurt-pr-gate"]').exists()).toBe(true);
+
+    await wrapper
+      .get('[data-testid="approve-pr-frankfurt-pr-fixture-176"]')
+      .trigger('click');
+    await flushPromises();
+
+    expect(mockResolveAction).toHaveBeenCalledWith(
+      'mock-firebase-token',
+      'frankfurt-pr-fixture-176',
+      expect.objectContaining({
+        action: 'approve_pr',
       }),
     );
   });
