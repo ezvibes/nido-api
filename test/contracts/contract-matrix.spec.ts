@@ -152,19 +152,28 @@ describe('Centralized Runtime Contract Matrix', () => {
         },
         lineup: [
           {
-            id: 'band-1',
-            name: 'Chatham County Line',
+            band: {
+              id: 'band-1',
+              name: 'Chatham County Line',
+            },
+            role: 'headliner' as const,
+            order: 0,
+            setTime: '21:00',
           },
           {
-            id: 'band-2',
-            name: 'Mipso',
+            band: {
+              id: 'band-2',
+              name: 'Mipso',
+            },
+            role: 'support' as const,
+            order: 1,
+            setTime: '19:30',
           },
         ],
         localEventDate: '2026-10-31',
         startTime: '20:00:00',
         doorTime: '19:00:00',
         ticketUrl: 'https://catscradle.com/event/12345',
-        priceRange: '$20 ADV / $25 DOS',
         ageRestriction: 'All Ages',
         catalogStatus: 'active' as const,
         isAdminApproved: true,
@@ -213,8 +222,12 @@ describe('Centralized Runtime Contract Matrix', () => {
       expect(canonical.startTime).toBe('20:30:00');
       expect(canonical.ticketUrl).toBe('https://lincolntheatre.com/tix/123');
       expect(canonical.lineup).toHaveLength(2);
-      expect(canonical.lineup[0].name).toBe('Main Act');
-      expect(canonical.lineup[1].name).toBe('Opener Band');
+      expect(canonical.lineup[0].band.name).toBe('Main Act');
+      expect(canonical.lineup[0].role).toBe('headliner');
+      expect(canonical.lineup[0].order).toBe(0);
+      expect(canonical.lineup[1].band.name).toBe('Opener Band');
+      expect(canonical.lineup[1].role).toBe('support');
+      expect(canonical.lineup[1].order).toBe(1);
 
       // Verify no mutation of source entity
       expect(typeOrmConcert.title).toBe('Autumn Roots Gathering');
@@ -368,8 +381,12 @@ describe('Centralized Runtime Contract Matrix', () => {
         }),
         lineup: Object.freeze([
           Object.freeze({
-            id: 'band-fixture-funk',
-            name: 'Fixture Funk Band',
+            band: Object.freeze({
+              id: 'band-fixture-funk',
+              name: 'Fixture Funk Band',
+            }),
+            role: 'headliner' as const,
+            order: 0,
           }),
         ]),
       });

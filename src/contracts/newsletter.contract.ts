@@ -51,7 +51,7 @@ export function toCuratedNewsletterCard(
   const venueName = concert.venue?.name ?? rawAny.venueName ?? 'Unknown Venue';
   const venueId = concert.venue?.id ?? rawAny.venueId ?? null;
   const bandIds: string[] = Array.isArray(concert.lineup)
-    ? concert.lineup.map((b: any) => b.id || b.bandId || b.band?.id).filter(Boolean)
+    ? concert.lineup.map((b: any) => b.band?.id || b.id || b.bandId).filter(Boolean)
     : [];
 
   const headline = customHeadline || concert.title || 'Featured Concert';

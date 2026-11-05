@@ -18,7 +18,7 @@ registry built with `zod`.
 | --- | --- | --- |
 | `CanonicalVenueSchema` | Normalized venue domain boundary | ID, name, address, city, state, postal code, capacity, verification state |
 | `CanonicalBandSchema` | Artist / Performer identity | ID, name, genres |
-| `CanonicalConcertSchema` | Full concert domain model | ID, title, venue reference, ordered lineup, localEventDate (`YYYY-MM-DD`), startTime (`HH:MM:SS`), optional doorTime, ticket URL, price range, age restriction |
+| `CanonicalConcertSchema` | Full concert domain model | ID, title, venue, typed lineup (band, role, order, setTime), localEventDate (`YYYY-MM-DD`), optional startTime & doorTime, ticket URL, age restriction |
 | `PosterExtractionResultSchema` | Gemini poster extraction output | Title, performers, venue evidence, local date/time evidence, confidence, warnings, uploader conflicts |
 | `CloudTasksWorkerPayloadSchema` | Durable async task queue payloads | Strict schema rejecting unknown properties; requires UUID `jobId` and bounded integer `attempt` (1–25) |
 | `CuratedNewsletterCardSchema` | Downstream editorial distribution | Headline, show details, ticket link, editorial blurb, canonical entity IDs (`concertId`, `venueId`, `bandIds`) |

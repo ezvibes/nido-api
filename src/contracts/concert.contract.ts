@@ -2,33 +2,43 @@ import { z } from 'zod';
 import { CanonicalVenueSchema, toCanonicalVenue } from './venue.contract';
 import { CanonicalBandSchema, toCanonicalBand } from './band.contract';
 
-export const PriceRangeSchema = z.object({
-  min: z.number().optional(),
-  max: z.number().optional(),
-  currency: z.string().optional(),
-  raw: z.string().optional(),
+export const PerformanceRoleSchema = z.enum([
+  'headliner',
+  'co-headliner',
+  'support',
+  'opener',
+]);
+
+export type PerformanceRole = z.infer<typeof PerformanceRoleSchema>;
+
+export const CanonicalLineupEntrySchema = z.object({
+  band: CanonicalBandSchema,
+  role: PerformanceRoleSchema.nullable().optional(),
+  order: z.number().int().min(0).nullable().optional(),
+  setTime: z.string().nullable().optional(),
 });
 
-export type PriceRange = z.infer<typeof PriceRangeSchema>;
+export type CanonicalLineupEntry = z.infer<typeof CanonicalLineupEntrySchema>;
 
 export const CanonicalConcertSchema = z.object({
   id: z.string().min(1, 'Concert ID is required'),
   title: z.string().min(1, 'Concert title is required'),
   venue: CanonicalVenueSchema,
-  lineup: z.array(CanonicalBandSchema),
+  lineup: z.array(CanonicalLineupEntrySchema),
   localEventDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'localEventDate must be YYYY-MM-DD'),
   startTime: z
     .string()
-    .regex(/^\d{2}:\d{2}(:\d{2})?$/, 'startTime must be HH:MM or HH:MM:SS'),
+    .regex(/^\d{2}:\d{2}(:\d{2})?$/, 'startTime must be HH:MM or HH:MM:SS')
+    .nullable()
+    .optional(),
   doorTime: z
     .string()
     .regex(/^\d{2}:\d{2}(:\d{2})?$/, 'doorTime must be HH:MM or HH:MM:SS')
     .nullable()
     .optional(),
   ticketUrl: z.string().nullable().optional(),
-  priceRange: z.union([z.string(), PriceRangeSchema]).nullable().optional(),
   ageRestriction: z.string().nullable().optional(),
   genre: z.string().nullable().optional(),
   catalogStatus: z.enum(['active', 'hidden', 'archived']).nullable().optional(),
@@ -53,22 +63,45 @@ export function toCanonicalConcert(
   const venue = toCanonicalVenue(venueSource);
 
   // Map ordered lineup
-  let lineup: any[] = [];
+  let lineup: CanonicalLineupEntry[] = [];
   if (Array.isArray(rawConcert.lineup)) {
     const sorted = [...rawConcert.lineup].sort((a, b) => {
-      const orderA = a.performanceOrder ?? a.billingOrder ?? 999;
-      const orderB = b.performanceOrder ?? b.billingOrder ?? 999;
+      const orderA = a.performanceOrder ?? a.order ?? a.billingOrder ?? 999;
+      const orderB = b.performanceOrder ?? b.order ?? b.billingOrder ?? 999;
       return orderA - orderB;
     });
     lineup = sorted.map((item: any) => {
       const bandSource = item.band ?? item;
-      return toCanonicalBand(bandSource);
+      const band = toCanonicalBand(bandSource);
+      const rawRole = item.performanceRole ?? item.role ?? null;
+      let role: PerformanceRole | null = null;
+      if (typeof rawRole === 'string') {
+        const lower = rawRole.toLowerCase();
+        if (lower === 'headliner' || lower === 'co-headliner' || lower === 'support' || lower === 'opener') {
+          role = lower as PerformanceRole;
+        }
+      }
+      const order =
+        typeof item.performanceOrder === 'number'
+          ? item.performanceOrder
+          : typeof item.order === 'number'
+          ? item.order
+          : typeof item.billingOrder === 'number'
+          ? item.billingOrder
+          : null;
+
+      return {
+        band,
+        role,
+        order,
+        setTime: item.setTime ?? null,
+      };
     });
   }
 
   // Derive date and time from startsAt or explicit fields
   let localEventDate: string | undefined = rawConcert.localEventDate;
-  let startTime: string | undefined = rawConcert.startTime;
+  let startTime: string | null = rawConcert.startTime ?? null;
 
   if (rawConcert.startsAt) {
     const startsAtDate =
@@ -101,10 +134,9 @@ export function toCanonicalConcert(
     venue,
     lineup,
     localEventDate,
-    startTime,
+    startTime: startTime ?? null,
     doorTime: rawConcert.doorTime ?? rawConcert.doorsTime ?? null,
     ticketUrl,
-    priceRange: rawConcert.priceRange ?? rawConcert.ticketPrice ?? null,
     ageRestriction: rawConcert.ageRestriction ?? null,
     genre: rawConcert.genre ?? null,
     catalogStatus: rawConcert.catalogStatus ?? null,
