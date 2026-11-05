@@ -304,7 +304,8 @@ export function executeVerificationGate(
     const stdout = execSync(command, {
       cwd,
       encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 180000,
     });
     return { success: true, stdout, stderr: '' };
   } catch (err: any) {
@@ -922,13 +923,26 @@ Please inspect the relevant files, implement the solution, run the verification 
     );
     execSync(`git push -u origin ${branchName}`, { stdio: 'inherit' });
 
-    const prOutput = execSync(
-      `gh pr create --title "feat(frankfurt): ${issue.title} (#${issue.number})" --body "${prBody.replace(/"/g, '\\"')}" --base main --head ${branchName}`,
-      { encoding: 'utf8' },
-    ).trim();
+    const tmpBodyPath = path.join(process.cwd(), '.frankfurt-pr-body.tmp');
+    await fs.promises.writeFile(tmpBodyPath, prBody, 'utf8');
 
-    prUrl = prOutput;
-    console.log(`\n🎉 Frankfurt Mission successfully created PR: ${prUrl}`);
+    try {
+      const prOutput = execSync(
+        `gh pr create --title "feat(frankfurt): ${issue.title} (#${issue.number})" --body-file "${tmpBodyPath}" --base main --head ${branchName}`,
+        {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+          timeout: 60000,
+        },
+      ).trim();
+
+      prUrl = prOutput;
+      console.log(`\n🎉 Frankfurt Mission successfully created PR: ${prUrl}`);
+    } finally {
+      if (fs.existsSync(tmpBodyPath)) {
+        await fs.promises.unlink(tmpBodyPath);
+      }
+    }
   } catch (err: any) {
     console.warn(`Git/PR dispatch returned: ${err.message}`);
   }
