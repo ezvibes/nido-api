@@ -807,6 +807,12 @@ export async function rejectAdminCandidate(
   return response.data;
 }
 
+export type VenueVerificationState =
+  | 'unverified'
+  | 'verified'
+  | 'flagged'
+  | 'canonical';
+
 export interface VenueListItem {
   id: string;
   name: string;
@@ -815,13 +821,20 @@ export interface VenueListItem {
   citySlug: string;
   region: string;
   regionSlug: string;
+  postalCode?: string | null;
+  capacity?: number | null;
+  verificationState?: VenueVerificationState | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export async function fetchVenues(
   token?: string,
-  params?: { citySlug?: string },
+  params?: {
+    citySlug?: string;
+    regionSlug?: string;
+    verificationState?: VenueVerificationState | string;
+  },
 ) {
   const response = await apiClient.get<VenueListItem[]>('/venues', {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,

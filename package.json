@@ -30,6 +30,7 @@
     "migration:revert": "npm run typeorm -- -d src/data-source.ts migration:revert",
     "migration:show": "npm run typeorm -- -d src/data-source.ts migration:show",
     "adk:venue-scout": "ts-node -r tsconfig-paths/register src/scripts/test-adk-venue-scout.ts",
+    "audit:venues": "ts-node -r tsconfig-paths/register src/scripts/audit-venues.ts",
     "mission:frankfurt": "ts-node -r tsconfig-paths/register src/scripts/run-frankfurt-mission.ts",
     "dev:rdu": "ts-node -r tsconfig-paths/register src/scripts/run-rdu-builder.ts",
     "seed:dev:concerts": "ts-node -r tsconfig-paths/register src/scripts/seed-dev-concerts.ts",

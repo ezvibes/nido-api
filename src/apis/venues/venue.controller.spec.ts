@@ -64,6 +64,17 @@ describe('VenueController', () => {
       expect(mockVenueService.findByCity).toHaveBeenCalledWith('wilmington');
       expect(result).toEqual(venues);
     });
+
+    it('should call findAll with query when filtering by verificationState', async () => {
+      const venues = [{ id: '1', name: 'Verified Venue' }] as Venue[];
+      mockVenueService.findAll.mockResolvedValue(venues);
+
+      const query = { verificationState: 'verified' as any };
+      const result = await controller.findAll(query);
+
+      expect(mockVenueService.findAll).toHaveBeenCalledWith(query);
+      expect(result).toEqual(venues);
+    });
   });
 
   describe('create', () => {

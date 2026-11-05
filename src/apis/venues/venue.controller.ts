@@ -37,10 +37,10 @@ export class VenueController {
   })
   @ApiOkResponse({ description: 'List of venues', type: [VenueResponseDto] })
   async findAll(@Query() query: ListVenuesDto): Promise<Venue[]> {
-    if (query.citySlug) {
+    if (query.citySlug && !query.regionSlug && !query.verificationState) {
       return this.venueService.findByCity(query.citySlug);
     }
-    return this.venueService.findAll();
+    return this.venueService.findAll(query);
   }
 
   @Get(':id')

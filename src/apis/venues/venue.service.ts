@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Venue } from './entities/venue.entity';
+import { Venue, VenueVerificationState } from './entities/venue.entity';
+import { ListVenuesDto } from './dto/list-venues.dto';
 
 @Injectable()
 export class VenueService {
@@ -15,8 +16,14 @@ export class VenueService {
     return this.venueRepository.save(venue);
   }
 
-  async findAll(): Promise<Venue[]> {
+  async findAll(query?: ListVenuesDto): Promise<Venue[]> {
+    const where: any = {};
+    if (query?.citySlug) where.citySlug = query.citySlug;
+    if (query?.regionSlug) where.regionSlug = query.regionSlug;
+    if (query?.verificationState) where.verificationState = query.verificationState;
+
     return this.venueRepository.find({
+      where: Object.keys(where).length > 0 ? where : undefined,
       order: { name: 'ASC' },
     });
   }
@@ -82,6 +89,7 @@ export class VenueService {
       citySlug,
       region: cleanState,
       regionSlug: slugify(cleanState),
+      verificationState: VenueVerificationState.UNVERIFIED,
     });
     return this.venueRepository.save(newVenue);
   }

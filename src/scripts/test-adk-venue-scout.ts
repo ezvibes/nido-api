@@ -19,6 +19,8 @@ export interface CuratedVenue {
   address: string;
   city: string;
   region: string;
+  postalCode?: string;
+  capacity?: number;
   tier: string;
   vibeSummary: string;
 }
@@ -31,7 +33,7 @@ export interface ScheduledShow {
   headliner: string;
 }
 
-const NC_CURATED_VENUES: CuratedVenue[] = [
+export const NC_CURATED_VENUES: CuratedVenue[] = [
   {
     id: 'cats-cradle-carrboro',
     name: "Cat's Cradle",
@@ -39,6 +41,8 @@ const NC_CURATED_VENUES: CuratedVenue[] = [
     address: '300 E Main St',
     city: 'Carrboro',
     region: 'North Carolina',
+    postalCode: '27510',
+    capacity: 750,
     tier: 'Tier-1 Premier Partner',
     vibeSummary:
       'Legendary Triangle indie room. Deep rock history, intimate sweatbox energy, iconic sound, and pristine scene clout.',
@@ -50,6 +54,8 @@ const NC_CURATED_VENUES: CuratedVenue[] = [
     address: '224 S Blount St',
     city: 'Raleigh',
     region: 'North Carolina',
+    postalCode: '27601',
+    capacity: 289,
     tier: 'Tier-1 Premier Partner',
     vibeSummary:
       'Record shop by day, gritty vinyl-soaked live music hall by night. Heartbeat of downtown Raleigh local music.',
@@ -61,6 +67,8 @@ const NC_CURATED_VENUES: CuratedVenue[] = [
     address: '3227 N Davidson St',
     city: 'Charlotte',
     region: 'North Carolina',
+    postalCode: '28205',
+    capacity: 120,
     tier: 'Tier-1 Partner',
     vibeSummary:
       'Acoustic sanctuary in NoDa. Listening-room perfection, warm mahogany lighting, and impeccable artist intimacy.',
@@ -72,6 +80,8 @@ const NC_CURATED_VENUES: CuratedVenue[] = [
     address: '511 E 36th St',
     city: 'Charlotte',
     region: 'North Carolina',
+    postalCode: '28205',
+    capacity: 956,
     tier: 'Tier-1 Partner',
     vibeSummary:
       'Historic movie-house turned powerhouse concert hall in the heart of NoDa arts district.',
@@ -83,6 +93,8 @@ const NC_CURATED_VENUES: CuratedVenue[] = [
     address: '127 N Front St',
     city: 'Wilmington',
     region: 'North Carolina',
+    postalCode: '28401',
+    capacity: 125,
     tier: 'Tier-2 Partner',
     vibeSummary:
       'Chic, sultry, velvet-draped listening lounge in historic downtown Wilmington.',
@@ -98,6 +110,8 @@ const NC_CURATED_VENUES: CuratedVenue[] = [
     address: '1941 Amphitheatre Dr',
     city: 'Wilmington',
     region: 'North Carolina',
+    postalCode: '28401',
+    capacity: 1200,
     tier: 'Tier-1 Outdoor Partner',
     vibeSummary:
       'Lush lakeside outdoor amphitheater framed by Spanish moss and coastal evening breezes.',
@@ -109,6 +123,8 @@ const NC_CURATED_VENUES: CuratedVenue[] = [
     address: '101 Biltmore Ave',
     city: 'Asheville',
     region: 'North Carolina',
+    postalCode: '28801',
+    capacity: 1050,
     tier: 'Tier-1 Premier Partner',
     vibeSummary:
       'World-famous Asheville music temple with springy hardwood floors and unmatched mountain town soul.',
@@ -120,6 +136,8 @@ const NC_CURATED_VENUES: CuratedVenue[] = [
     address: '126 E Cabarrus St',
     city: 'Raleigh',
     region: 'North Carolina',
+    postalCode: '27601',
+    capacity: 825,
     tier: 'Tier-1 Partner',
     vibeSummary:
       'Spacious indoor theater host to heavy riffs, jam bands, and vibrant Raleigh crowds.',
@@ -164,7 +182,51 @@ const UPCOMING_SHOWS: ScheduledShow[] = [
   },
 ];
 
-function normalizeName(input: string): string {
+export const VenueEnrichmentPatchSchema = z.object({
+  venueId: z.string().describe('Target venue ID or name to enrich'),
+  postalCode: z.string().optional().describe('Verified postal/ZIP code'),
+  capacity: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Verified room capacity (must be positive integer)'),
+  proposedVerificationState: z
+    .enum(['unverified', 'verified', 'flagged', 'canonical'])
+    .optional()
+    .describe('Proposed verification state after scout inspection'),
+  evidenceSource: z
+    .string()
+    .describe('Authoritative source or documentation URL (no fabricated data)'),
+  confidence: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe('Confidence score between 0.0 and 1.0'),
+  notes: z.string().optional().describe('Context notes for the human reviewer'),
+});
+
+export type VenueEnrichmentPatch = z.infer<typeof VenueEnrichmentPatchSchema>;
+
+export interface VenueEnrichmentProposal {
+  proposalId: string;
+  venueId: string;
+  patch: {
+    postalCode: string | null;
+    capacity: number | null;
+    verificationState: 'unverified' | 'verified' | 'flagged' | 'canonical';
+  };
+  evidence: {
+    source: string;
+    confidence: number;
+    notes: string | null;
+  };
+  humanReviewRequired: boolean;
+  status: 'proposed_for_review';
+  timestamp: string;
+}
+
+export function normalizeName(input: string): string {
   return input
     .toLowerCase()
     .replace(/['"’]/g, '')
@@ -173,7 +235,7 @@ function normalizeName(input: string): string {
     .trim();
 }
 
-function findVenue(query: string): CuratedVenue | null {
+export function findVenue(query: string): CuratedVenue | null {
   const normQuery = normalizeName(query);
   if (!normQuery) return null;
 
@@ -216,6 +278,8 @@ export async function handleLookupCuratedVenue({ name }: { name: string }) {
       name: match.name,
       city: `${match.city}, ${match.region}`,
       address: match.address,
+      postalCode: match.postalCode || null,
+      capacity: match.capacity || null,
       partnerTier: match.tier,
       verifiedStatus: 'VERIFIED',
       vibeSummary: match.vibeSummary,
@@ -253,6 +317,31 @@ export async function handleGetUpcomingShowsAtVenue({
   };
 }
 
+export async function handleProposeVenueEnrichment(
+  params: VenueEnrichmentPatch,
+): Promise<VenueEnrichmentProposal> {
+  console.log(
+    `\n  ⚙️  [ADK Tool Executed] proposeVenueEnrichment({ venueId: "${params.venueId}", confidence: ${params.confidence} })`,
+  );
+  return {
+    proposalId: `prop-venue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    venueId: params.venueId,
+    patch: {
+      postalCode: params.postalCode || null,
+      capacity: params.capacity || null,
+      verificationState: params.proposedVerificationState || 'unverified',
+    },
+    evidence: {
+      source: params.evidenceSource,
+      confidence: params.confidence,
+      notes: params.notes || null,
+    },
+    humanReviewRequired: true,
+    status: 'proposed_for_review',
+    timestamp: new Date().toISOString(),
+  };
+}
+
 // ADK Tool 1: Catalog Venue Verification
 export const lookupCuratedVenueTool = new FunctionTool({
   name: 'lookupCuratedVenue',
@@ -277,36 +366,48 @@ export const getUpcomingShowsAtVenueTool = new FunctionTool({
   execute: handleGetUpcomingShowsAtVenue,
 });
 
+// ADK Tool 3: Propose Non-Destructive Venue Enrichment
+export const proposeVenueEnrichmentTool = new FunctionTool({
+  name: 'proposeVenueEnrichment',
+  description:
+    'Propose a non-destructive enrichment patch (postal code, capacity, verification state) for unverified rooms. Human review remains strictly required before catalog mutation.',
+  parameters: VenueEnrichmentPatchSchema,
+  execute: handleProposeVenueEnrichment,
+});
+
 export function createMunchenVenueScoutAgent(dataSource: any) {
   return new Agent({
     name: 'MunchenVenueScout',
     model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
     description:
-      'North Carolina live music venue scout that verifies rooms against the Nido catalog, evaluates partner tiers, and retrieves scheduled concert lineups.',
+      'North Carolina live music venue scout that verifies rooms against the Nido catalog, evaluates partner tiers, and proposes non-destructive enrichment patches.',
     instruction: `
   You are Munchen, the EZ Vibes Venue Scout & Vibe Inspector for Nido - North Carolina's indie live music intelligence portal.
 
   When evaluating a venue request:
   1. Always call \`lookupCuratedVenue\` with the venue name to verify if the room is in Nido's curated catalog.
   2. If verified and a \`venueId\` is returned, call \`getUpcomingShowsAtVenue\` using that \`venueId\`.
-  3. You also have access to editorial memory. Before scouting, retrieve operator memory ("scout_preferences") to tailor your response.
-  4. If the operator gave you new instructions (e.g. "prioritize X"), use \`storeEditorialMemory\` to save it for future sessions.
-  5. Synthesize an energetic, soulful assessment of the room, its partner tier, vibe, and upcoming live music schedule.
+  3. If scouting an unverified room or missing metadata (postal code, capacity), you can call \`proposeVenueEnrichment\` with verified evidence and confidence. Munchen NEVER directly mutates the catalog; all proposals require human review.
+  4. You also have access to editorial memory. Before scouting, retrieve operator memory ("scout_preferences") to tailor your response.
+  5. If the operator gave you new instructions (e.g. "prioritize X"), use \`storeEditorialMemory\` to save it for future sessions.
+  6. Synthesize an energetic, soulful assessment of the room, its partner tier, vibe, and upcoming live music schedule.
   `,
     tools: [
       lookupCuratedVenueTool,
       getUpcomingShowsAtVenueTool,
+      proposeVenueEnrichmentTool,
       createStoreMemoryTool(dataSource),
       createRetrieveMemoryTool(dataSource),
     ],
   });
 }
 
-function printFormattedSummary(
+export function printFormattedSummary(
   targetVenue: string,
   venueRes: any,
   showsRes?: any,
   agentSynthesizedText?: string,
+  proposedPatch?: VenueEnrichmentProposal | null,
 ) {
   console.log('\n======================================================');
   console.log('       🔥 NIDO ADK SCENE SCOUT REPORT 🔥');
@@ -317,6 +418,12 @@ function printFormattedSummary(
   );
   console.log(` Official Name       : ${venueRes.name || targetVenue}`);
   console.log(` Location            : ${venueRes.city || 'Unknown'}`);
+  if (venueRes.postalCode) {
+    console.log(` Postal Code         : ${venueRes.postalCode}`);
+  }
+  if (venueRes.capacity) {
+    console.log(` Capacity            : ${venueRes.capacity} guests`);
+  }
   console.log(` Partner Tier        : ${venueRes.partnerTier}`);
   console.log(` Vibe Profile        : ${venueRes.vibeSummary}`);
   console.log('------------------------------------------------------');
@@ -334,6 +441,31 @@ function printFormattedSummary(
     console.log(' Upcoming Live Music : No upcoming seeded concerts found.');
   }
 
+  if (proposedPatch) {
+    console.log('------------------------------------------------------');
+    console.log(' Proposed Non-Destructive Enrichment Patch (Requires Human Review):');
+    console.log(`   - Proposal ID            : ${proposedPatch.proposalId}`);
+    console.log(`   - Target Venue ID        : ${proposedPatch.venueId}`);
+    console.log(
+      `   - Postal Code            : ${proposedPatch.patch.postalCode || 'Not provided'}`,
+    );
+    console.log(
+      `   - Capacity               : ${proposedPatch.patch.capacity || 'Not provided'}`,
+    );
+    console.log(
+      `   - Proposed State         : ${proposedPatch.patch.verificationState}`,
+    );
+    console.log(
+      `   - Evidence Source        : ${proposedPatch.evidence.source}`,
+    );
+    console.log(
+      `   - Confidence Score       : ${(proposedPatch.evidence.confidence * 100).toFixed(0)}%`,
+    );
+    console.log(
+      `   - Human Review Status    : ⏳ ${proposedPatch.status}`,
+    );
+  }
+
   if (agentSynthesizedText) {
     console.log('------------------------------------------------------');
     console.log(' Soulful Scout Synthesized Assessment:');
@@ -342,7 +474,10 @@ function printFormattedSummary(
   console.log('======================================================\n');
 }
 
-async function runAdkScoutWorkflow(venueQuery: string, sessionId?: string) {
+export async function runAdkScoutWorkflow(
+  venueQuery: string,
+  sessionId?: string,
+) {
   const apiKey =
     process.env.GEMINI_API_KEY ||
     process.env.GOOGLE_GENAI_API_KEY ||
@@ -445,6 +580,17 @@ async function runAdkScoutWorkflow(venueQuery: string, sessionId?: string) {
     });
   }
 
+  let proposedPatch: VenueEnrichmentProposal | null = null;
+  if (!venueRes.found) {
+    proposedPatch = await handleProposeVenueEnrichment({
+      venueId: venueQuery.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      evidenceSource: 'Local scene scout discovery / partner request',
+      confidence: 0.85,
+      notes: `Scouted unverified room "${venueQuery}". Pending human verification of address and capacity.`,
+      proposedVerificationState: 'unverified',
+    });
+  }
+
   let synthesizedVibe = '';
   if (venueRes.found) {
     synthesizedVibe = `Yo! ${venueRes.name} in ${venueRes.city} is locked into Nido's catalog as a ${venueRes.partnerTier}. ${venueRes.vibeSummary} ${
@@ -453,23 +599,31 @@ async function runAdkScoutWorkflow(venueQuery: string, sessionId?: string) {
         : 'Keep your eyes on this room for upcoming live drops.'
     }`;
   } else {
-    synthesizedVibe = `Hold up! "${venueQuery}" is an unverified room on our radar. It isn't in Nido's curated NC catalog yet. Time for local scouts to drop in, test the acoustics, and get this space verified!`;
+    synthesizedVibe = `Hold up! "${venueQuery}" is an unverified room on our radar. It isn't in Nido's curated NC catalog yet. Munchen has proposed an enrichment patch for review; local scouts must inspect the room before promotion!`;
   }
 
-  printFormattedSummary(venueQuery, venueRes, showsRes, synthesizedVibe);
+  printFormattedSummary(
+    venueQuery,
+    venueRes,
+    showsRes,
+    synthesizedVibe,
+    proposedPatch,
+  );
 }
 
-const args = process.argv.slice(2);
-const cleanArgs = args.filter((arg) => !arg.startsWith('--'));
-const targetVenueArg = cleanArgs[0] || "Cat's Cradle";
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  const cleanArgs = args.filter((arg) => !arg.startsWith('--'));
+  const targetVenueArg = cleanArgs[0] || "Cat's Cradle";
 
-const sessionIdArg = args
-  .find((arg) => arg.startsWith('--session-id='))
-  ?.split('=')[1];
+  const sessionIdArg = args
+    .find((arg) => arg.startsWith('--session-id='))
+    ?.split('=')[1];
 
-runAdkScoutWorkflow(targetVenueArg, sessionIdArg)
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error('Fatal error during ADK Venue Scout execution:', error);
-    process.exit(1);
-  });
+  runAdkScoutWorkflow(targetVenueArg, sessionIdArg)
+    .then(() => process.exit(0))
+    .catch((error) => {
+      console.error('Fatal error during ADK Venue Scout execution:', error);
+      process.exit(1);
+    });
+}
