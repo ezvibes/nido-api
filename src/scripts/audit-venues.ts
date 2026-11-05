@@ -47,6 +47,7 @@ export interface VenueAuditReport {
 export interface AuditVenuesOptions {
   reportPath?: string;
   fixtureVenues?: Partial<Venue>[];
+  apiUrl?: string;
   silent?: boolean;
 }
 
@@ -226,6 +227,30 @@ export async function auditVenues(
     if (!silent) {
       console.log(`📡 Ingesting ${rawVenues.length} venues from provided fixture set.`);
     }
+  } else if (options.apiUrl) {
+    try {
+      if (!silent) {
+        console.log(`🌐 Fetching live venues from API: ${options.apiUrl}...`);
+      }
+      const targetUrl = options.apiUrl.endsWith('/venues')
+        ? options.apiUrl
+        : `${options.apiUrl.replace(/\/$/, '')}/venues`;
+      const res = await fetch(targetUrl);
+      if (!res.ok) {
+        throw new Error(`HTTP error ${res.status}: ${res.statusText}`);
+      }
+      const json = await res.json();
+      rawVenues = Array.isArray(json) ? json : json.data || [];
+      if (!silent) {
+        console.log(`✅ Loaded ${rawVenues.length} venue records from API.`);
+      }
+    } catch (err: any) {
+      if (!silent) {
+        console.warn(`⚠️ Failed to fetch venues from API: ${err.message}.`);
+        console.warn('⚡ Falling back to built-in NC catalog audit fixtures.');
+      }
+      rawVenues = FALLBACK_SAMPLE_VENUES;
+    }
   } else {
     try {
       if (!silent) {
@@ -380,13 +405,16 @@ export async function auditVenues(
 if (require.main === module) {
   const args = process.argv.slice(2);
   let customReportPath: string | undefined;
+  let customApiUrl: string | undefined = process.env.AUDIT_API_URL;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--report' || args[i] === '-r') {
       customReportPath = args[++i];
+    } else if (args[i] === '--api' || args[i] === '-a') {
+      customApiUrl = args[++i];
     }
   }
 
-  auditVenues({ reportPath: customReportPath })
+  auditVenues({ reportPath: customReportPath, apiUrl: customApiUrl })
     .then(() => process.exit(0))
     .catch((err) => {
       console.error('Fatal error during venue audit execution:', err);
