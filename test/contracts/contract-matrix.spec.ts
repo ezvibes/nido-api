@@ -27,10 +27,6 @@ describe('Centralized Runtime Contract Matrix', () => {
         state: 'NC',
         postalCode: '27510',
         capacity: 750,
-        coordinates: {
-          latitude: 35.9103,
-          longitude: -79.0708,
-        },
         verificationState: 'canonical' as const,
       };
 
@@ -60,7 +56,6 @@ describe('Centralized Runtime Contract Matrix', () => {
       expect(canonical.address).toBe('300 E Main St');
       expect(canonical.capacity).toBeNull();
       expect(canonical.postalCode).toBeNull();
-      expect(canonical.coordinates).toBeNull();
       expect(canonical.verificationState).toBeNull();
 
       // Non-destructive: source entity is untouched
@@ -77,22 +72,22 @@ describe('Centralized Runtime Contract Matrix', () => {
       });
     });
 
-    it('rejects venue with invalid coordinates or missing required properties', () => {
-      const invalidCoords = {
-        id: '123',
-        name: 'Test Venue',
-        city: 'Raleigh',
-        state: 'NC',
-        coordinates: { latitude: 95.5, longitude: -78.6 }, // latitude > 90
-      };
-      expect(() => CanonicalVenueSchema.parse(invalidCoords)).toThrow(z.ZodError);
-
+    it('rejects venue with missing required properties or invalid types', () => {
       const missingCity = {
         id: '123',
         name: 'Test Venue',
         state: 'NC',
       };
       expect(() => CanonicalVenueSchema.parse(missingCity)).toThrow(z.ZodError);
+
+      const invalidCapacity = {
+        id: '123',
+        name: 'Test Venue',
+        city: 'Carrboro',
+        state: 'NC',
+        capacity: -10,
+      };
+      expect(() => CanonicalVenueSchema.parse(invalidCapacity)).toThrow(z.ZodError);
     });
   });
 

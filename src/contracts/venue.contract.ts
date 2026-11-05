@@ -1,12 +1,5 @@
 import { z } from 'zod';
 
-export const CanonicalCoordinatesSchema = z.object({
-  latitude: z.number().min(-90).max(90),
-  longitude: z.number().min(-180).max(180),
-});
-
-export type CanonicalCoordinates = z.infer<typeof CanonicalCoordinatesSchema>;
-
 export const VenueVerificationStateSchema = z.enum([
   'unverified',
   'verified',
@@ -24,7 +17,6 @@ export const CanonicalVenueSchema = z.object({
   state: z.string().min(1, 'State is required'),
   postalCode: z.string().nullable().optional(),
   capacity: z.number().int().positive().nullable().optional(),
-  coordinates: CanonicalCoordinatesSchema.nullable().optional(),
   verificationState: VenueVerificationStateSchema.nullable().optional(),
 });
 
@@ -50,10 +42,6 @@ export function toCanonicalVenue(raw: Record<string, any> | null | undefined): C
     state,
     postalCode: raw.postalCode ?? raw.postal_code ?? null,
     capacity: raw.capacity !== undefined ? raw.capacity : null,
-    coordinates: raw.coordinates ?? (raw.latitude != null && raw.longitude != null ? {
-      latitude: Number(raw.latitude),
-      longitude: Number(raw.longitude),
-    } : null),
     verificationState: raw.verificationState ?? raw.verification_state ?? null,
   };
 

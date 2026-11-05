@@ -16,7 +16,7 @@ registry built with `zod`.
 
 | Contract Schema | Purpose & Scope | Key Invariants |
 | --- | --- | --- |
-| `CanonicalVenueSchema` | Normalized venue domain boundary | ID, name, address, city, state, capacity, coordinates, verification state |
+| `CanonicalVenueSchema` | Normalized venue domain boundary | ID, name, address, city, state, postal code, capacity, verification state |
 | `CanonicalBandSchema` | Performer identity & billing | ID, name, genres, headliner state, billing order |
 | `CanonicalConcertSchema` | Full concert domain model | ID, title, venue reference, ordered lineup, localEventDate (`YYYY-MM-DD`), startTime (`HH:MM:SS`), optional doorTime, ticket URL, price range, age restriction |
 | `PosterExtractionResultSchema` | Gemini poster extraction output | Title, performers, venue evidence, local date/time evidence, confidence, warnings, uploader conflicts |
