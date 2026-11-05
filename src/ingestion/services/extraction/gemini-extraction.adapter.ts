@@ -10,6 +10,7 @@ import * as path from 'path';
 import { ConfigService } from '@nestjs/config';
 import { validateImageBuffer } from '../../utils/image-mime.util';
 import { inferTimezoneFromLocation } from '../../utils/timezone-lookup.util';
+import { PosterExtractionResultSchema } from '../../../contracts';
 
 const DEFAULT_EXTRACTION_MODEL = 'gemini-3.8-flash';
 const FALLBACK_EXTRACTION_MODEL = 'gemini-flash-latest';
@@ -280,7 +281,9 @@ Rules & Guidelines:
           }
         }
       });
-      return flattenedResults;
+      return flattenedResults.map((result) =>
+        PosterExtractionResultSchema.parse(result),
+      );
     } catch (e) {
       this.logger.error('Extraction failed', e);
       throw e;
@@ -356,28 +359,31 @@ Rules & Guidelines:
       results[0].primaryGenre = results[0].genre;
     }
 
-    // Map to array as single event returns one item, multi returns multi
-    if (mockResponse.dates && mockResponse.dates.length > 1) {
-      return mockResponse.dates.map((d: any) => {
-        let newD = { ...mockResponse, dates: [{ ...d }] };
-        if (!newD.dates[0].timezone && locationTz) {
-          newD.dates[0].timezone = locationTz;
-        }
-        if (hints && hints.date && newD.dates && newD.dates[0]) {
-          if (hints.date !== newD.dates[0].date) {
-            newD.dates[0].warning = `Hint conflict: uploader suggested '${hints.date}', poster states '${newD.dates[0].date}'`;
-          }
-        }
-        return newD;
-      });
-    }
-
     if (hints && hints.date && results[0].dates && results[0].dates[0]) {
       if (hints.date !== results[0].dates[0].date) {
         results[0].dates[0].warning = `Hint conflict: uploader suggested '${hints.date}', poster states '${results[0].dates[0].date}'`;
       }
     }
 
-    return results;
+    // Map to array as single event returns one item, multi returns multi
+    const mappedResults =
+      mockResponse.dates && mockResponse.dates.length > 1
+        ? mockResponse.dates.map((d: any) => {
+            let newD = { ...mockResponse, dates: [{ ...d }] };
+            if (!newD.dates[0].timezone && locationTz) {
+              newD.dates[0].timezone = locationTz;
+            }
+            if (hints && hints.date && newD.dates && newD.dates[0]) {
+              if (hints.date !== newD.dates[0].date) {
+                newD.dates[0].warning = `Hint conflict: uploader suggested '${hints.date}', poster states '${newD.dates[0].date}'`;
+              }
+            }
+            return newD;
+          })
+        : results;
+
+    return mappedResults.map((result) =>
+      PosterExtractionResultSchema.parse(result),
+    );
   }
 }

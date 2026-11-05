@@ -7,7 +7,7 @@
   "license": "SEE LICENSE IN LICENSE.md",
   "scripts": {
     "build": "nest build",
-    "agent:gate": "npm-run-all --print-label agent:gate:hygiene agent:gate:api-test test:newsletter:harness test:terraform-config agent:gate:client-test build agent:gate:client-build",
+    "agent:gate": "npm-run-all --print-label agent:gate:hygiene test:contracts agent:gate:api-test test:newsletter:harness test:terraform-config agent:gate:client-test build agent:gate:client-build",
     "agent:gate:hygiene": "node scripts/check-hygiene.mjs",
     "agent:gate:api-test": "jest --runInBand",
     "agent:gate:client-test": "npm test --prefix client",
@@ -33,6 +33,7 @@
     "mission:frankfurt": "ts-node -r tsconfig-paths/register src/scripts/run-frankfurt-mission.ts",
     "dev:rdu": "ts-node -r tsconfig-paths/register src/scripts/run-rdu-builder.ts",
     "seed:dev:concerts": "ts-node -r tsconfig-paths/register src/scripts/seed-dev-concerts.ts",
+    "test:contracts": "jest --runInBand test/contracts/contract-matrix.spec.ts",
     "test:extraction": "jest src/ingestion/services/extraction/gemini-extraction.adapter.spec.ts",
     "test:benchmark": "jest --config test/agent-harness/jest.config.json test/agent-harness/ocr-benchmark.spec.ts",
     "test": "jest",
@@ -107,6 +108,10 @@
       "ts"
     ],
     "rootDir": "src",
+    "roots": [
+      "<rootDir>",
+      "<rootDir>/../test/contracts"
+    ],
     "testRegex": ".*\\.spec\\.ts$",
     "testPathIgnorePatterns": [
       "/node_modules/",
