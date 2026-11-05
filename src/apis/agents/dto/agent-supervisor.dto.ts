@@ -503,4 +503,23 @@ export class ReportMissionTelemetryDto {
   @IsOptional()
   @IsString()
   error?: string;
+
+  @ApiPropertyOptional({ description: 'Structured tool call and verification event trace for Glass Box Inspector' })
+  @IsOptional()
+  @IsArray()
+  traceEvents?: Array<{
+    type: 'tool_call' | 'tool_response' | 'verification_gate' | 'lifecycle' | 'approval_gate';
+    title: string;
+    summary: string;
+    toolName?: string;
+    arguments?: Record<string, any>;
+    response?: Record<string, any>;
+    status?: 'ok' | 'error' | 'pending';
+    latencyMs?: number;
+  }>;
+
+  @ApiPropertyOptional({ description: 'Machine-readable mission evidence receipt' })
+  @IsOptional()
+  @IsObject()
+  receipt?: Record<string, any>;
 }

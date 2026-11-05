@@ -60,6 +60,42 @@ const missions = computed<AgentMissionSummary[]>(
   () => snapshot.value?.missions ?? [],
 );
 
+// Dedicated RDU Builder Station Computeds
+const rduAgent = computed(() => agents.value.find((a) => a.key === 'rdu'));
+const rduPrActionItem = computed(() =>
+  pendingActionItems.value.find(
+    (item) => item.agentKey === 'rdu' || item.id.startsWith('rdu-pr-'),
+  ),
+);
+const copiedPrUrl = ref(false);
+const copiedCli = ref(false);
+
+function copyPrLinkToClipboard(url: string) {
+  if (!url) return;
+  navigator.clipboard.writeText(url);
+  copiedPrUrl.value = true;
+  actionFeedbackBanner.value = 'Pull Request URL copied to clipboard.';
+  setTimeout(() => {
+    copiedPrUrl.value = false;
+    if (actionFeedbackBanner.value.includes('Pull Request URL')) {
+      actionFeedbackBanner.value = '';
+    }
+  }, 2500);
+}
+
+function copyCliCommand(cmd: string) {
+  if (!cmd) return;
+  navigator.clipboard.writeText(cmd);
+  copiedCli.value = true;
+  actionFeedbackBanner.value = 'RDU CLI command copied to clipboard.';
+  setTimeout(() => {
+    copiedCli.value = false;
+    if (actionFeedbackBanner.value.includes('RDU CLI')) {
+      actionFeedbackBanner.value = '';
+    }
+  }, 2500);
+}
+
 const filteredRuns = computed<AgentRunRecord[]>(() => {
   return recentRuns.value.filter((run) => {
     if (
@@ -524,6 +560,136 @@ onBeforeUnmount(() => {
         aria-labelledby="fleet-roster-heading"
         class="supervisor-section"
       >
+        <!-- FEATURED DEDICATED SECTION: RDU ENGINEERING & BUILD STATION -->
+        <article class="rdu-station-banner" data-testid="rdu-station-banner">
+          <div class="rdu-station__header">
+            <div class="rdu-station__identity">
+              <span class="city-pill rdu-city-pill">RDU</span>
+              <div>
+                <h2 class="rdu-station__title">RDU Engineering &amp; Build Station</h2>
+                <p class="rdu-station__subtitle">
+                  Dedicated Software Engineer &amp; QA Builder · Research Triangle, NC
+                </p>
+              </div>
+            </div>
+            <div class="rdu-station__badges">
+              <span class="readiness-pill readiness-pill--available">Available Runtime</span>
+              <span
+                class="status-badge"
+                :class="statusBadgeClass(rduAgent?.status || 'IDLE')"
+              >
+                <span class="status-dot" aria-hidden="true"></span>
+                {{ statusDotLabel(rduAgent?.status || 'IDLE') }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Active Task In Progress -->
+          <div
+            v-if="rduAgent?.currentTask"
+            class="rdu-station__active-task"
+            data-testid="rdu-active-task-box"
+          >
+            <div class="rdu-station__task-header">
+              <div>
+                <span class="rdu-station__tag">Active Mission</span>
+                <h3 class="rdu-station__task-title">{{ rduAgent.currentTask.missionSummary }}</h3>
+              </div>
+              <div class="rdu-station__metrics">
+                <span>⏱️ {{ formatDuration(rduAgent.currentTask.elapsedMs) }}</span>
+                <span>🧠 {{ rduAgent.currentTask.modelCalls }} model calls</span>
+                <span>🛠️ {{ rduAgent.currentTask.toolCalls }} tool calls</span>
+              </div>
+            </div>
+            <div class="rdu-station__step-box">
+              <strong>Active Step:</strong> {{ rduAgent.currentTask.activeStep }}
+            </div>
+          </div>
+
+          <!-- Staged PR Ready for Review & Merge -->
+          <div
+            v-else-if="rduPrActionItem"
+            class="rdu-station__staged-pr"
+            data-testid="rdu-staged-pr-box"
+          >
+            <div class="rdu-station__pr-header">
+              <div>
+                <span class="rdu-station__tag rdu-station__tag--staged">Pull Request Ready</span>
+                <h3 class="rdu-station__task-title">
+                  {{ rduPrActionItem.title }}
+                </h3>
+              </div>
+              <span class="priority-pill priority-pill--high">High Priority</span>
+            </div>
+
+            <p class="rdu-station__pr-summary">
+              {{ rduPrActionItem.summary }}
+            </p>
+
+            <div v-if="rduPrActionItem.missionPr?.diffStat" class="rdu-station__diff-stat">
+              <code>{{ rduPrActionItem.missionPr.diffStat }}</code>
+            </div>
+
+            <div class="rdu-station__pr-actions">
+              <!-- Copy PR Link Button -->
+              <button
+                v-if="rduPrActionItem.missionPr?.prUrl"
+                type="button"
+                class="btn btn--secondary btn--sm copy-pr-btn"
+                data-testid="rdu-copy-pr-btn"
+                @click="copyPrLinkToClipboard(rduPrActionItem.missionPr.prUrl)"
+              >
+                <span v-if="copiedPrUrl">✅ Copied to Clipboard!</span>
+                <span v-else>📋 Copy PR Link</span>
+              </button>
+
+              <!-- Direct GitHub Link -->
+              <a
+                v-if="rduPrActionItem.missionPr?.prUrl"
+                :href="rduPrActionItem.missionPr.prUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn--ghost btn--sm"
+                data-testid="rdu-open-pr-link"
+              >
+                🔗 Open PR on GitHub ↗
+              </a>
+
+              <!-- One-Click Review in Decision Center -->
+              <button
+                type="button"
+                class="btn btn--primary btn--sm"
+                data-testid="rdu-review-decision-btn"
+                @click="activeTab = 'attention'"
+              >
+                ⚡ Review in Decision Center
+              </button>
+            </div>
+          </div>
+
+          <!-- Idle State -->
+          <div v-else class="rdu-station__idle" data-testid="rdu-idle-box">
+            <div class="rdu-station__idle-content">
+              <div>
+                <p class="rdu-idle-text">
+                  RDU is idle and ready for new engineering and QA missions. Dispatch directly using
+                  the <code>agent:rdu</code> label or run locally:
+                </p>
+                <div class="rdu-station__cli-hint">
+                  <code>npm run dev:rdu -- --issue &lt;number&gt;</code>
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--sm"
+                    @click="copyCliCommand('npm run dev:rdu -- --issue ')"
+                  >
+                    {{ copiedCli ? '✅ Copied!' : '📋 Copy CLI Command' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
         <div class="section-header">
           <div>
             <h2 id="fleet-roster-heading">
@@ -909,7 +1075,7 @@ onBeforeUnmount(() => {
                   <strong>Branch:</strong>
                   <code>{{ item.missionPr.branchName }}</code>
                 </span>
-                <span v-if="item.missionPr.prUrl">
+                <span v-if="item.missionPr.prUrl" class="pr-url-item">
                   <strong>Pull Request:</strong>
                   <a
                     :href="item.missionPr.prUrl"
@@ -918,6 +1084,14 @@ onBeforeUnmount(() => {
                   >
                     {{ item.missionPr.prUrl }}
                   </a>
+                  <button
+                    type="button"
+                    class="btn btn--secondary btn--xs copy-inline-btn"
+                    data-testid="copy-pr-link-btn"
+                    @click="copyPrLinkToClipboard(item.missionPr.prUrl)"
+                  >
+                    {{ copiedPrUrl ? '✅ Copied!' : '📋 Copy Link' }}
+                  </button>
                 </span>
               </div>
 
@@ -1907,6 +2081,11 @@ onBeforeUnmount(() => {
   font-size: 0.82rem;
 }
 
+.btn--xs {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+}
+
 .btn--primary {
   background: var(--accent, #f05537);
   color: #ffffff;
@@ -2121,6 +2300,210 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 0.5rem;
   margin-top: 0.5rem;
+}
+
+/* Featured RDU Engineering & Build Station */
+.rdu-station-banner {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fff1f2 0%, #ffffff 32%);
+  border: 1px solid #fecdd3;
+  box-shadow: 0 4px 14px rgba(225, 29, 72, 0.05);
+}
+
+.rdu-station__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.rdu-station__identity {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.rdu-city-pill {
+  background: #e11d48;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  letter-spacing: 0.05em;
+}
+
+.rdu-station__title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+  color: #111827;
+}
+
+.rdu-station__subtitle {
+  font-size: 0.85rem;
+  color: #4b5563;
+  margin: 0.2rem 0 0;
+}
+
+.rdu-station__badges {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rdu-station__active-task {
+  padding: 1.2rem;
+  border-radius: 10px;
+  background: #fdf2f8;
+  border: 1px solid #fbcfe8;
+}
+
+.rdu-station__staged-pr {
+  padding: 1.2rem;
+  border-radius: 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.rdu-station__task-header,
+.rdu-station__pr-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.rdu-station__tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9d174d;
+  margin-bottom: 0.35rem;
+}
+
+.rdu-station__tag--staged {
+  color: #166534;
+}
+
+.rdu-station__task-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0;
+  color: #111827;
+}
+
+.rdu-station__metrics {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+  color: #4b5563;
+  align-items: center;
+}
+
+.rdu-station__step-box {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  background: #ffffff;
+  border-radius: 6px;
+  border: 1px solid #fce7f3;
+  font-size: 0.85rem;
+  color: #1f2937;
+}
+
+.rdu-station__pr-summary {
+  font-size: 0.9rem;
+  color: #374151;
+  margin: 0.5rem 0 0.85rem;
+  line-height: 1.45;
+}
+
+.rdu-station__diff-stat {
+  margin-bottom: 1rem;
+}
+
+.rdu-station__diff-stat code {
+  display: inline-block;
+  padding: 0.4rem 0.65rem;
+  background: #111827;
+  color: #34d399;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-family: monospace;
+}
+
+.rdu-station__pr-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.rdu-station__idle {
+  padding: 1.15rem;
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+}
+
+.rdu-station__idle-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rdu-idle-text {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #4b5563;
+}
+
+.rdu-idle-text code {
+  background: #e5e7eb;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.82rem;
+}
+
+.rdu-station__cli-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.rdu-station__cli-hint code {
+  padding: 0.35rem 0.65rem;
+  background: #1e293b;
+  color: #f8fafc;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 0.82rem;
+}
+
+.copy-pr-btn {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.copy-inline-btn {
+  margin-left: 0.5rem;
+}
+
+.pr-url-item {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 
 @media (max-width: 720px) {

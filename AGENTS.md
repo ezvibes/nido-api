@@ -14,6 +14,9 @@ preserving the longer-term ingestion, catalog, public API, and partner vision.
   continuity, delegation, evidence synthesis, and the final acceptance
   recommendation. A merged PR is a change-control checkpoint, not proof that
   the user outcome is complete.
+- **RDU** is the dedicated software engineer and QA builder. It executes hands-on
+  code changes, authors unit/integration tests, runs fast inner-loop validation,
+  and packages clean, reviewable PRs under maintainer or coordinator direction.
 - **Innsbruck** owns integration and connectivity contracts across services,
   providers, and specialists. It does not route the overall mission or become
   a mandatory runtime hop.
@@ -37,6 +40,10 @@ preserving the longer-term ingestion, catalog, public API, and partner vision.
   `developer-docs/catalog-operating-system/innsbruck-integration-specialist.md`.
 - Feature work across NestJS, Vue, migrations, admin behavior, or public API
   behavior: use `.agents/skills/nido-feature-flywheel/SKILL.md`.
+- Autonomous full-stack engineering, QA implementation, and builder tasks: use
+  `.agents/skills/rdu-builder/SKILL.md` or trigger the RDU Builder Runner
+  (`npm run dev:rdu`) or the `agent:rdu` GitHub label. Follow
+  `developer-docs/catalog-operating-system/rdu-developer-agent.md`.
 - Deployment, GCP/Firebase operations, production-readiness, rollback, IAM,
   secrets, cost, and observability work: use
   `.agents/skills/nido-deploy/SKILL.md`.

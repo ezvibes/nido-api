@@ -88,16 +88,19 @@ describe('AgentSupervisorService', () => {
       const snapshot = await service.getSupervisorStatus({ fixture: 'true' });
 
       expect(snapshot.summary.fixtureMode).toBe(true);
-      expect(snapshot.agents).toHaveLength(7);
+      expect(snapshot.agents).toHaveLength(8);
       expect(snapshot.actionItems.length).toBeGreaterThanOrEqual(2);
       expect(snapshot.recentRuns.length).toBeGreaterThanOrEqual(3);
 
       const firenzeEntry = snapshot.agents.find((a) => a.key === 'firenze');
       const frankfurtEntry = snapshot.agents.find((a) => a.key === 'frankfurt');
+      const rduEntry = snapshot.agents.find((a) => a.key === 'rdu');
       expect(firenzeEntry?.readiness).toBe('available_runtime');
       expect(firenzeEntry?.status).toBe('WAITING_FOR_HUMAN');
       expect(frankfurtEntry?.readiness).toBe('operating_role');
       expect(frankfurtEntry?.status).toBe('IDLE');
+      expect(rduEntry?.readiness).toBe('available_runtime');
+      expect(rduEntry?.cityCode).toBe('RDU');
     });
   });
 
@@ -282,6 +285,60 @@ describe('AgentSupervisorService', () => {
       // 4. Resolve action item with approve_pr
       const resolveRes = await service.resolveActionItem(
         `frankfurt-pr-${runId}`,
+        { action: 'approve_pr' },
+        1,
+      );
+      expect(resolveRes.status).toBe('resolved');
+      expect(resolveRes.action).toBe('approve_pr');
+
+      const run = await service.getRunById(runId);
+      expect(run.status).toBe('succeeded');
+    });
+
+    it('stages an RDU builder PR, lists it in getActionItems with agentKey=rdu, and approves it', async () => {
+      const runId = 'rdu-test-run-181';
+
+      // 1. Report mission started
+      const startRes = service.recordMissionReport({
+        runId,
+        issueNumber: 181,
+        issueTitle: 'Introduce RDU builder agent',
+        state: 'started',
+      });
+      expect(startRes.received).toBe(true);
+
+      // 2. Report PR staged
+      const stageRes = service.recordMissionReport({
+        runId,
+        issueNumber: 181,
+        issueTitle: 'Introduce RDU builder agent',
+        state: 'pr_staged',
+        branchName: 'feat/rdu-issue-181',
+        prUrl: 'https://github.com/ezvibes/nido-api/pull/182',
+        diffStat: '6 files changed, 450 insertions(+)',
+        summary: 'Autonomously implemented issue #181',
+        rubric: {
+          optimizations: ['Opt 1', 'Opt 2', 'Opt 3'],
+          concern: 'Concern 1',
+        },
+      });
+      expect(stageRes.received).toBe(true);
+
+      // 3. Inspect action items
+      const actionItems = await service.getActionItems({ fixture: 'false' });
+      const rduItem = actionItems.find(
+        (item) => item.id === `rdu-pr-${runId}`,
+      );
+      expect(rduItem).toBeDefined();
+      expect(rduItem?.agentKey).toBe('rdu');
+      expect(rduItem?.agentName).toBe('RDU');
+      expect(rduItem?.missionPr?.prUrl).toBe(
+        'https://github.com/ezvibes/nido-api/pull/182',
+      );
+
+      // 4. Resolve action item with approve_pr
+      const resolveRes = await service.resolveActionItem(
+        `rdu-pr-${runId}`,
         { action: 'approve_pr' },
         1,
       );
