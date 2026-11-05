@@ -1,5 +1,5 @@
 import { QueryRunner } from 'typeorm';
-import { AddPostalCodeCapacityAndVerificationToVenues1760000018000 } from './1760000018000-AddPostalCodeCapacityAndVerificationToVenues';
+import { AddPostalCodeCapacityAndVerificationToVenues1760000018000 } from '../../src/migrations/1760000018000-AddPostalCodeCapacityAndVerificationToVenues';
 
 describe('AddPostalCodeCapacityAndVerificationToVenues1760000018000 Migration', () => {
   let migration: AddPostalCodeCapacityAndVerificationToVenues1760000018000;

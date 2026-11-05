@@ -22,7 +22,7 @@ export class Venue {
   @Column()
   name: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   address: string | null;
 
   @Column()
