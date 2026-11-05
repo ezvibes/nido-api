@@ -1775,20 +1775,55 @@ export class AgentSupervisorService implements OnModuleInit {
         missionSummary: `Issue #${dto.issueNumber}: ${dto.issueTitle}`,
         initiator,
       });
+
+      if (dto.traceEvents && Array.isArray(dto.traceEvents)) {
+        for (const evt of dto.traceEvents) {
+          this.recordAgentTraceEvent({
+            runId: dto.runId,
+            agentKey,
+            type: evt.type as any,
+            title: evt.title,
+            summary: evt.summary,
+            toolName: evt.toolName,
+            arguments: evt.arguments,
+            response: evt.response,
+            latencyMs: evt.latencyMs,
+            status: evt.status as any,
+          });
+        }
+      }
+
       return { received: true, state: dto.state, runId: dto.runId };
     }
 
     if (dto.state === 'progress') {
-      this.recordAgentTraceEvent({
-        runId: dto.runId,
-        agentKey,
-        type: 'tool_call',
-        title: dto.activeStep || 'Mission progress',
-        summary:
-          dto.summary ||
-          `Executing bounded tools for Issue #${dto.issueNumber}`,
-        status: 'ok',
-      });
+      if (dto.traceEvents && Array.isArray(dto.traceEvents) && dto.traceEvents.length > 0) {
+        for (const evt of dto.traceEvents) {
+          this.recordAgentTraceEvent({
+            runId: dto.runId,
+            agentKey,
+            type: evt.type as any,
+            title: evt.title,
+            summary: evt.summary,
+            toolName: evt.toolName,
+            arguments: evt.arguments,
+            response: evt.response,
+            latencyMs: evt.latencyMs,
+            status: evt.status as any,
+          });
+        }
+      } else {
+        this.recordAgentTraceEvent({
+          runId: dto.runId,
+          agentKey,
+          type: 'tool_call',
+          title: dto.activeStep || 'Mission progress',
+          summary:
+            dto.summary ||
+            `Executing bounded tools for Issue #${dto.issueNumber}`,
+          status: 'ok',
+        });
+      }
       return { received: true, state: dto.state, runId: dto.runId };
     }
 
@@ -2652,6 +2687,117 @@ export class AgentSupervisorService implements OnModuleInit {
             summary:
               'Rejected truncated image asset cleanly without retrying non-retryable payload.',
             status: 'error',
+          },
+        ],
+      },
+      {
+        id: 'fixture-run-rdu-001',
+        agentKey: 'rdu',
+        agentName: 'RDU',
+        workflow: 'Autonomous Feature Engineering & QA Builder (@google/adk)',
+        missionKey: 'NIDO-004',
+        title: 'Issue #181: Define and implement RDU dedicated developer agent',
+        status: 'waiting_for_approval',
+        isStale: false,
+        initiator: 'agent:rdu',
+        model: 'gemini-3.8-flash',
+        startedAt: iso(8),
+        updatedAt: iso(1),
+        completedAt: null,
+        durationMs: 38200,
+        modelCalls: 4,
+        toolCalls: 9,
+        inputTokens: 4120,
+        outputTokens: 1180,
+        estimatedCostUsd: 0.0009,
+        inputSummary: 'Issue #181: Introduce RDU dedicated developer & QA builder agent',
+        outputSummary:
+          'Staged PR #182 with 10 files changed, full verification evidence, and Bologna 4-B narrative.',
+        errorCategory: null,
+        evidenceLinks: [
+          {
+            label: 'Pull Request #182',
+            url: 'https://github.com/ezvibes/nido-api/pull/182',
+          },
+          {
+            label: 'Issue #181',
+            url: 'https://github.com/ezvibes/nido-api/issues/181',
+          },
+        ],
+        events: [
+          {
+            id: 'fixture-run-rdu-001-evt-1',
+            sequence: 1,
+            timestamp: iso(8),
+            agentKey: 'rdu',
+            runId: 'fixture-run-rdu-001',
+            type: 'lifecycle',
+            title: 'RDU Builder Session Initialized',
+            summary:
+              'Parsed CLI options, fetched Issue #181 metadata, and bound 8 safe engineering tools.',
+            status: 'ok',
+          },
+          {
+            id: 'fixture-run-rdu-001-evt-2',
+            sequence: 2,
+            timestamp: iso(7.5),
+            agentKey: 'rdu',
+            runId: 'fixture-run-rdu-001',
+            type: 'tool_call',
+            title: 'Tool Call: readFile',
+            summary:
+              'Inspected src/apis/agents/agent-supervisor.service.ts and client components',
+            toolName: 'readFile',
+            arguments: {
+              filePath: 'src/apis/agents/agent-supervisor.service.ts',
+            },
+            latencyMs: 35,
+            httpStatus: 200,
+            status: 'ok',
+          },
+          {
+            id: 'fixture-run-rdu-001-evt-3',
+            sequence: 3,
+            timestamp: iso(5),
+            agentKey: 'rdu',
+            runId: 'fixture-run-rdu-001',
+            type: 'tool_call',
+            title: 'Tool Call: testRunner',
+            summary:
+              'Executed fast inner-loop unit tests: npm test --prefix client',
+            toolName: 'testRunner',
+            arguments: { command: 'npm test --prefix client' },
+            latencyMs: 1980,
+            httpStatus: 200,
+            status: 'ok',
+          },
+          {
+            id: 'fixture-run-rdu-001-evt-4',
+            sequence: 4,
+            timestamp: iso(3),
+            agentKey: 'rdu',
+            runId: 'fixture-run-rdu-001',
+            type: 'tool_call',
+            title: 'Tool Call: selfHealingHygiene',
+            summary:
+              'Executed node scripts/check-hygiene.mjs; self-healed whitespace formatting',
+            toolName: 'selfHealingHygiene',
+            arguments: {},
+            latencyMs: 310,
+            httpStatus: 200,
+            status: 'ok',
+          },
+          {
+            id: 'fixture-run-rdu-001-evt-5',
+            sequence: 5,
+            timestamp: iso(1.5),
+            agentKey: 'rdu',
+            runId: 'fixture-run-rdu-001',
+            type: 'approval_gate',
+            title: 'Decision Gate: Review RDU Pull Request #182',
+            summary:
+              'Verified non-zero diff, full gate passed, Bologna log updated. Awaiting 1-click human merge approval.',
+            status: 'pending',
           },
         ],
       },

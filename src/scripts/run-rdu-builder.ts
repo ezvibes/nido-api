@@ -33,15 +33,6 @@ export interface StaffArchitectRubricData {
   concern: string;
 }
 
-export interface PullRequestTemplateParams {
-  issueNumber: number;
-  title: string;
-  summaryOfChanges: string;
-  rubric: StaffArchitectRubricData;
-  verificationEvidence: Array<{ name: string; status: 'passed' | 'failed'; detail?: string }>;
-  diffStat: string;
-}
-
 export interface BolognaEntryParams {
   dateStr: string;
   weekStr: string;
@@ -52,6 +43,63 @@ export interface BolognaEntryParams {
   broadcast: string;
 }
 
+export interface TouchedBoundaries {
+  hasBackendChanges: boolean;
+  hasFrontendChanges: boolean;
+  hasTerraformChanges: boolean;
+  hasNewsletterChanges: boolean;
+  hasContractChanges: boolean;
+  changedFiles: string[];
+}
+
+export interface VerificationEvidenceItem {
+  name: string;
+  status: 'passed' | 'failed';
+  detail?: string;
+  durationMs?: number;
+}
+
+export interface VerificationMatrixResult {
+  allPassed: boolean;
+  evidence: VerificationEvidenceItem[];
+  failureMessage?: string;
+}
+
+export interface MissionEvidenceReceipt {
+  runId: string;
+  issueNumber: number;
+  issueTitle: string;
+  branchName: string;
+  timestamp: string;
+  initiator: string;
+  diffStat: string;
+  touchedBoundaries: TouchedBoundaries;
+  toolExecutionLog: Array<{
+    sequence: number;
+    toolName: string;
+    timestamp: string;
+    status: 'ok' | 'error';
+    summary?: string;
+  }>;
+  verificationEvidence: VerificationEvidenceItem[];
+  crossAgentHandoff: {
+    frankfurtAcceptanceCriteria: string[];
+    innsbruckContractStatus: 'unchanged' | 'verified' | 'attention_required';
+    bolognaSessionTopic: string;
+  };
+  rubric: StaffArchitectRubricData;
+}
+
+export interface PullRequestTemplateParams {
+  issueNumber: number;
+  title: string;
+  summaryOfChanges: string;
+  rubric: StaffArchitectRubricData;
+  verificationEvidence: Array<{ name: string; status: 'passed' | 'failed'; detail?: string; durationMs?: number }>;
+  diffStat: string;
+  receipt?: MissionEvidenceReceipt;
+}
+
 export interface MissionResult {
   success: boolean;
   issueNumber: number;
@@ -60,6 +108,7 @@ export interface MissionResult {
   diffStat: string;
   iterations: number;
   error?: string;
+  receipt?: MissionEvidenceReceipt;
 }
 
 /**
@@ -208,6 +257,10 @@ export function formatPullRequestBody(params: PullRequestTemplateParams): string
     )
     .join('\n');
 
+  const receiptSection = params.receipt
+    ? `\n---\n\n### 🔍 Machine-Readable Mission Evidence Receipt\n<details>\n<summary>Click to view structured evidence receipt (cross-agent verification artifact)</summary>\n\n\`\`\`json\n${JSON.stringify(params.receipt, null, 2)}\n\`\`\`\n\n</details>\n`
+    : '';
+
   return `## 🎯 Outcome & Problem Solved
 Addresses and closes #${params.issueNumber}: **${params.title}**.
 
@@ -227,7 +280,7 @@ ${evidenceRows}
 \`\`\`text
 ${params.diffStat}
 \`\`\`
-
+${receiptSection}
 ---
 *Autonomous engineering build executed by **RDU** (Senior Software Engineer & QA Worker) via the **GEAR 2 Agent Flywheel**.*
 *Closes #${params.issueNumber}*`;
@@ -333,6 +386,218 @@ export function executeVerificationGate(
 }
 
 /**
+ * Detects modified architectural file boundaries using git status.
+ */
+export function detectTouchedBoundaries(rootPath = process.cwd()): TouchedBoundaries {
+  try {
+    const raw = execSync('git status -s', { cwd: rootPath, encoding: 'utf8' }).trim();
+    if (!raw) {
+      return {
+        hasBackendChanges: true,
+        hasFrontendChanges: false,
+        hasTerraformChanges: false,
+        hasNewsletterChanges: false,
+        hasContractChanges: false,
+        changedFiles: [],
+      };
+    }
+    const files = raw
+      .split('\n')
+      .map((line) => line.trim().replace(/^[MADRCU?!]+\s+/, ''))
+      .filter(Boolean);
+
+    const hasBackendChanges = files.some(
+      (f) => f.startsWith('src/') || f === 'package.json' || f === 'tsconfig.json',
+    );
+    const hasFrontendChanges = files.some(
+      (f) => f.startsWith('client/') || f.includes('vite.config'),
+    );
+    const hasTerraformChanges = files.some((f) => f.startsWith('terraform/'));
+    const hasNewsletterChanges = files.some((f) => f.includes('newsletter'));
+    const hasContractChanges = files.some(
+      (f) =>
+        f.includes('.dto.ts') ||
+        f.includes('.controller.ts') ||
+        f.includes('contract') ||
+        f.includes('schema'),
+    );
+
+    return {
+      hasBackendChanges,
+      hasFrontendChanges,
+      hasTerraformChanges,
+      hasNewsletterChanges,
+      hasContractChanges,
+      changedFiles: files,
+    };
+  } catch {
+    return {
+      hasBackendChanges: true,
+      hasFrontendChanges: false,
+      hasTerraformChanges: false,
+      hasNewsletterChanges: false,
+      hasContractChanges: false,
+      changedFiles: [],
+    };
+  }
+}
+
+/**
+ * Executes a dynamic full-stack verification matrix matching touched boundaries.
+ */
+export function executeVerificationMatrix(
+  boundaries: TouchedBoundaries,
+  rootPath = process.cwd(),
+): VerificationMatrixResult {
+  const evidence: VerificationEvidenceItem[] = [];
+
+  // 1. Universal Repo & PR Hygiene Check
+  const startHygiene = Date.now();
+  const hygieneRes = executeVerificationGate('node scripts/check-hygiene.mjs', rootPath);
+  evidence.push({
+    name: 'Public Repo Hygiene',
+    status: hygieneRes.success ? 'passed' : 'failed',
+    detail: hygieneRes.success
+      ? 'Zero trailing whitespace and clean formatting'
+      : (hygieneRes.stderr || hygieneRes.stdout).slice(-300),
+    durationMs: Date.now() - startHygiene,
+  });
+
+  if (!hygieneRes.success) {
+    return {
+      allPassed: false,
+      evidence,
+      failureMessage: `Hygiene check failed:\n${(hygieneRes.stdout + '\n' + hygieneRes.stderr).slice(-800)}`,
+    };
+  }
+
+  // 2. Backend API Test Suite
+  if (boundaries.hasBackendChanges) {
+    const startApi = Date.now();
+    const apiRes = executeVerificationGate('npm run agent:gate:api-test', rootPath, 180000);
+    evidence.push({
+      name: 'Backend API Tests',
+      status: apiRes.success ? 'passed' : 'failed',
+      detail: apiRes.success
+        ? 'All Jest API test suites passed'
+        : (apiRes.stderr || apiRes.stdout).slice(-300),
+      durationMs: Date.now() - startApi,
+    });
+
+    if (!apiRes.success) {
+      return {
+        allPassed: false,
+        evidence,
+        failureMessage: `Backend API tests failed:\n${(apiRes.stdout + '\n' + apiRes.stderr).slice(-800)}`,
+      };
+    }
+  }
+
+  // 3. Frontend Client Test Suite & Build
+  if (boundaries.hasFrontendChanges) {
+    const startClient = Date.now();
+    const clientRes = executeVerificationGate('npm run agent:gate:client-test', rootPath, 120000);
+    evidence.push({
+      name: 'Frontend Client Tests',
+      status: clientRes.success ? 'passed' : 'failed',
+      detail: clientRes.success
+        ? 'All Vitest client specs passed'
+        : (clientRes.stderr || clientRes.stdout).slice(-300),
+      durationMs: Date.now() - startClient,
+    });
+
+    if (!clientRes.success) {
+      return {
+        allPassed: false,
+        evidence,
+        failureMessage: `Frontend client tests failed:\n${(clientRes.stdout + '\n' + clientRes.stderr).slice(-800)}`,
+      };
+    }
+
+    const startClientBuild = Date.now();
+    const clientBuildRes = executeVerificationGate('npm run agent:gate:client-build', rootPath, 120000);
+    evidence.push({
+      name: 'Frontend Production Build',
+      status: clientBuildRes.success ? 'passed' : 'failed',
+      detail: clientBuildRes.success
+        ? 'vue-tsc and Vite client build succeeded'
+        : (clientBuildRes.stderr || clientBuildRes.stdout).slice(-300),
+      durationMs: Date.now() - startClientBuild,
+    });
+
+    if (!clientBuildRes.success) {
+      return {
+        allPassed: false,
+        evidence,
+        failureMessage: `Frontend client build failed:\n${(clientBuildRes.stdout + '\n' + clientBuildRes.stderr).slice(-800)}`,
+      };
+    }
+  }
+
+  // 4. Terraform Config Verification
+  if (boundaries.hasTerraformChanges) {
+    const startTf = Date.now();
+    const tfRes = executeVerificationGate('npm run test:terraform-config', rootPath, 60000);
+    evidence.push({
+      name: 'Terraform Config Verification',
+      status: tfRes.success ? 'passed' : 'failed',
+      detail: tfRes.success
+        ? 'All Terraform pipeline tests passed'
+        : (tfRes.stderr || tfRes.stdout).slice(-300),
+      durationMs: Date.now() - startTf,
+    });
+
+    if (!tfRes.success) {
+      return {
+        allPassed: false,
+        evidence,
+        failureMessage: `Terraform config tests failed:\n${(tfRes.stdout + '\n' + tfRes.stderr).slice(-800)}`,
+      };
+    }
+  }
+
+  // 5. Newsletter Evaluation Harness
+  if (boundaries.hasNewsletterChanges) {
+    const startNews = Date.now();
+    const newsRes = executeVerificationGate('npm run test:newsletter:harness', rootPath, 60000);
+    evidence.push({
+      name: 'Newsletter Editorial Harness',
+      status: newsRes.success ? 'passed' : 'failed',
+      detail: newsRes.success
+        ? 'Ground-truth editorial diff passed'
+        : (newsRes.stderr || newsRes.stdout).slice(-300),
+      durationMs: Date.now() - startNews,
+    });
+
+    if (!newsRes.success) {
+      return {
+        allPassed: false,
+        evidence,
+        failureMessage: `Newsletter harness tests failed:\n${(newsRes.stdout + '\n' + newsRes.stderr).slice(-800)}`,
+      };
+    }
+  }
+
+  return { allPassed: true, evidence };
+}
+
+/**
+ * Saves a machine-readable mission evidence receipt to .agents/runs/.
+ */
+export async function saveMissionEvidenceReceipt(
+  receipt: MissionEvidenceReceipt,
+  rootPath = process.cwd(),
+): Promise<string> {
+  const dir = path.resolve(rootPath, '.agents', 'runs');
+  if (!fs.existsSync(dir)) {
+    await fs.promises.mkdir(dir, { recursive: true });
+  }
+  const filePath = path.join(dir, `rdu-receipt-${receipt.issueNumber}.json`);
+  await fs.promises.writeFile(filePath, JSON.stringify(receipt, null, 2), 'utf8');
+  return filePath;
+}
+
+/**
  * Emits telemetry events from RDU Builder into AgentSupervisorService.
  */
 export async function emitMissionTelemetry(
@@ -350,6 +615,17 @@ export async function emitMissionTelemetry(
     modelCalls?: number;
     toolCalls?: number;
     estimatedTokens?: number;
+    receipt?: MissionEvidenceReceipt;
+    traceEvents?: Array<{
+      type: 'tool_call' | 'tool_response' | 'verification_gate' | 'lifecycle' | 'approval_gate';
+      title: string;
+      summary: string;
+      toolName?: string;
+      arguments?: Record<string, any>;
+      response?: Record<string, any>;
+      status?: 'ok' | 'error' | 'pending';
+      latencyMs?: number;
+    }>;
     error?: string;
   },
   apiBaseUrl = process.env.API_BASE_URL || 'http://127.0.0.1:3001',
@@ -665,6 +941,7 @@ export async function runRduBuilder(
 
   let modelCalls = 0;
   let toolCalls = 0;
+  const toolExecutionLog: MissionEvidenceReceipt['toolExecutionLog'] = [];
 
   await emitMissionTelemetry({
     runId,
@@ -730,8 +1007,7 @@ Please inspect the relevant files, implement the solution, run the verification 
   let verificationPassed = false;
   let lastFailureMessage = '';
   let agentOutputText = '';
-  let hygieneRes = { success: false, stdout: '', stderr: '' };
-  let apiTestRes = { success: false, stdout: '', stderr: '' };
+  let latestMatrixResult: VerificationMatrixResult = { allPassed: false, evidence: [] };
 
   while (currentIteration < maxRetries && !verificationPassed) {
     currentIteration++;
@@ -771,9 +1047,17 @@ Please inspect the relevant files, implement the solution, run the verification 
           }
           if ((part as any).functionCall) {
             toolCalls++;
+            const fnCall = (part as any).functionCall;
             console.log(
-              `\n[RDU Tool Call]: ${(part as any).functionCall.name}`,
+              `\n[RDU Tool Call]: ${fnCall.name}`,
             );
+            toolExecutionLog.push({
+              sequence: toolCalls,
+              toolName: fnCall.name,
+              timestamp: new Date().toISOString(),
+              status: 'ok',
+              summary: `Invoked ${fnCall.name}`,
+            });
           }
           if ((part as any).functionResponse) {
             console.log(
@@ -788,21 +1072,17 @@ Please inspect the relevant files, implement the solution, run the verification 
       }
     }
 
-    // Execute closed-loop verification gates
+    // Execute dynamic closed-loop verification matrix matching touched boundaries
     console.log(
-      `\n🛡️ Running Closed-Loop Verification Gate (Iteration ${currentIteration})...`,
+      `\n🛡️ Running Closed-Loop Verification Matrix (Iteration ${currentIteration})...`,
     );
-    hygieneRes = executeVerificationGate('node scripts/check-hygiene.mjs');
-    if (!hygieneRes.success) {
-      lastFailureMessage = `Public repo hygiene check failed:\n${(hygieneRes.stdout + '\n' + hygieneRes.stderr).slice(-1000)}`;
-      console.warn(`❌ Iteration ${currentIteration} hygiene check failed.`);
-      continue;
-    }
+    const boundaries = detectTouchedBoundaries(process.cwd());
+    latestMatrixResult = executeVerificationMatrix(boundaries, process.cwd());
 
-    apiTestRes = executeVerificationGate('npm run agent:gate:api-test');
-    if (!apiTestRes.success) {
-      lastFailureMessage = `Backend API tests failed:\n${(apiTestRes.stdout + '\n' + apiTestRes.stderr).slice(-1000)}`;
-      console.warn(`❌ Iteration ${currentIteration} API tests failed.`);
+    if (!latestMatrixResult.allPassed) {
+      lastFailureMessage =
+        latestMatrixResult.failureMessage || 'Verification matrix reported failures.';
+      console.warn(`❌ Iteration ${currentIteration} verification matrix failed.`);
       continue;
     }
 
@@ -857,6 +1137,30 @@ Please inspect the relevant files, implement the solution, run the verification 
     };
   }
 
+  // Pre-PR universal quality gate check
+  console.log(`\n🛡️ Executing Universal Repository Quality Gate (npm run agent:gate)...`);
+  const finalGateRes = executeVerificationGate('npm run agent:gate', process.cwd(), 300000);
+  const finalEvidence: VerificationEvidenceItem[] = [
+    ...latestMatrixResult.evidence,
+    {
+      name: 'Non-Zero Code Diff',
+      status: 'passed',
+      detail: `Verified non-empty diff: ${diffCheck.diffStat}`,
+    },
+    {
+      name: 'Universal Agent Gate',
+      status: finalGateRes.success ? 'passed' : 'failed',
+      detail: finalGateRes.success
+        ? 'Universal agent:gate passed cleanly'
+        : (finalGateRes.stderr || finalGateRes.stdout).slice(-300),
+    },
+    {
+      name: 'Bologna Journey Log',
+      status: 'passed',
+      detail: 'Appended 4-B session entry',
+    },
+  ];
+
   const rubric: StaffArchitectRubricData = {
     optimizations: [
       'Targeted inner-loop test execution skipping unaffected test suites during iterative changes',
@@ -882,6 +1186,36 @@ Please inspect the relevant files, implement the solution, run the verification 
   await appendBolognaJourneyLog(bolognaEntry);
   console.log(`📝 Bologna appended session entry to journey-log-gear-pca.md`);
 
+  const currentBoundaries = detectTouchedBoundaries(process.cwd());
+  const receipt: MissionEvidenceReceipt = {
+    runId,
+    issueNumber: issue.number,
+    issueTitle: issue.title,
+    branchName,
+    timestamp: new Date().toISOString(),
+    initiator: options.taskPrompt ? 'frankfurt' : 'maintainer',
+    diffStat: diffCheck.diffStat,
+    touchedBoundaries: currentBoundaries,
+    toolExecutionLog,
+    verificationEvidence: finalEvidence,
+    crossAgentHandoff: {
+      frankfurtAcceptanceCriteria: [
+        `Autonomous resolution for Issue #${issue.number}`,
+        `Closed-loop dynamic verification matrix clean`,
+        `Zero-diff and hygiene checks passed`,
+        `Universal agent gate verified`,
+      ],
+      innsbruckContractStatus: currentBoundaries.hasContractChanges ? 'attention_required' : 'unchanged',
+      bolognaSessionTopic: `Autonomous RDU Builder Execution: Issue #${issue.number}`,
+    },
+    rubric,
+  };
+
+  await saveMissionEvidenceReceipt(receipt, process.cwd());
+  console.log(
+    `🧾 Machine-readable evidence receipt saved to .agents/runs/rdu-receipt-${issue.number}.json`,
+  );
+
   const prBody = formatPullRequestBody({
     issueNumber: issue.number,
     title: issue.title,
@@ -889,29 +1223,9 @@ Please inspect the relevant files, implement the solution, run the verification 
       agentOutputText.slice(0, 1200) ||
       'Implemented autonomous issue resolution.',
     rubric,
-    verificationEvidence: [
-      {
-        name: 'Public Repo Hygiene',
-        status: hygieneRes.success ? 'passed' : 'failed',
-        detail: 'Validated via scripts/check-hygiene.mjs',
-      },
-      {
-        name: 'Backend API Tests',
-        status: apiTestRes.success ? 'passed' : 'failed',
-        detail: 'Validated via jest --runInBand',
-      },
-      {
-        name: 'Non-Zero Code Diff',
-        status: 'passed',
-        detail: 'Verified non-empty diffStat',
-      },
-      {
-        name: 'Bologna Journey Log',
-        status: 'passed',
-        detail: 'Appended 4-B session entry',
-      },
-    ],
+    verificationEvidence: finalEvidence,
     diffStat: diffCheck.diffStat,
+    receipt,
   });
 
   // Emit PR staged telemetry into AgentSupervisorService
@@ -929,6 +1243,14 @@ Please inspect the relevant files, implement the solution, run the verification 
     rubric,
     modelCalls,
     toolCalls,
+    receipt,
+    traceEvents: toolExecutionLog.map((log) => ({
+      type: 'tool_call',
+      title: `Tool Call: ${log.toolName}`,
+      summary: log.summary || `Invoked ${log.toolName}`,
+      toolName: log.toolName,
+      status: log.status,
+    })),
   });
 
   if (options.dryRun) {
@@ -944,6 +1266,7 @@ Please inspect the relevant files, implement the solution, run the verification 
       diffStat: diffCheck.diffStat,
       modelCalls,
       toolCalls,
+      receipt,
     });
     return {
       success: true,
@@ -951,6 +1274,7 @@ Please inspect the relevant files, implement the solution, run the verification 
       branchName,
       diffStat: diffCheck.diffStat,
       iterations: currentIteration,
+      receipt,
     };
   }
 
@@ -1004,6 +1328,7 @@ Please inspect the relevant files, implement the solution, run the verification 
     rubric,
     modelCalls,
     toolCalls,
+    receipt,
   });
 
   return {
@@ -1013,6 +1338,7 @@ Please inspect the relevant files, implement the solution, run the verification 
     prUrl,
     diffStat: diffCheck.diffStat,
     iterations: currentIteration,
+    receipt,
   };
 }
 

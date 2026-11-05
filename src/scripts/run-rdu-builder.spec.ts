@@ -8,6 +8,10 @@ import {
   createRduAgentTools,
   verifyNonZeroDiff,
   emitMissionTelemetry,
+  detectTouchedBoundaries,
+  executeVerificationMatrix,
+  saveMissionEvidenceReceipt,
+  MissionEvidenceReceipt,
 } from './run-rdu-builder';
 
 describe('RDU Builder Runner (Issue #181)', () => {
@@ -169,6 +173,113 @@ describe('RDU Builder Runner (Issue #181)', () => {
         'http://127.0.0.1:9999', // unreachable port
       );
       expect(emitted).toBe(false);
+    });
+  });
+
+  describe('Architectural Boundary Detection', () => {
+    it('detects boundary categories cleanly', () => {
+      const boundaries = detectTouchedBoundaries(process.cwd());
+      expect(typeof boundaries.hasBackendChanges).toBe('boolean');
+      expect(typeof boundaries.hasFrontendChanges).toBe('boolean');
+      expect(typeof boundaries.hasTerraformChanges).toBe('boolean');
+      expect(typeof boundaries.hasNewsletterChanges).toBe('boolean');
+      expect(typeof boundaries.hasContractChanges).toBe('boolean');
+      expect(Array.isArray(boundaries.changedFiles)).toBe(true);
+    });
+  });
+
+  describe('Dynamic Full-Stack Verification Matrix', () => {
+    it('executes hygiene and targeted checks for given boundaries', () => {
+      const boundaries = {
+        hasBackendChanges: false,
+        hasFrontendChanges: false,
+        hasTerraformChanges: false,
+        hasNewsletterChanges: false,
+        hasContractChanges: false,
+        changedFiles: [],
+      };
+      const res = executeVerificationMatrix(boundaries, process.cwd());
+      expect(res.allPassed).toBe(true);
+      expect(res.evidence.length).toBeGreaterThanOrEqual(1);
+      expect(res.evidence[0].name).toBe('Public Repo Hygiene');
+      expect(res.evidence[0].status).toBe('passed');
+    });
+  });
+
+  describe('Machine-Readable Mission Evidence Receipt', () => {
+    const sampleReceipt: MissionEvidenceReceipt = {
+      runId: 'rdu-run-test-181',
+      issueNumber: 181,
+      issueTitle: 'Define and implement RDU dedicated developer agent',
+      branchName: 'feat/rdu-developer-agent',
+      timestamp: new Date().toISOString(),
+      initiator: 'frankfurt',
+      diffStat: '10 files changed, 950 insertions(+)',
+      touchedBoundaries: {
+        hasBackendChanges: true,
+        hasFrontendChanges: true,
+        hasTerraformChanges: false,
+        hasNewsletterChanges: false,
+        hasContractChanges: true,
+        changedFiles: ['src/apis/agents/agent-supervisor.service.ts'],
+      },
+      toolExecutionLog: [
+        {
+          sequence: 1,
+          toolName: 'readFile',
+          timestamp: new Date().toISOString(),
+          status: 'ok',
+          summary: 'Inspected supervisor service',
+        },
+      ],
+      verificationEvidence: [
+        { name: 'Public Repo Hygiene', status: 'passed' },
+        { name: 'Backend API Tests', status: 'passed' },
+      ],
+      crossAgentHandoff: {
+        frankfurtAcceptanceCriteria: ['Outcome verified'],
+        innsbruckContractStatus: 'attention_required',
+        bolognaSessionTopic: 'RDU dedicated agent',
+      },
+      rubric: {
+        optimizations: ['Opt 1', 'Opt 2', 'Opt 3'],
+        concern: 'Concern 1',
+      },
+    };
+
+    it('persists structured evidence receipt to .agents/runs/ and can be loaded', async () => {
+      const savedPath = await saveMissionEvidenceReceipt(sampleReceipt, process.cwd());
+      expect(fs.existsSync(savedPath)).toBe(true);
+      const content = JSON.parse(await fs.promises.readFile(savedPath, 'utf8'));
+      expect(content.issueNumber).toBe(181);
+      expect(content.crossAgentHandoff.innsbruckContractStatus).toBe('attention_required');
+      expect(content.initiator).toBe('frankfurt');
+
+      // Cleanup
+      if (fs.existsSync(savedPath)) {
+        await fs.promises.unlink(savedPath);
+      }
+    });
+
+    it('embeds machine-readable receipt section into PR template', () => {
+      const prBody = formatPullRequestBody({
+        issueNumber: 181,
+        title: 'Introduce RDU builder agent',
+        summaryOfChanges: 'Implemented RDU agent tools and runner.',
+        rubric: {
+          optimizations: ['Opt 1', 'Opt 2', 'Opt 3'],
+          concern: 'Concern 1',
+        },
+        verificationEvidence: [
+          { name: 'Unit Tests', status: 'passed', detail: 'All tests green' },
+        ],
+        diffStat: '3 files changed, 200 insertions(+)',
+        receipt: sampleReceipt,
+      });
+
+      expect(prBody).toContain('### 🔍 Machine-Readable Mission Evidence Receipt');
+      expect(prBody).toContain('"runId": "rdu-run-test-181"');
+      expect(prBody).toContain('"innsbruckContractStatus": "attention_required"');
     });
   });
 });

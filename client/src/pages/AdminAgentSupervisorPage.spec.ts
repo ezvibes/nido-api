@@ -232,6 +232,46 @@ const sampleSnapshot = {
         },
       ],
     },
+    {
+      id: 'fixture-run-rdu-001',
+      agentKey: 'rdu',
+      agentName: 'RDU',
+      workflow: 'Autonomous Feature Engineering & QA Builder',
+      missionKey: 'NIDO-004',
+      title: 'Issue #181: Define and implement RDU dedicated developer agent',
+      status: 'waiting_for_approval',
+      isStale: false,
+      initiator: 'agent:rdu',
+      model: 'gemini-3.8-flash',
+      startedAt: '2026-11-01T17:55:00.000Z',
+      updatedAt: '2026-11-01T17:59:00.000Z',
+      completedAt: null,
+      durationMs: 38200,
+      modelCalls: 4,
+      toolCalls: 9,
+      inputTokens: 4120,
+      outputTokens: 1180,
+      estimatedCostUsd: 0.0009,
+      inputSummary: 'Issue #181',
+      outputSummary: 'Staged PR #182 with 10 files changed',
+      errorCategory: null,
+      evidenceLinks: [],
+      events: [
+        {
+          id: 'rdu-evt-1',
+          sequence: 1,
+          timestamp: '2026-11-01T17:55:00.000Z',
+          agentKey: 'rdu',
+          runId: 'fixture-run-rdu-001',
+          type: 'tool_call',
+          title: 'Tool Call: readFile',
+          summary: 'Inspected src/apis/agents/agent-supervisor.service.ts',
+          toolName: 'readFile',
+          arguments: { filePath: 'src/apis/agents/agent-supervisor.service.ts' },
+          status: 'ok',
+        },
+      ],
+    },
   ],
   missions: [
     {
@@ -511,5 +551,20 @@ describe('AdminAgentSupervisorPage.vue', () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       'https://github.com/ezvibes/nido-api/pull/177',
     );
+  });
+
+  it('opens the Glass Box trace inspector drawer when clicking Inspect Trace & Tools for RDU', async () => {
+    const wrapper = mount(AdminAgentSupervisorPage, {
+      global: {
+        stubs: {
+          'router-link': { template: '<a><slot /></a>' },
+        },
+      },
+    });
+    await flushPromises();
+
+    await wrapper.get('[data-testid="inspect-agent-rdu"]').trigger('click');
+    const drawer = wrapper.get('[data-testid="inspector-drawer"]');
+    expect(drawer.text()).toContain('Tool Call: readFile');
   });
 });

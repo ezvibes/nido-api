@@ -100,7 +100,7 @@ describe('Frankfurt Mission Runner (Issue #176)', () => {
   });
 
   describe('Frankfurt Agent Tools', () => {
-    it('registers all 7 bounded filesystem, verification, diff, and execution tools', () => {
+    it('registers all 9 bounded filesystem, verification, diff, delegation, and execution tools', () => {
       const tools = createFrankfurtAgentTools(process.cwd());
       const toolNames = tools.map((t) => t.name);
 
@@ -111,7 +111,9 @@ describe('Frankfurt Mission Runner (Issue #176)', () => {
       expect(toolNames).toContain('runVerificationGate');
       expect(toolNames).toContain('diffChecker');
       expect(toolNames).toContain('terminalExecution');
-      expect(tools).toHaveLength(7);
+      expect(toolNames).toContain('delegateToRduBuilder');
+      expect(toolNames).toContain('inspectRduReceipt');
+      expect(tools).toHaveLength(9);
     });
 
     it('blocks directory traversal outside root path', async () => {
