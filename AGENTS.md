@@ -79,8 +79,9 @@ preserving the longer-term ingestion, catalog, public API, and partner vision.
    delegation. Give each agent a bounded question or disjoint write area.
 5. Assign one implementation owner per file boundary. Do not allow overlapping
    writes.
-6. Run focused checks while developing.
-7. Run `npm run agent:gate` before handoff.
+6. Run focused checks while developing using the fast inner loop (`npm run test:changed`,
+   `npm run test:related`, `npm run hygiene:fix`).
+7. Run the full `npm run agent:gate` before handoff.
 8. Use an independent verifier for changes spanning multiple layers, migrations,
    security boundaries, or public behavior.
 9. Prepare a PR evidence table. Do not merge.
@@ -111,7 +112,11 @@ focused test, runbook, or canonical instruction change supported by evidence.
 
 ## Validation
 
-Use focused commands during implementation, then run the shared gate:
+Use the 2-phase testing model:
+
+- **Phase 1 (Inner Loop):** Use incremental commands during implementation (`npm run test:changed`,
+  `npm run test:related`, `npm run hygiene:fix`).
+- **Phase 2 (Pre-PR Gate):** Run the shared gate before handoff:
 
 ```bash
 npm run agent:gate

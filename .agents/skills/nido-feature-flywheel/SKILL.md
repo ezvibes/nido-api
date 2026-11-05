@@ -43,7 +43,9 @@ the issue PR alone does not establish mission completion.
 
 ## Verify
 
-Run focused tests during implementation. Before handoff, run:
+Follow the 2-phase verification model:
+1. **Inner loop:** Run incremental checks during implementation (`npm run test:changed`, `npm run hygiene:fix`).
+2. **Pre-PR gate:** Before handoff, run the full shared gate:
 
 ```bash
 npm run agent:gate
