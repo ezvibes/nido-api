@@ -104,6 +104,37 @@ const CANONICAL_AGENT_REGISTRY: readonly CanonicalAgentSpec[] = Object.freeze([
     },
   },
   {
+    key: 'rdu',
+    name: 'RDU',
+    cityCode: 'RDU',
+    role: 'Senior Software Engineer & Dedicated QA Builder',
+    responsibility:
+      'Executes autonomous feature engineering, authors unit/integration tests, runs fast inner-loop validation, performs self-healing hygiene, and packages clean, reviewable PRs.',
+    readiness: 'available_runtime',
+    readinessLabel: 'Available runtime',
+    defaultModel: 'gemini-3.8-flash',
+    documentationPath:
+      'developer-docs/catalog-operating-system/rdu-developer-agent.md',
+    expectedMaxRuntimeSeconds: 300,
+    supportedWorkflows: [
+      'Autonomous Engineering & QA Builder (npm run dev:rdu)',
+      'Fast inner-loop test selection (npm run test:changed)',
+      'Self-healing hygiene & whitespace cleanup',
+      'Multi-agent collaborative engineering (Venezia, Firenze, Munchen)',
+    ],
+    tools: [
+      'runRduBuilder',
+      'testRunner',
+      'selfHealingHygiene',
+      'diffChecker',
+      'terminalExecution',
+    ],
+    defaultNextAction: {
+      label: 'Inspect active missions',
+      route: '/admin/agents?tab=missions',
+    },
+  },
+  {
     key: 'innsbruck',
     name: 'Innsbruck',
     cityCode: 'INN',
@@ -1284,22 +1315,25 @@ export class AgentSupervisorService implements OnModuleInit {
       }
     }
 
-    // 3. Pending Frankfurt Autonomous Mission PR Confirmation Gates
+    // 3. Pending Frankfurt & RDU Autonomous Mission PR Confirmation Gates
     for (const pr of this.pendingMissionPrApprovals.values()) {
       if (pr.status !== 'pending') continue;
       const ageMinutes = Math.max(
         0,
         Math.round((nowMs - new Date(pr.createdAt).getTime()) / 60000),
       );
+      const isRdu = pr.id.startsWith('rdu-pr-') || pr.runId.startsWith('rdu-');
+      const agentKey = isRdu ? 'rdu' : 'frankfurt';
+      const agentName = isRdu ? 'RDU' : 'Frankfurt';
       items.push({
         id: pr.id,
         type: 'frankfurt_mission_pr',
-        agentKey: 'frankfurt',
-        agentName: 'Frankfurt',
+        agentKey,
+        agentName,
         status: 'pending',
         priority: 'high',
-        title: `Review Overnight Build PR: Issue #${pr.issueNumber}`,
-        summary: `Frankfurt autonomously implemented issue #${pr.issueNumber} ("${pr.issueTitle}") and passed closed-loop verification gates. Ready for 1-click human review.`,
+        title: `Review ${agentName} Build PR: Issue #${pr.issueNumber}`,
+        summary: `${agentName} autonomously implemented issue #${pr.issueNumber} ("${pr.issueTitle}") and passed closed-loop verification gates. Ready for 1-click human review.`,
         createdAt: pr.createdAt,
         ageMinutes,
         runId: pr.runId,
@@ -1428,8 +1462,10 @@ export class AgentSupervisorService implements OnModuleInit {
       );
     }
 
-    // 2. Handle Frankfurt Autonomous Mission PR Confirmation Gate
-    if (actionItemId.startsWith('frankfurt-pr-')) {
+    // 2. Handle Frankfurt & RDU Autonomous Mission PR Confirmation Gate
+    if (actionItemId.startsWith('frankfurt-pr-') || actionItemId.startsWith('rdu-pr-')) {
+      const isRdu = actionItemId.startsWith('rdu-pr-');
+      const agentKey = isRdu ? 'rdu' : 'frankfurt';
       const pending = this.pendingMissionPrApprovals.get(actionItemId);
       if (!pending && actionItemId !== 'frankfurt-pr-fixture-176') {
         throw new NotFoundException(
@@ -1442,7 +1478,7 @@ export class AgentSupervisorService implements OnModuleInit {
           pending.status = 'resolved';
           this.recordAgentRunComplete({
             runId: pending.runId,
-            agentKey: 'frankfurt',
+            agentKey,
             status: 'succeeded',
             outputSummary: `Operator approved mission PR for Issue #${pending.issueNumber}.`,
           });
@@ -1451,7 +1487,7 @@ export class AgentSupervisorService implements OnModuleInit {
         this.emitStreamEvent({
           type: 'action_item_updated',
           timestamp: now,
-          agentKey: 'frankfurt',
+          agentKey,
           payload: { id: actionItemId, status: 'resolved', action: dto.action },
         });
 
@@ -1469,7 +1505,7 @@ export class AgentSupervisorService implements OnModuleInit {
           pending.feedback = dto.feedback;
           this.recordAgentRunComplete({
             runId: pending.runId,
-            agentKey: 'frankfurt',
+            agentKey,
             status: 'cancelled',
             outputSummary: `Operator requested changes on mission PR: ${dto.feedback || 'Revision needed'}`,
           });
@@ -1478,7 +1514,7 @@ export class AgentSupervisorService implements OnModuleInit {
         this.emitStreamEvent({
           type: 'action_item_updated',
           timestamp: now,
-          agentKey: 'frankfurt',
+          agentKey,
           payload: { id: actionItemId, status: 'rejected', action: dto.action },
         });
 
@@ -1493,7 +1529,7 @@ export class AgentSupervisorService implements OnModuleInit {
       }
 
       throw new BadRequestException(
-        `Unsupported action ${dto.action} for Frankfurt mission PR gate.`,
+        `Unsupported action ${dto.action} for ${isRdu ? 'RDU' : 'Frankfurt'} mission PR gate.`,
       );
     }
 
@@ -1716,7 +1752,7 @@ export class AgentSupervisorService implements OnModuleInit {
   }
 
   /**
-   * Ingests live telemetry events emitted by the Frankfurt Mission Runner during autonomous feature builds.
+   * Ingests live telemetry events emitted by the Frankfurt or RDU Mission Runners during autonomous feature builds.
    */
   recordMissionReport(dto: ReportMissionTelemetryDto): {
     received: boolean;
@@ -1724,14 +1760,20 @@ export class AgentSupervisorService implements OnModuleInit {
     runId: string;
   } {
     const now = new Date().toISOString();
+    const isRdu = dto.runId.startsWith('rdu-');
+    const agentKey = isRdu ? 'rdu' : 'frankfurt';
+    const initiator = isRdu ? 'agent:rdu' : 'agent:frankfurt';
+    const workflow = isRdu
+      ? 'Autonomous Engineering & QA Builder (GEAR 2 Flywheel)'
+      : 'Autonomous Overnight Build (GEAR 2 Flywheel)';
 
     if (dto.state === 'started') {
       this.recordAgentRunStart({
         runId: dto.runId,
-        agentKey: 'frankfurt',
-        workflow: 'Autonomous Overnight Build (GEAR 2 Flywheel)',
+        agentKey,
+        workflow,
         missionSummary: `Issue #${dto.issueNumber}: ${dto.issueTitle}`,
-        initiator: 'agent:frankfurt',
+        initiator,
       });
       return { received: true, state: dto.state, runId: dto.runId };
     }
@@ -1739,7 +1781,7 @@ export class AgentSupervisorService implements OnModuleInit {
     if (dto.state === 'progress') {
       this.recordAgentTraceEvent({
         runId: dto.runId,
-        agentKey: 'frankfurt',
+        agentKey,
         type: 'tool_call',
         title: dto.activeStep || 'Mission progress',
         summary:
@@ -1751,7 +1793,7 @@ export class AgentSupervisorService implements OnModuleInit {
     }
 
     if (dto.state === 'pr_staged') {
-      const approvalId = `frankfurt-pr-${dto.runId}`;
+      const approvalId = `${agentKey}-pr-${dto.runId}`;
       this.pendingMissionPrApprovals.set(approvalId, {
         id: approvalId,
         runId: dto.runId,
@@ -1779,7 +1821,7 @@ export class AgentSupervisorService implements OnModuleInit {
         }
       }
 
-      const liveState = this.liveAgentStates.get('frankfurt');
+      const liveState = this.liveAgentStates.get(agentKey);
       if (liveState) {
         liveState.status = 'WAITING_FOR_HUMAN';
         if (liveState.activeTask) {
@@ -1790,9 +1832,9 @@ export class AgentSupervisorService implements OnModuleInit {
 
       this.recordAgentTraceEvent({
         runId: dto.runId,
-        agentKey: 'frankfurt',
+        agentKey,
         type: 'approval_gate',
-        title: `Decision Gate: Review Overnight PR #${dto.issueNumber}`,
+        title: `Decision Gate: Review ${isRdu ? 'RDU' : 'Frankfurt'} PR #${dto.issueNumber}`,
         summary:
           dto.summary || 'Awaiting 1-click human approval in Decision Center',
         status: 'pending',
@@ -1801,7 +1843,7 @@ export class AgentSupervisorService implements OnModuleInit {
       this.emitStreamEvent({
         type: 'action_item_updated',
         timestamp: now,
-        agentKey: 'frankfurt',
+        agentKey,
         runId: dto.runId,
         payload: {
           id: approvalId,
@@ -1817,7 +1859,7 @@ export class AgentSupervisorService implements OnModuleInit {
     if (dto.state === 'completed') {
       this.recordAgentRunComplete({
         runId: dto.runId,
-        agentKey: 'frankfurt',
+        agentKey,
         status: 'succeeded',
         outputSummary:
           dto.summary ||
@@ -1829,7 +1871,7 @@ export class AgentSupervisorService implements OnModuleInit {
     if (dto.state === 'failed') {
       this.recordAgentRunComplete({
         runId: dto.runId,
-        agentKey: 'frankfurt',
+        agentKey,
         status: 'failed',
         outputSummary:
           dto.error || `Mission failed for Issue #${dto.issueNumber}`,
