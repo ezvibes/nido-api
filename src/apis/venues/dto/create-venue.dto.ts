@@ -1,5 +1,13 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsPositive,
+  IsString,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { VenueVerificationState } from '../entities/venue.entity';
 
 export class CreateVenueDto {
   @ApiProperty({
@@ -49,4 +57,31 @@ export class CreateVenueDto {
   @IsString()
   @IsNotEmpty()
   regionSlug: string;
+
+  @ApiPropertyOptional({
+    description: 'Postal or ZIP code of the venue',
+    example: '28205',
+  })
+  @IsOptional()
+  @IsString()
+  postalCode?: string;
+
+  @ApiPropertyOptional({
+    description: 'Audience capacity of the venue',
+    example: 750,
+  })
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  capacity?: number;
+
+  @ApiPropertyOptional({
+    description: 'Verification state of the venue in the catalog',
+    enum: VenueVerificationState,
+    default: VenueVerificationState.UNVERIFIED,
+    example: 'unverified',
+  })
+  @IsOptional()
+  @IsEnum(VenueVerificationState)
+  verificationState?: VenueVerificationState;
 }

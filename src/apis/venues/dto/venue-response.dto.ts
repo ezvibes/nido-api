@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { VenueVerificationState } from '../entities/venue.entity';
 
 export class VenueResponseDto {
   @ApiProperty({
@@ -43,6 +44,27 @@ export class VenueResponseDto {
     example: 'nc',
   })
   regionSlug: string;
+
+  @ApiPropertyOptional({
+    description: 'Postal or ZIP code of the venue',
+    example: '28205',
+    nullable: true,
+  })
+  postalCode?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Audience capacity of the venue',
+    example: 750,
+    nullable: true,
+  })
+  capacity?: number | null;
+
+  @ApiProperty({
+    description: 'Verification state in catalog',
+    enum: VenueVerificationState,
+    example: 'unverified',
+  })
+  verificationState: VenueVerificationState;
 
   @ApiProperty({
     description: 'Record creation timestamp',

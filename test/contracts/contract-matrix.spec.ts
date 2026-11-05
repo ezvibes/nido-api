@@ -72,6 +72,33 @@ describe('Centralized Runtime Contract Matrix', () => {
       });
     });
 
+    it('maps modernized TypeORM Venue entity with postalCode, capacity, and verificationState', () => {
+      const modernizedEntity = Object.freeze({
+        id: '223e4567-e89b-12d3-a456-426614174111',
+        name: 'The Pour House Music Hall',
+        address: '224 S Blount St',
+        city: 'Raleigh',
+        citySlug: 'raleigh',
+        region: 'North Carolina',
+        regionSlug: 'nc',
+        postalCode: '27601',
+        capacity: 289,
+        verificationState: 'verified' as const,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-02T00:00:00Z'),
+      });
+
+      const canonical = toCanonicalVenue(modernizedEntity);
+
+      expect(canonical.id).toBe(modernizedEntity.id);
+      expect(canonical.name).toBe('The Pour House Music Hall');
+      expect(canonical.city).toBe('Raleigh');
+      expect(canonical.state).toBe('North Carolina');
+      expect(canonical.postalCode).toBe('27601');
+      expect(canonical.capacity).toBe(289);
+      expect(canonical.verificationState).toBe('verified');
+    });
+
     it('rejects venue with missing required properties or invalid types', () => {
       const missingCity = {
         id: '123',
