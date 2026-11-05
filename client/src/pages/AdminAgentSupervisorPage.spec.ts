@@ -121,6 +121,24 @@ const sampleSnapshot = {
         actionItemCount: 1,
       },
     },
+    {
+      key: 'rdu',
+      name: 'RDU',
+      cityCode: 'RDU',
+      role: 'Senior Software Engineer & QA Builder',
+      responsibility: 'Implements code, executes QA test suites, repairs hygiene, and stages pull requests.',
+      readiness: 'available_runtime',
+      readinessLabel: 'Available runtime',
+      status: 'IDLE',
+      model: 'gemini-3.6-flash',
+      documentationPath: '.agents/skills/rdu-builder/SKILL.md',
+      expectedMaxRuntimeSeconds: 300,
+      supportedWorkflows: ['Feature development & QA builder'],
+      tools: ['readFile', 'writeFile', 'editFile', 'listFiles', 'testRunner', 'selfHealingHygiene', 'diffChecker', 'terminalExecution'],
+      currentTask: null,
+      lastVerifiedOutcome: null,
+      nextAction: { label: 'Dispatch mission', route: '/admin/agents?tab=missions' },
+    },
   ],
   actionItems: [
     {
@@ -251,6 +269,11 @@ describe('AdminAgentSupervisorPage.vue', () => {
       action: 'approve_beehiiv_draft',
       result: { staged: true },
     });
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+      },
+    });
   });
 
   it('renders KPI signals, fleet roster cards, and honest readiness labels for admin users', async () => {
@@ -358,5 +381,135 @@ describe('AdminAgentSupervisorPage.vue', () => {
 
     expect(wrapper.text()).toContain('Admin Authorization Required');
     expect(mockFetchStatus).not.toHaveBeenCalled();
+  });
+
+  it('renders RDU Engineering & Build Station on the Overview tab in idle state and copies CLI command', async () => {
+    const wrapper = mount(AdminAgentSupervisorPage, {
+      global: {
+        stubs: {
+          'router-link': { template: '<a><slot /></a>' },
+        },
+      },
+    });
+    await flushPromises();
+
+    const banner = wrapper.find('[data-testid="rdu-station-banner"]');
+    expect(banner.exists()).toBe(true);
+    expect(banner.text()).toContain('RDU Engineering & Build Station');
+    expect(banner.text()).toContain('Dedicated Software Engineer & QA Builder');
+
+    const idleBox = wrapper.find('[data-testid="rdu-idle-box"]');
+    expect(idleBox.exists()).toBe(true);
+    expect(idleBox.text()).toContain('npm run dev:rdu -- --issue');
+
+    const copyBtn = idleBox.find('button');
+    await copyBtn.trigger('click');
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('npm run dev:rdu -- --issue ');
+  });
+
+  it('renders RDU Station with active task progress when RDU is running', async () => {
+    const snapshotWithActiveTask = JSON.parse(JSON.stringify(sampleSnapshot));
+    const rdu = snapshotWithActiveTask.agents.find((a: any) => a.key === 'rdu');
+    rdu.status = 'BUSY';
+    rdu.currentTask = {
+      runId: 'rdu-run-101',
+      workflow: 'Feature development & QA builder',
+      missionSummary: 'Implement multi-modal poster sync in Vue',
+      activeStep: 'Running shared test suites & hygiene check',
+      startedAt: '2026-11-01T17:55:00.000Z',
+      elapsedMs: 45000,
+      modelCalls: 6,
+      toolCalls: 14,
+    };
+    mockFetchStatus.mockResolvedValueOnce(snapshotWithActiveTask);
+
+    const wrapper = mount(AdminAgentSupervisorPage, {
+      global: {
+        stubs: {
+          'router-link': { template: '<a><slot /></a>' },
+        },
+      },
+    });
+    await flushPromises();
+
+    const activeBox = wrapper.find('[data-testid="rdu-active-task-box"]');
+    expect(activeBox.exists()).toBe(true);
+    expect(activeBox.text()).toContain('Implement multi-modal poster sync in Vue');
+    expect(activeBox.text()).toContain('Running shared test suites & hygiene check');
+    expect(activeBox.text()).toContain('6 model calls');
+    expect(activeBox.text()).toContain('14 tool calls');
+  });
+
+  it('renders RDU Station with staged PR details and copies PR link to clipboard', async () => {
+    const snapshotWithStagedPr = JSON.parse(JSON.stringify(sampleSnapshot));
+    snapshotWithStagedPr.actionItems.push({
+      id: 'rdu-pr-181',
+      type: 'frankfurt_mission_pr',
+      agentKey: 'rdu',
+      agentName: 'RDU',
+      status: 'pending',
+      priority: 'high',
+      title: 'Review RDU Developer Agent Implementation: Issue #181',
+      summary: 'RDU autonomously implemented and verified issue #181.',
+      createdAt: '2026-11-01T18:00:00.000Z',
+      ageMinutes: 2,
+      runId: 'rdu-run-181',
+      missionPr: {
+        issueNumber: 181,
+        issueTitle: 'Define and implement RDU builder agent',
+        prUrl: 'https://github.com/ezvibes/nido-api/pull/182',
+        branchName: 'feat/rdu-developer-agent',
+        diffStat: '10 files changed, 950 insertions(+)',
+        summary: 'RDU dedicated developer agent implementation.',
+      },
+      supportedActions: ['approve_pr', 'reject_with_feedback'],
+    });
+    mockFetchStatus.mockResolvedValueOnce(snapshotWithStagedPr);
+
+    const wrapper = mount(AdminAgentSupervisorPage, {
+      global: {
+        stubs: {
+          'router-link': { template: '<a><slot /></a>' },
+        },
+      },
+    });
+    await flushPromises();
+
+    const stagedBox = wrapper.find('[data-testid="rdu-staged-pr-box"]');
+    expect(stagedBox.exists()).toBe(true);
+    expect(stagedBox.text()).toContain('Review RDU Developer Agent Implementation: Issue #181');
+    expect(stagedBox.text()).toContain('10 files changed, 950 insertions(+)');
+
+    const copyBtn = wrapper.find('[data-testid="rdu-copy-pr-btn"]');
+    expect(copyBtn.exists()).toBe(true);
+    await copyBtn.trigger('click');
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      'https://github.com/ezvibes/nido-api/pull/182',
+    );
+    expect(wrapper.text()).toContain('Pull Request URL copied to clipboard.');
+
+    const openLink = wrapper.find('[data-testid="rdu-open-pr-link"]');
+    expect(openLink.exists()).toBe(true);
+    expect(openLink.attributes('href')).toBe('https://github.com/ezvibes/nido-api/pull/182');
+  });
+
+  it('copies PR link from the pending PR gate in the Decision Center tab', async () => {
+    const wrapper = mount(AdminAgentSupervisorPage, {
+      global: {
+        stubs: {
+          'router-link': { template: '<a><slot /></a>' },
+        },
+      },
+    });
+    await flushPromises();
+
+    await wrapper.get('[data-testid="tab-attention"]').trigger('click');
+    const copyPrBtn = wrapper.find('[data-testid="copy-pr-link-btn"]');
+    expect(copyPrBtn.exists()).toBe(true);
+
+    await copyPrBtn.trigger('click');
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      'https://github.com/ezvibes/nido-api/pull/177',
+    );
   });
 });
