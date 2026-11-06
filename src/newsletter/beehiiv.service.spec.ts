@@ -102,6 +102,9 @@ describe('BeehiivService', () => {
       });
 
       expect(result.id).toBe('post_beehiiv_abc123');
+      expect(result.edit_url).toBe(
+        'https://app.beehiiv.com/posts/beehiiv_abc123/edit',
+      );
       expect(result.status).toBe('draft');
     });
 

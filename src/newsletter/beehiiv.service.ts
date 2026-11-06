@@ -141,13 +141,15 @@ export class BeehiivService {
         `Successfully created Beehiiv draft post ID: ${draftData.id}`,
       );
 
+      const rawPostUuid = String(draftData.id || '').replace(/^post_/, '');
+
       return {
         id: draftData.id,
         title: draftData.title,
         subtitle: draftData.subtitle,
         status: draftData.status,
         web_url: draftData.web_url,
-        edit_url: `https://app.beehiiv.com/posts/${draftData.id}/edit`,
+        edit_url: `https://app.beehiiv.com/posts/${rawPostUuid}/edit`,
         created_at: draftData.created_at,
       };
     } catch (err) {
