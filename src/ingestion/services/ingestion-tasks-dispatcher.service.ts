@@ -17,14 +17,19 @@ export class IngestionTasksDispatcherService {
     @InjectRepository(IngestionOutbox)
     private readonly outboxRepository: Repository<IngestionOutbox>,
   ) {
-    const isEnabledStr = this.configService.get<string>('INGESTION_ASYNC_DISPATCH_ENABLED');
+    const isEnabledStr = this.configService.get<string>(
+      'INGESTION_ASYNC_DISPATCH_ENABLED',
+    );
     this.enabled = isEnabledStr === 'true';
 
     if (this.enabled) {
       try {
         this.tasksClient = new CloudTasksClient();
       } catch (e) {
-        this.logger.warn('Failed to initialize CloudTasksClient. Fallback will be used.', e);
+        this.logger.warn(
+          'Failed to initialize CloudTasksClient. Fallback will be used.',
+          e,
+        );
       }
     }
   }
@@ -32,8 +37,16 @@ export class IngestionTasksDispatcherService {
   isAsyncDispatchEnabled(): boolean {
     const queuePath = this.configService.get<string>('CLOUD_TASKS_QUEUE_PATH');
     const workerUrl = this.configService.get<string>('INGESTION_WORKER_URL');
-    const serviceAccountEmail = this.configService.get<string>('CLOUD_TASKS_INVOKER_SA');
-    return !!(this.enabled && this.tasksClient && queuePath && workerUrl && serviceAccountEmail);
+    const serviceAccountEmail = this.configService.get<string>(
+      'CLOUD_TASKS_INVOKER_SA',
+    );
+    return !!(
+      this.enabled &&
+      this.tasksClient &&
+      queuePath &&
+      workerUrl &&
+      serviceAccountEmail
+    );
   }
 
   /**
@@ -45,13 +58,24 @@ export class IngestionTasksDispatcherService {
   async dispatchJob(jobId: string): Promise<boolean> {
     const queuePath = this.configService.get<string>('CLOUD_TASKS_QUEUE_PATH');
     const workerUrl = this.configService.get<string>('INGESTION_WORKER_URL');
-    const serviceAccountEmail = this.configService.get<string>('CLOUD_TASKS_INVOKER_SA');
+    const serviceAccountEmail = this.configService.get<string>(
+      'CLOUD_TASKS_INVOKER_SA',
+    );
     const workerAudience =
       this.configService.get<string>('INGESTION_WORKER_AUDIENCE') ||
       workerUrl?.replace(/\/internal\/.*$/, '');
 
-    if (!this.enabled || !this.tasksClient || !queuePath || !workerUrl || !serviceAccountEmail || !workerAudience) {
-      this.logger.log(`Async dispatch disabled or misconfigured. Intent to dispatch job ${jobId} to Cloud Tasks logged.`);
+    if (
+      !this.enabled ||
+      !this.tasksClient ||
+      !queuePath ||
+      !workerUrl ||
+      !serviceAccountEmail ||
+      !workerAudience
+    ) {
+      this.logger.log(
+        `Async dispatch disabled or misconfigured. Intent to dispatch job ${jobId} to Cloud Tasks logged.`,
+      );
       return false;
     }
 
@@ -69,7 +93,6 @@ export class IngestionTasksDispatcherService {
     const taskName = `${queuePath}/tasks/job-${jobId}`;
     const payload = {
       jobId,
-      attempt: (outbox.retryCount ?? 0) + 1,
     };
 
     let dispatchSuccess = false;
@@ -95,15 +118,21 @@ export class IngestionTasksDispatcherService {
         },
       });
       dispatchSuccess = true;
-      this.logger.log(`Successfully dispatched task ${taskName} for job ${jobId}`);
+      this.logger.log(
+        `Successfully dispatched task ${taskName} for job ${jobId}`,
+      );
     } catch (error: any) {
       // Cloud Tasks gRPC code 6 is ALREADY_EXISTS. Treat as successful deduplication!
       if (error?.code === 6 || error?.message?.includes('ALREADY_EXISTS')) {
-        this.logger.log(`Task ${taskName} already exists in queue. Treating as successfully dispatched.`);
+        this.logger.log(
+          `Task ${taskName} already exists in queue. Treating as successfully dispatched.`,
+        );
         dispatchSuccess = true;
       } else {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        this.logger.error(`Failed to dispatch task for job ${jobId}: ${errorMsg}`);
+        this.logger.error(
+          `Failed to dispatch task for job ${jobId}: ${errorMsg}`,
+        );
       }
     }
 

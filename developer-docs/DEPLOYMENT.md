@@ -112,4 +112,5 @@ The current deployment design is appropriate for dev and staged feedback. Before
 - Secret Manager access scope.
 - Firebase Hosting security headers.
 
-See [`../.github/DEPLOYMENT_SETUP.md`](../.github/DEPLOYMENT_SETUP.md) for the detailed operational runbook.
+See [`../.github/DEPLOYMENT_SETUP.md`](../.github/DEPLOYMENT_SETUP.md) for the detailed operational deployment setup.
+See [`runbook-cloud-tasks-ocr-worker.md`](runbook-cloud-tasks-ocr-worker.md) for the Cloud Tasks dispatcher and extraction worker operational runbook (covering stuck dispatch, paused queue, worker rollback, and safe replay).

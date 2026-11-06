@@ -114,7 +114,9 @@ describe('Centralized Runtime Contract Matrix', () => {
         state: 'NC',
         capacity: -10,
       };
-      expect(() => CanonicalVenueSchema.parse(invalidCapacity)).toThrow(z.ZodError);
+      expect(() => CanonicalVenueSchema.parse(invalidCapacity)).toThrow(
+        z.ZodError,
+      );
     });
   });
 
@@ -236,7 +238,8 @@ describe('Centralized Runtime Contract Matrix', () => {
             band: { id: 'b-1', name: 'Main Act' },
           },
         ],
-        description: 'Join us! Tickets available at https://lincolntheatre.com/tix/123',
+        description:
+          'Join us! Tickets available at https://lincolntheatre.com/tix/123',
       });
 
       const canonical = toCanonicalConcert(typeOrmConcert);
@@ -269,7 +272,9 @@ describe('Centralized Runtime Contract Matrix', () => {
         localEventDate: '10/31/2026', // invalid: must be YYYY-MM-DD
         startTime: '20:00:00',
       };
-      expect(() => CanonicalConcertSchema.parse(invalidDate)).toThrow(z.ZodError);
+      expect(() => CanonicalConcertSchema.parse(invalidDate)).toThrow(
+        z.ZodError,
+      );
 
       const invalidTime = {
         id: 'c-1',
@@ -279,7 +284,9 @@ describe('Centralized Runtime Contract Matrix', () => {
         localEventDate: '2026-10-31',
         startTime: '8:00 PM', // invalid: must be HH:MM or HH:MM:SS
       };
-      expect(() => CanonicalConcertSchema.parse(invalidTime)).toThrow(z.ZodError);
+      expect(() => CanonicalConcertSchema.parse(invalidTime)).toThrow(
+        z.ZodError,
+      );
     });
   });
 
@@ -293,8 +300,18 @@ describe('Centralized Runtime Contract Matrix', () => {
           state: 'NC',
         },
         performers: [
-          { name: 'Chatham County Line', isHeadliner: true, setTime: '21:00', stage: 'Main Stage' },
-          { name: 'Mipso', isHeadliner: false, setTime: '19:30', stage: 'Acoustic Stage' },
+          {
+            name: 'Chatham County Line',
+            isHeadliner: true,
+            setTime: '21:00',
+            stage: 'Main Stage',
+          },
+          {
+            name: 'Mipso',
+            isHeadliner: false,
+            setTime: '19:30',
+            stage: 'Acoustic Stage',
+          },
         ],
         dates: [
           {
@@ -302,7 +319,8 @@ describe('Centralized Runtime Contract Matrix', () => {
             doorsTime: '18:00:00',
             startTime: '19:00:00',
             timezone: 'America/New_York',
-            warning: "Hint conflict: uploader suggested '2026-10-16', poster states '2026-10-15'",
+            warning:
+              "Hint conflict: uploader suggested '2026-10-16', poster states '2026-10-15'",
           },
         ],
         primaryGenre: 'Bluegrass',
@@ -311,9 +329,12 @@ describe('Centralized Runtime Contract Matrix', () => {
         ticketPrice: '$25 ADV / $30 DOS',
         ageRestriction: 'All Ages',
         promotersAndSponsors: ["Cat's Cradle Presents", 'WUNC Radio'],
-        rawOcrText: 'CAROLINA MUSIC FESTIVAL OCT 15 CATS CRADLE DOORS 6PM SHOW 7PM',
+        rawOcrText:
+          'CAROLINA MUSIC FESTIVAL OCT 15 CATS CRADLE DOORS 6PM SHOW 7PM',
         confidence: 0.95,
-        warnings: ["Hint conflict: uploader suggested '2026-10-16', poster states '2026-10-15'"],
+        warnings: [
+          "Hint conflict: uploader suggested '2026-10-16', poster states '2026-10-15'",
+        ],
       };
 
       const validated = validatePosterExtractionResult(fixture);
@@ -327,23 +348,38 @@ describe('Centralized Runtime Contract Matrix', () => {
         title: 'Broken Date Show',
         dates: [{ date: 'not-a-date' }],
       };
-      expect(() => validatePosterExtractionResult(malformedDate)).toThrow(z.ZodError);
+      expect(() => validatePosterExtractionResult(malformedDate)).toThrow(
+        z.ZodError,
+      );
 
       const invalidConfidence = {
         title: 'Broken Confidence',
         confidence: 1.5, // > 1.0
       };
-      expect(() => validatePosterExtractionResult(invalidConfidence)).toThrow(z.ZodError);
+      expect(() => validatePosterExtractionResult(invalidConfidence)).toThrow(
+        z.ZodError,
+      );
 
       const missingPerformerName = {
         performers: [{ name: '', isHeadliner: true }],
       };
-      expect(() => validatePosterExtractionResult(missingPerformerName)).toThrow(z.ZodError);
+      expect(() =>
+        validatePosterExtractionResult(missingPerformerName),
+      ).toThrow(z.ZodError);
     });
   });
 
   describe('CloudTasksWorkerPayloadSchema & Strict Payload Validation', () => {
-    it('accepts a valid strictly-typed Cloud Tasks worker payload', () => {
+    it('accepts a valid strictly-typed Cloud Tasks worker payload containing only jobId', () => {
+      const payload = {
+        jobId: '8f96ce70-4e5a-4b95-a2f0-5197825d1e2e',
+      };
+
+      const validated = validateCloudTasksPayload(payload);
+      expect(validated).toEqual(payload);
+    });
+
+    it('accepts a valid strictly-typed Cloud Tasks worker payload with optional attempt', () => {
       const payload = {
         jobId: '8f96ce70-4e5a-4b95-a2f0-5197825d1e2e',
         attempt: 1,
@@ -378,7 +414,9 @@ describe('Centralized Runtime Contract Matrix', () => {
         jobId: '8f96ce70-4e5a-4b95-a2f0-5197825d1e2e',
         attempt: 30, // exceeds max 25
       };
-      expect(() => validateCloudTasksPayload(exceededAttempt)).toThrow(z.ZodError);
+      expect(() => validateCloudTasksPayload(exceededAttempt)).toThrow(
+        z.ZodError,
+      );
     });
 
     it('strictly rejects payloads containing extra unexpected properties', () => {
@@ -444,7 +482,9 @@ describe('Centralized Runtime Contract Matrix', () => {
         editorialBlurb: 'Blurb',
         canonicalEntityIds: { concertId: 'c1' },
       };
-      expect(() => CuratedNewsletterCardSchema.parse(invalidCard)).toThrow(z.ZodError);
+      expect(() => CuratedNewsletterCardSchema.parse(invalidCard)).toThrow(
+        z.ZodError,
+      );
     });
   });
 
@@ -460,9 +500,15 @@ describe('Centralized Runtime Contract Matrix', () => {
       const geminiSchema = toGeminiJsonSchema(sampleSchema);
 
       expect(geminiSchema.type).toBe('OBJECT');
-      expect(geminiSchema.required).toEqual(['genres', 'isOutdoor', 'venueName']); // sorted alphabetically
+      expect(geminiSchema.required).toEqual([
+        'genres',
+        'isOutdoor',
+        'venueName',
+      ]); // sorted alphabetically
       expect(geminiSchema.properties!['capacity']).toEqual({ type: 'INTEGER' });
-      expect(geminiSchema.properties!['isOutdoor']).toEqual({ type: 'BOOLEAN' });
+      expect(geminiSchema.properties!['isOutdoor']).toEqual({
+        type: 'BOOLEAN',
+      });
       expect(geminiSchema.properties!['venueName']).toEqual({
         type: 'STRING',
         description: 'Name of the venue',
@@ -516,9 +562,9 @@ describe('Centralized Runtime Contract Matrix', () => {
       expect(() => toGeminiJsonSchema(z.function() as any)).toThrow(
         /Unsupported Zod construct for Gemini schema conversion: function/,
       );
-      expect(() => toGeminiJsonSchema(z.map(z.string(), z.string()) as any)).toThrow(
-        /Unsupported Zod construct for Gemini schema conversion: map/,
-      );
+      expect(() =>
+        toGeminiJsonSchema(z.map(z.string(), z.string()) as any),
+      ).toThrow(/Unsupported Zod construct for Gemini schema conversion: map/);
       expect(() => toGeminiJsonSchema(z.set(z.string()) as any)).toThrow(
         /Unsupported Zod construct for Gemini schema conversion: set/,
       );

@@ -4,7 +4,11 @@ import { fileURLToPath } from 'node:url';
 
 const required = (env, name) => {
   const value = env[name]?.trim();
-  if (!value || value.startsWith('REPLACE_ME') || value === '__FROM_GITHUB_VAR__') {
+  if (
+    !value ||
+    value.startsWith('REPLACE_ME') ||
+    value === '__FROM_GITHUB_VAR__'
+  ) {
     throw new Error(`Missing or placeholder deployment value: ${name}`);
   }
   return value;
@@ -23,7 +27,11 @@ const secretRef = (env, name) => {
   const separator = value.lastIndexOf(':');
   const secret = value.slice(0, separator);
   const version = value.slice(separator + 1);
-  if (separator <= 0 || !/^[a-zA-Z0-9_-]+$/.test(secret) || !/^(latest|[1-9][0-9]*)$/.test(version)) {
+  if (
+    separator <= 0 ||
+    !/^[a-zA-Z0-9_-]+$/.test(secret) ||
+    !/^(latest|[1-9][0-9]*)$/.test(version)
+  ) {
     throw new Error(`Invalid Secret Manager reference: ${name}`);
   }
   return { secret, version };
@@ -37,12 +45,16 @@ export function renderTerraformVars(env) {
     throw new Error('TERRAFORM_API_IMAGE must use an immutable SHA-256 digest');
   }
   if (required(env, 'DB_MIGRATIONS_RUN') !== 'false') {
-    throw new Error('The API service must not run database migrations on startup');
+    throw new Error(
+      'The API service must not run database migrations on startup',
+    );
   }
   const minInstances = positiveInteger(env, 'CLOUD_RUN_MIN_INSTANCES');
   const maxInstances = positiveInteger(env, 'CLOUD_RUN_MAX_INSTANCES', 1);
   if (minInstances > maxInstances) {
-    throw new Error('CLOUD_RUN_MIN_INSTANCES cannot exceed CLOUD_RUN_MAX_INSTANCES');
+    throw new Error(
+      'CLOUD_RUN_MIN_INSTANCES cannot exceed CLOUD_RUN_MAX_INSTANCES',
+    );
   }
 
   const rawVpcNetwork = env.VPC_NETWORK?.trim();
@@ -61,7 +73,10 @@ export function renderTerraformVars(env) {
     }
 
     const egressMode = env.VPC_EGRESS?.trim() || 'private-ranges-only';
-    if (egressMode === 'private-ranges-only' || egressMode === 'PRIVATE_RANGES_ONLY') {
+    if (
+      egressMode === 'private-ranges-only' ||
+      egressMode === 'PRIVATE_RANGES_ONLY'
+    ) {
       vpcEgress = 'PRIVATE_RANGES_ONLY';
     } else if (egressMode === 'all-traffic' || egressMode === 'ALL_TRAFFIC') {
       vpcEgress = 'ALL_TRAFFIC';
@@ -89,6 +104,50 @@ export function renderTerraformVars(env) {
     vpc_network: vpcNetwork,
     vpc_subnet: vpcSubnet,
     vpc_egress: vpcEgress,
+    enable_worker_pipeline: env.ENABLE_WORKER_PIPELINE !== 'false',
+    worker_service_name: env.WORKER_SERVICE?.trim() || 'nido-ingestion-worker',
+    worker_runtime_service_account:
+      env.WORKER_RUNTIME_SERVICE_ACCOUNT?.trim() ||
+      required(env, 'RUNTIME_SERVICE_ACCOUNT'),
+    worker_cpu: env.WORKER_CLOUD_RUN_CPU?.trim() || '1',
+    worker_memory: env.WORKER_CLOUD_RUN_MEMORY?.trim() || '1Gi',
+    worker_concurrency: env.WORKER_CLOUD_RUN_CONCURRENCY
+      ? positiveInteger(env, 'WORKER_CLOUD_RUN_CONCURRENCY', 1)
+      : 2,
+    worker_timeout: env.WORKER_CLOUD_RUN_TIMEOUT
+      ? positiveInteger(env, 'WORKER_CLOUD_RUN_TIMEOUT', 1)
+      : 600,
+    worker_min_instances:
+      env.WORKER_CLOUD_RUN_MIN_INSTANCES !== undefined
+        ? positiveInteger(env, 'WORKER_CLOUD_RUN_MIN_INSTANCES', 0)
+        : 0,
+    worker_max_instances: env.WORKER_CLOUD_RUN_MAX_INSTANCES
+      ? positiveInteger(env, 'WORKER_CLOUD_RUN_MAX_INSTANCES', 1)
+      : 2,
+    cloud_tasks_queue_name:
+      env.CLOUD_TASKS_QUEUE_NAME?.trim() || 'ingestion-worker-queue',
+    cloud_tasks_queue_location:
+      env.CLOUD_TASKS_QUEUE_LOCATION?.trim() || required(env, 'REGION'),
+    cloud_tasks_dispatch_rate: env.CLOUD_TASKS_DISPATCH_RATE
+      ? Number(env.CLOUD_TASKS_DISPATCH_RATE)
+      : 1,
+    cloud_tasks_max_concurrency: env.CLOUD_TASKS_MAX_CONCURRENCY
+      ? positiveInteger(env, 'CLOUD_TASKS_MAX_CONCURRENCY', 1)
+      : 2,
+    cloud_tasks_max_attempts: env.CLOUD_TASKS_MAX_ATTEMPTS
+      ? positiveInteger(env, 'CLOUD_TASKS_MAX_ATTEMPTS', 1)
+      : 5,
+    cloud_tasks_min_backoff: env.CLOUD_TASKS_MIN_BACKOFF?.trim() || '1s',
+    cloud_tasks_max_backoff: env.CLOUD_TASKS_MAX_BACKOFF?.trim() || '300s',
+    cloud_tasks_max_retry_duration:
+      env.CLOUD_TASKS_MAX_RETRY_DURATION?.trim() || '3600s',
+    cloud_tasks_max_doublings:
+      env.CLOUD_TASKS_MAX_DOUBLINGS !== undefined
+        ? Number(env.CLOUD_TASKS_MAX_DOUBLINGS)
+        : 5,
+    cloud_tasks_invoker_sa:
+      env.CLOUD_TASKS_INVOKER_SA?.trim() ||
+      `cloud-tasks-invoker@${projectId}.iam.gserviceaccount.com`,
     runtime_env: {
       NODE_ENV: 'production',
       DB_HOST: `/cloudsql/${sqlConnection}`,
@@ -97,7 +156,10 @@ export function renderTerraformVars(env) {
       DB_NAME: required(env, 'DB_NAME'),
       DB_SYNCHRONIZE: 'false',
       DB_MIGRATIONS_RUN: 'false',
-      DB_MIGRATION_TRANSACTION_MODE: required(env, 'DB_MIGRATION_TRANSACTION_MODE'),
+      DB_MIGRATION_TRANSACTION_MODE: required(
+        env,
+        'DB_MIGRATION_TRANSACTION_MODE',
+      ),
       FIREBASE_PROJECT_ID: projectId,
       FIREBASE_CLIENT_EMAIL: `firebase-adminsdk-fbsvc@${projectId}.iam.gserviceaccount.com`,
       ADMIN_EMAILS: required(env, 'ADMIN_EMAILS'),
@@ -105,27 +167,57 @@ export function renderTerraformVars(env) {
       GEMINI_MODEL: required(env, 'GEMINI_MODEL'),
       CONCERT_GENRE_OPTIONS: required(env, 'CONCERT_GENRE_OPTIONS'),
       CONCERT_SYNC_GEMINI_ENABLED: required(env, 'CONCERT_SYNC_GEMINI_ENABLED'),
-      CONCERT_SYNC_MAX_EVENTS_PER_JOB: required(env, 'CONCERT_SYNC_MAX_EVENTS_PER_JOB'),
-      GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL: required(env, 'GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL'),
+      CONCERT_SYNC_MAX_EVENTS_PER_JOB: required(
+        env,
+        'CONCERT_SYNC_MAX_EVENTS_PER_JOB',
+      ),
+      GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL: required(
+        env,
+        'GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL',
+      ),
       CORS_ORIGINS: required(env, 'CORS_ORIGINS'),
       BEEHIIV_PUBLICATION_ID: required(env, 'BEEHIIV_PUBLICATION_ID'),
+      INGESTION_ASYNC_DISPATCH_ENABLED:
+        env.INGESTION_ASYNC_DISPATCH_ENABLED?.trim() || 'true',
+      CLOUD_TASKS_QUEUE_PATH:
+        env.CLOUD_TASKS_QUEUE_PATH?.trim() ||
+        `projects/${projectId}/locations/${required(env, 'REGION')}/queues/${env.CLOUD_TASKS_QUEUE_NAME?.trim() || 'ingestion-worker-queue'}`,
+      INGESTION_WORKER_URL: env.INGESTION_WORKER_URL?.trim() || '',
+      INGESTION_WORKER_AUDIENCE: env.INGESTION_WORKER_AUDIENCE?.trim() || '',
+      CLOUD_TASKS_INVOKER_SA:
+        env.CLOUD_TASKS_INVOKER_SA?.trim() ||
+        `cloud-tasks-invoker@${projectId}.iam.gserviceaccount.com`,
     },
     secret_refs: {
       DB_PASSWORD: secretRef(env, 'DB_PASSWORD_SECRET'),
       FIREBASE_PRIVATE_KEY: secretRef(env, 'FIREBASE_PRIVATE_KEY_SECRET'),
       GEMINI_API_KEY: secretRef(env, 'GEMINI_API_KEY_SECRET'),
-      GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY: secretRef(env, 'GOOGLE_CALENDAR_PRIVATE_KEY_SECRET'),
+      GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY: secretRef(
+        env,
+        'GOOGLE_CALENDAR_PRIVATE_KEY_SECRET',
+      ),
       BEEHIIV_API_KEY: secretRef(env, 'BEEHIIV_API_KEY_SECRET'),
-      INTERNAL_SCHEDULER_SECRET: secretRef(env, 'INTERNAL_SCHEDULER_SECRET_NAME'),
+      INTERNAL_SCHEDULER_SECRET: secretRef(
+        env,
+        'INTERNAL_SCHEDULER_SECRET_NAME',
+      ),
     },
   };
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (
+  process.argv[1] &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
   const outputPath = process.argv[2];
-  if (!outputPath) throw new Error('Expected an output path for the Terraform variable file');
-  writeFileSync(outputPath, `${JSON.stringify(renderTerraformVars(process.env), null, 2)}\n`, {
-    flag: 'wx',
-    mode: 0o600,
-  });
+  if (!outputPath)
+    throw new Error('Expected an output path for the Terraform variable file');
+  writeFileSync(
+    outputPath,
+    `${JSON.stringify(renderTerraformVars(process.env), null, 2)}\n`,
+    {
+      flag: 'wx',
+      mode: 0o600,
+    },
+  );
 }

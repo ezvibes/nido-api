@@ -60,6 +60,29 @@ export class IngestionWorkerController {
     const { jobId } = payload;
 
     try {
+      const job = await this.jobRepository.findOne({ where: { id: jobId } });
+      if (!job) {
+        this.logger.warn(`Job ${jobId} not found`);
+        return { success: true, skipped: true }; // Terminal: job deleted
+      }
+
+      const isTerminalStatus = Object.values(IngestionTerminalStatus).includes(
+        job.status as IngestionTerminalStatus,
+      );
+      const isPastStage = [
+        IngestionStage.EXTRACTION_COMPLETED,
+        IngestionStage.MATCHES_PROPOSED,
+        IngestionStage.NEEDS_REVIEW,
+        IngestionStage.COMPLETED,
+      ].includes(job.stage);
+
+      if (isTerminalStatus || isPastStage) {
+        this.logger.log(
+          `Job ${jobId} already past extraction or terminal (${job.stage}/${job.status}). Acknowledging duplicate task.`,
+        );
+        return { success: true, skipped: true }; // Safe ACK for terminal duplicate
+      }
+
       const workerId = `worker-${Math.random().toString(36).substring(7)}`;
       const leaseClaimed = await this.stateMachine.claimJob(
         jobId,
@@ -68,29 +91,6 @@ export class IngestionWorkerController {
       );
 
       if (!leaseClaimed) {
-        const job = await this.jobRepository.findOne({ where: { id: jobId } });
-        if (!job) {
-          this.logger.warn(`Job ${jobId} not found during lease check`);
-          return { success: true, skipped: true }; // Terminal: job deleted
-        }
-
-        const isTerminalStatus = Object.values(
-          IngestionTerminalStatus,
-        ).includes(job.status as IngestionTerminalStatus);
-        const isPastStage = [
-          IngestionStage.EXTRACTION_COMPLETED,
-          IngestionStage.MATCHES_PROPOSED,
-          IngestionStage.NEEDS_REVIEW,
-          IngestionStage.COMPLETED,
-        ].includes(job.stage);
-
-        if (isTerminalStatus || isPastStage) {
-          this.logger.log(
-            `Job ${jobId} already past extraction or terminal (${job.stage}/${job.status}). Acknowledging duplicate task.`,
-          );
-          return { success: true, skipped: true }; // Safe ACK for terminal duplicate
-        }
-
         // Active lease contention / in-flight worker: do NOT acknowledge! Return 503 so Cloud Tasks retries.
         this.logger.warn(
           `Job ${jobId} lease currently held by ${job.leaseOwner} until ${job.leaseExpiresAt}. Triggering retry backoff.`,
@@ -141,6 +141,8 @@ export class IngestionWorkerController {
       await this.jobRepository.update(jobId, {
         status: IngestionTerminalStatus.TERMINAL_FAILURE,
         errorMessage: errorMsg,
+        leaseOwner: null,
+        leaseExpiresAt: null,
       });
     } catch (e) {
       this.logger.error(`Failed to mark job ${jobId} as terminal`, e);

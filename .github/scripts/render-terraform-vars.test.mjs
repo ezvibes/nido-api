@@ -25,7 +25,8 @@ const deploymentEnv = {
   CONCERT_GENRE_OPTIONS: 'Jazz,Rock',
   CONCERT_SYNC_GEMINI_ENABLED: 'false',
   CONCERT_SYNC_MAX_EVENTS_PER_JOB: '25',
-  GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL: 'calendar@project-dev.iam.gserviceaccount.com',
+  GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL:
+    'calendar@project-dev.iam.gserviceaccount.com',
   CORS_ORIGINS: 'https://example.com',
   BEEHIIV_PUBLICATION_ID: 'pub_83e3968e-2648-46bd-b71b-ac9a35e4bab4',
   DB_PASSWORD_SECRET: 'db-password:latest',
@@ -39,11 +40,23 @@ const deploymentEnv = {
 test('uses the existing deployment config without embedding secret values', () => {
   const vars = renderTerraformVars(deploymentEnv);
   assert.equal(vars.container_image, deploymentEnv.TERRAFORM_API_IMAGE);
-  assert.equal(vars.runtime_env.DB_HOST, '/cloudsql/project-dev:us-east1:nido-postgres-dev');
+  assert.equal(
+    vars.runtime_env.DB_HOST,
+    '/cloudsql/project-dev:us-east1:nido-postgres-dev',
+  );
   assert.equal(vars.runtime_env.DB_MIGRATIONS_RUN, 'false');
-  assert.equal(vars.runtime_env.BEEHIIV_PUBLICATION_ID, 'pub_83e3968e-2648-46bd-b71b-ac9a35e4bab4');
-  assert.deepEqual(vars.secret_refs.DB_PASSWORD, { secret: 'db-password', version: 'latest' });
-  assert.deepEqual(vars.secret_refs.BEEHIIV_API_KEY, { secret: 'nido-beehiiv-api-key', version: 'latest' });
+  assert.equal(
+    vars.runtime_env.BEEHIIV_PUBLICATION_ID,
+    'pub_83e3968e-2648-46bd-b71b-ac9a35e4bab4',
+  );
+  assert.deepEqual(vars.secret_refs.DB_PASSWORD, {
+    secret: 'db-password',
+    version: 'latest',
+  });
+  assert.deepEqual(vars.secret_refs.BEEHIIV_API_KEY, {
+    secret: 'nido-beehiiv-api-key',
+    version: 'latest',
+  });
   assert.deepEqual(vars.secret_refs.INTERNAL_SCHEDULER_SECRET, {
     secret: 'nido-scheduler-secret',
     version: 'latest',
@@ -52,6 +65,13 @@ test('uses the existing deployment config without embedding secret values', () =
   assert.equal(vars.vpc_network, null);
   assert.equal(vars.vpc_subnet, null);
   assert.equal(vars.vpc_egress, null);
+  assert.equal(vars.worker_min_instances, 0);
+  assert.equal(vars.worker_max_instances, 2);
+  assert.equal(vars.worker_concurrency, 2);
+  assert.equal(vars.cloud_tasks_dispatch_rate, 1);
+  assert.equal(vars.cloud_tasks_max_concurrency, 2);
+  assert.equal(vars.cloud_tasks_max_attempts, 5);
+  assert.equal(vars.runtime_env.INGESTION_ASYNC_DISPATCH_ENABLED, 'true');
 });
 
 test('renders Direct VPC Egress variables when configured', () => {
@@ -77,13 +97,44 @@ test('renders Direct VPC Egress variables when configured', () => {
 });
 
 test('rejects startup migrations, placeholders, and malformed secret refs', () => {
-  assert.throws(() => renderTerraformVars({ ...deploymentEnv, DB_MIGRATIONS_RUN: 'true' }));
-  assert.throws(() => renderTerraformVars({ ...deploymentEnv, ADMIN_EMAILS: '__FROM_GITHUB_VAR__' }));
-  assert.throws(() => renderTerraformVars({ ...deploymentEnv, DB_PASSWORD_SECRET: 'db-password' }));
-  assert.throws(() => renderTerraformVars({ ...deploymentEnv, TERRAFORM_API_IMAGE: 'image:latest' }));
-  assert.throws(() => renderTerraformVars({ ...deploymentEnv, CLOUD_RUN_MIN_INSTANCES: '21' }));
-  assert.throws(() => renderTerraformVars({ ...deploymentEnv, VPC_NETWORK: 'Invalid_Network', VPC_SUBNET: 'default' }));
-  assert.throws(() => renderTerraformVars({ ...deploymentEnv, VPC_NETWORK: 'default', VPC_SUBNET: 'Invalid_Subnet' }));
+  assert.throws(() =>
+    renderTerraformVars({ ...deploymentEnv, DB_MIGRATIONS_RUN: 'true' }),
+  );
+  assert.throws(() =>
+    renderTerraformVars({
+      ...deploymentEnv,
+      ADMIN_EMAILS: '__FROM_GITHUB_VAR__',
+    }),
+  );
+  assert.throws(() =>
+    renderTerraformVars({
+      ...deploymentEnv,
+      DB_PASSWORD_SECRET: 'db-password',
+    }),
+  );
+  assert.throws(() =>
+    renderTerraformVars({
+      ...deploymentEnv,
+      TERRAFORM_API_IMAGE: 'image:latest',
+    }),
+  );
+  assert.throws(() =>
+    renderTerraformVars({ ...deploymentEnv, CLOUD_RUN_MIN_INSTANCES: '21' }),
+  );
+  assert.throws(() =>
+    renderTerraformVars({
+      ...deploymentEnv,
+      VPC_NETWORK: 'Invalid_Network',
+      VPC_SUBNET: 'default',
+    }),
+  );
+  assert.throws(() =>
+    renderTerraformVars({
+      ...deploymentEnv,
+      VPC_NETWORK: 'default',
+      VPC_SUBNET: 'Invalid_Subnet',
+    }),
+  );
   assert.throws(() =>
     renderTerraformVars({
       ...deploymentEnv,
@@ -92,5 +143,7 @@ test('rejects startup migrations, placeholders, and malformed secret refs', () =
       VPC_EGRESS: 'invalid-egress',
     }),
   );
-  assert.throws(() => renderTerraformVars({ ...deploymentEnv, VPC_NETWORK: 'default' }));
+  assert.throws(() =>
+    renderTerraformVars({ ...deploymentEnv, VPC_NETWORK: 'default' }),
+  );
 });

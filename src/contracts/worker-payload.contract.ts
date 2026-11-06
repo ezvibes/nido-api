@@ -7,7 +7,8 @@ export const CloudTasksWorkerPayloadSchema = z
       .number()
       .int('attempt must be an integer')
       .min(1, 'attempt must be >= 1')
-      .max(25, 'attempt cannot exceed maximum retries (25)'),
+      .max(25, 'attempt cannot exceed maximum retries (25)')
+      .optional(),
   })
   .strict();
 

@@ -6,18 +6,56 @@ const oldImage = `repo/nido-api@sha256:${'a'.repeat(64)}`;
 const newImage = `repo/nido-api@sha256:${'b'.repeat(64)}`;
 const service = (image, ingress = 'INGRESS_TRAFFIC_ALL') => ({
   ingress,
-  template: [{ containers: [{ image, env: [{ name: 'DB_MIGRATIONS_RUN', value: 'false' }] }] }],
+  template: [
+    {
+      containers: [
+        { image, env: [{ name: 'DB_MIGRATIONS_RUN', value: 'false' }] },
+      ],
+    },
+  ],
 });
 const plan = (before, after, actions = ['update']) => ({
-  resource_changes: [{
-    address: 'google_cloud_run_v2_service.nido_api',
-    change: { actions, before, after },
-  }],
+  resource_changes: [
+    {
+      address: 'google_cloud_run_v2_service.nido_api',
+      change: { actions, before, after },
+    },
+  ],
 });
 
 test('accepts the built digest as the only service change or a no-op', () => {
-  assert.doesNotThrow(() => validateTerraformPlan(plan(service(oldImage), service(newImage)), newImage));
-  assert.doesNotThrow(() => validateTerraformPlan(plan(service(newImage), service(newImage), ['no-op']), newImage));
+  assert.doesNotThrow(() =>
+    validateTerraformPlan(plan(service(oldImage), service(newImage)), newImage),
+  );
+  assert.doesNotThrow(() =>
+    validateTerraformPlan(
+      plan(service(newImage), service(newImage), ['no-op']),
+      newImage,
+    ),
+  );
+  assert.doesNotThrow(() => {
+    const multiPlan = {
+      resource_changes: [
+        {
+          address: 'google_cloud_run_v2_service.nido_api',
+          change: {
+            actions: ['update'],
+            before: service(oldImage),
+            after: service(newImage),
+          },
+        },
+        {
+          address: 'google_cloud_run_v2_service.nido_worker[0]',
+          change: {
+            actions: ['update'],
+            before: service(oldImage),
+            after: service(newImage),
+          },
+        },
+      ],
+    };
+    validateTerraformPlan(multiPlan, newImage);
+  });
   assert.doesNotThrow(() => {
     const before = service(oldImage);
     const after = {
@@ -48,9 +86,24 @@ test('accepts the built digest as the only service change or a no-op', () => {
 });
 
 test('rejects configuration drift, unexpected resources, and other plans', () => {
-  assert.throws(() => validateTerraformPlan(plan(service(oldImage), service(newImage, 'INGRESS_TRAFFIC_INTERNAL_ONLY')), newImage));
-  assert.throws(() => validateTerraformPlan(plan(service(oldImage), service(oldImage)), newImage));
-  assert.throws(() => validateTerraformPlan(plan(service(oldImage), service(newImage), ['delete', 'create']), newImage));
+  assert.throws(() =>
+    validateTerraformPlan(
+      plan(
+        service(oldImage),
+        service(newImage, 'INGRESS_TRAFFIC_INTERNAL_ONLY'),
+      ),
+      newImage,
+    ),
+  );
+  assert.throws(() =>
+    validateTerraformPlan(plan(service(oldImage), service(oldImage)), newImage),
+  );
+  assert.throws(() =>
+    validateTerraformPlan(
+      plan(service(oldImage), service(newImage), ['delete', 'create']),
+      newImage,
+    ),
+  );
   assert.throws(() => {
     const before = service(oldImage);
     const after = {
@@ -61,7 +114,9 @@ test('rejects configuration drift, unexpected resources, and other plans', () =>
           vpc_access: [
             {
               egress: 'PRIVATE_RANGES_ONLY',
-              network_interfaces: [{ network: 'default', subnetwork: 'default' }],
+              network_interfaces: [
+                { network: 'default', subnetwork: 'default' },
+              ],
             },
           ],
         },
@@ -69,9 +124,21 @@ test('rejects configuration drift, unexpected resources, and other plans', () =>
     };
     validateTerraformPlan(plan(before, after), newImage);
   });
-  assert.throws(() => validateTerraformPlan({ resource_changes: [] }, newImage));
-  assert.throws(() => validateTerraformPlan({ resource_changes: [
-    ...plan(service(oldImage), service(newImage)).resource_changes,
-    { address: 'google_storage_bucket.state', change: { actions: ['create'] } },
-  ] }, newImage));
+  assert.throws(() =>
+    validateTerraformPlan({ resource_changes: [] }, newImage),
+  );
+  assert.throws(() =>
+    validateTerraformPlan(
+      {
+        resource_changes: [
+          ...plan(service(oldImage), service(newImage)).resource_changes,
+          {
+            address: 'google_storage_bucket.state',
+            change: { actions: ['create'] },
+          },
+        ],
+      },
+      newImage,
+    ),
+  );
 });
