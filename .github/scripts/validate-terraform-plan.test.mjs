@@ -4,12 +4,15 @@ import { validateTerraformPlan } from './validate-terraform-plan.mjs';
 
 const oldImage = `repo/nido-api@sha256:${'a'.repeat(64)}`;
 const newImage = `repo/nido-api@sha256:${'b'.repeat(64)}`;
-const service = (image, ingress = 'INGRESS_TRAFFIC_ALL') => ({
+const service = (image, ingress = 'INGRESS_TRAFFIC_ALL', extraEnv = []) => ({
   ingress,
   template: [
     {
       containers: [
-        { image, env: [{ name: 'DB_MIGRATIONS_RUN', value: 'false' }] },
+        {
+          image,
+          env: [{ name: 'DB_MIGRATIONS_RUN', value: 'false' }, ...extraEnv],
+        },
       ],
     },
   ],
@@ -85,7 +88,18 @@ test('accepts the built digest as the only service change or a no-op', () => {
   });
 });
 
-test('accepts initial provisioning of worker pipeline resources alongside API service image update', () => {
+test('accepts initial provisioning of worker pipeline resources alongside API service image update and worker env vars', () => {
+  const workerEnv = [
+    { name: 'INGESTION_ASYNC_DISPATCH_ENABLED', value: 'true' },
+    {
+      name: 'CLOUD_TASKS_QUEUE_PATH',
+      value: 'projects/p/locations/l/queues/q',
+    },
+    { name: 'INGESTION_WORKER_URL', value: 'https://worker' },
+    { name: 'INGESTION_WORKER_AUDIENCE', value: 'https://worker' },
+    { name: 'CLOUD_TASKS_INVOKER_SA', value: 'sa@p.iam.gserviceaccount.com' },
+  ];
+
   const initialBootstrapPlan = {
     resource_changes: [
       {
@@ -93,7 +107,7 @@ test('accepts initial provisioning of worker pipeline resources alongside API se
         change: {
           actions: ['update'],
           before: service(oldImage),
-          after: service(newImage),
+          after: service(newImage, 'INGRESS_TRAFFIC_ALL', workerEnv),
         },
       },
       {
@@ -113,7 +127,7 @@ test('accepts initial provisioning of worker pipeline resources alongside API se
         change: {
           actions: ['create'],
           before: null,
-          after: service(newImage),
+          after: service(newImage, 'INGRESS_TRAFFIC_ALL', workerEnv),
         },
       },
       {
@@ -128,7 +142,7 @@ test('accepts initial provisioning of worker pipeline resources alongside API se
   );
 });
 
-test('rejects configuration drift, unexpected resources, and other plans', () => {
+test('rejects configuration drift, unexpected resources, and unauthorized env vars', () => {
   assert.throws(() =>
     validateTerraformPlan(
       plan(
@@ -147,6 +161,13 @@ test('rejects configuration drift, unexpected resources, and other plans', () =>
       newImage,
     ),
   );
+  assert.throws(() => {
+    const before = service(oldImage);
+    const after = service(newImage, 'INGRESS_TRAFFIC_ALL', [
+      { name: 'UNAUTHORIZED_CUSTOM_VAR', value: 'attack' },
+    ]);
+    validateTerraformPlan(plan(before, after), newImage);
+  }, /Plan changes API service Cloud Run settings besides the release image/);
   assert.throws(() => {
     const before = service(oldImage);
     const after = {
