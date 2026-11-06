@@ -470,11 +470,17 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
 - **Priority Venue Roster:** ${EZ_VIBES_CORE_VENUES.join(', ')}.
 - **Priority Festival Roster:** ${EZ_VIBES_CORE_FESTIVALS.join(', ')}.
 - **Language Discipline:** Natural scene vocabulary ("in the pocket", "heaters", "heads", "bring a friend"). Strictly avoid corporate superlatives ("a night you won't forget", "must-see sensation"), fake firsthand attendance, or forced hype.
-- **Structural Rules:**
-  - 5 Quick Hits emojis: 👑 EZ Vibes Update, 🐸 Featured Show, 💫 Featured Festival, ✅ Top Picks, 🤝 Partnership Opportunities.
-  - Top Picks layout: [**Band Name**](Ticket URL) [(FREE!) if applicable] \\n **Venue Name** – City, State \\n *The Vibe:* One punchy sentence.
-  - Partner with EZ Vibes: Highlight the 40%+ open rate.
-  - Sign-off: "Find a show and bring a friend,\\nEvan and Camille from EZ Vibes".`;
+- **Structural Rules (10-Section Canonical Flow):**
+  - 1. Header Banner & Date Range
+  - 2. Quick Hits (5 emoji bullets: 👑 EZ Vibes Update, 🐸 Featured Show, 💫 Featured Festival, ✅ Top Picks, 🤝 Partnership Opportunities)
+  - 3. The EZ Vibes Update (personal recap & community photos)
+  - 4. Featured Show Breakdown (high-contrast ticket button)
+  - 5. Featured Festival Spotlight (ticket/info button)
+  - 6. Top Picks Schedule (chronological layout: [**Band Name**](Ticket URL) [(FREE!) if applicable] \\n **Venue Name** – City, State \\n *The Vibe:* One punchy sentence)
+  - 7. Weekly Community Poll: Ask readers which show/festival they are hitting this week.
+  - 8. Partner with EZ Vibes: Highlight the 40%+ open rate.
+  - 9. Join the Street Team: 5 referrals = sticker, 10 = hat, 20 = pair of free tickets to The Pour House or Bowstring (with {{ referral_program }}).
+  - 10. Sign-off & Social Links: "Find a show and bring a friend,\\nEvan and Camille from EZ Vibes".`;
   }
 
   public convertMarkdownToHtml(markdown: string): string {

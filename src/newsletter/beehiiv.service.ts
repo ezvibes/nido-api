@@ -22,6 +22,9 @@ export interface BeehiivDraftResponse {
   created_at?: number;
 }
 
+export const DEFAULT_BEEHIIV_POST_TEMPLATE_ID =
+  'post_template_8ab6a846-90c0-4a8a-8445-713dc8174a18';
+
 export interface BeehiivLinkClick {
   url: string;
   clicks: number;
@@ -86,13 +89,15 @@ export class BeehiivService {
 
     const postTemplateId =
       params.postTemplateId ||
-      this.configService.get<string>('BEEHIIV_POST_TEMPLATE_ID')?.trim();
+      this.configService.get<string>('BEEHIIV_POST_TEMPLATE_ID')?.trim() ||
+      DEFAULT_BEEHIIV_POST_TEMPLATE_ID;
 
     const endpoint = `https://api.beehiiv.com/v2/publications/${publicationId}/posts`;
 
     const payload: Record<string, any> = {
       title: params.title,
       status: 'draft',
+      body_content: params.htmlContent,
       blocks: [
         {
           type: 'html',
@@ -136,13 +141,15 @@ export class BeehiivService {
         `Successfully created Beehiiv draft post ID: ${draftData.id}`,
       );
 
+      const rawPostUuid = String(draftData.id || '').replace(/^post_/, '');
+
       return {
         id: draftData.id,
         title: draftData.title,
         subtitle: draftData.subtitle,
         status: draftData.status,
         web_url: draftData.web_url,
-        edit_url: `https://app.beehiiv.com/posts/${draftData.id}/edit`,
+        edit_url: `https://app.beehiiv.com/posts/${rawPostUuid}/edit`,
         created_at: draftData.created_at,
       };
     } catch (err) {
