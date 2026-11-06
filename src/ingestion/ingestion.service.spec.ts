@@ -62,7 +62,9 @@ describe('IngestionService', () => {
 
   const mockManager = {
     create: jest.fn().mockImplementation((entity, val) => val),
-    save: jest.fn().mockImplementation(async (val) => ({ id: 'job-1', ...val })),
+    save: jest
+      .fn()
+      .mockImplementation(async (val) => ({ id: 'job-1', ...val })),
   };
 
   const mockDataSource = {
@@ -79,8 +81,13 @@ describe('IngestionService', () => {
       { id: 'band-uuid', name: 'Mock Band' },
     ]);
     mockManager.create.mockImplementation((entity, val) => val);
-    mockManager.save.mockImplementation(async (val) => ({ id: 'job-1', ...val }));
-    mockDataSource.transaction.mockImplementation(async (cb) => cb(mockManager));
+    mockManager.save.mockImplementation(async (val) => ({
+      id: 'job-1',
+      ...val,
+    }));
+    mockDataSource.transaction.mockImplementation(async (cb) =>
+      cb(mockManager),
+    );
     concertUploadRepository.manager.transaction.mockImplementation(
       async (callback) =>
         callback({
@@ -97,7 +104,10 @@ describe('IngestionService', () => {
       providers: [
         IngestionService,
         { provide: DataSource, useValue: mockDataSource },
-        { provide: IngestionTasksDispatcherService, useValue: { dispatchJob: jest.fn().mockResolvedValue(true) } },
+        {
+          provide: IngestionTasksDispatcherService,
+          useValue: { dispatchJob: jest.fn().mockResolvedValue(true) },
+        },
         {
           provide: ConfigService,
           useValue: {
@@ -369,6 +379,7 @@ describe('IngestionService', () => {
       updatedAt: new Date(),
     });
 
+    const runExtractionSpy = jest.spyOn(service, 'runExtractionPipeline');
     const result = await service.createJob('asset-1', 'uid-1');
 
     expect(concertUploadRepository.findOne).toHaveBeenCalledWith({
@@ -378,6 +389,8 @@ describe('IngestionService', () => {
     expect(result.concertUpload.id).toBe('asset-1');
     expect(result.concertUpload.genre).toBe('Electronic');
     expect(result.concertUpload.uploadedByUserId).toBe(3);
+    // Verifies no post-response void processing in API path
+    expect(runExtractionSpy).not.toHaveBeenCalled();
   });
 
   it('should return an owned concert upload by id', async () => {
@@ -684,7 +697,10 @@ describe('IngestionService', () => {
       providers: [
         IngestionService,
         { provide: DataSource, useValue: mockDataSource },
-        { provide: IngestionTasksDispatcherService, useValue: { dispatchJob: jest.fn().mockResolvedValue(true) } },
+        {
+          provide: IngestionTasksDispatcherService,
+          useValue: { dispatchJob: jest.fn().mockResolvedValue(true) },
+        },
         {
           provide: ConfigService,
           useValue: {

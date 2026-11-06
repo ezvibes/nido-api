@@ -388,18 +388,11 @@ export class IngestionService {
       return job;
     });
 
-    // Attempt async Cloud Tasks dispatch; if disabled or unconfigured, execute in-process fallback
-    const dispatched = await this.tasksDispatcher.dispatchJob(ingestionJob.id);
-    if (!dispatched) {
-      this.logger.log(
-        `Async queue dispatch inactive for job ${ingestionJob.id}; executing synchronous in-process fallback`,
-      );
-      void this.runExtractionPipeline(ingestionJob.id).catch((err) => {
-        this.logger.error(
-          `Synchronous extraction fallback error for job ${ingestionJob.id}: ${err.message}`,
-        );
-      });
-    }
+    // Dispatch job to Cloud Tasks queue outside DB transaction.
+    // If async dispatch is disabled or encounters a transient failure,
+    // the committed outbox record remains pending for asynchronous redrive.
+    // No post-response void processing remains in the API path.
+    await this.tasksDispatcher.dispatchJob(ingestionJob.id);
 
     return this.mapJobResponse(
       Object.assign(new IngestionJob(), {
@@ -762,7 +755,8 @@ export class IngestionService {
       let candidates: IngestionCandidate[] = [];
       if (typeof (this.dataSource as any)?.getRepository === 'function') {
         try {
-          const candidateRepo = this.dataSource.getRepository(IngestionCandidate);
+          const candidateRepo =
+            this.dataSource.getRepository(IngestionCandidate);
           if (typeof candidateRepo?.find === 'function') {
             candidates = await candidateRepo.find({
               where: { ingestionJobId: job.id },
@@ -831,7 +825,7 @@ export class IngestionService {
           c.provenance?.venueExtracted?.rawValue ||
           c.provenance?.venue?.rawValue,
         bandNames: Array.isArray(c.provenance?.bands)
-          ? c.provenance!.bands!.map((b: any) => b.rawValue).filter(Boolean)
+          ? c.provenance.bands.map((b: any) => b.rawValue).filter(Boolean)
           : c.provenance?.performerLineup?.rawValue
             ? c.provenance.performerLineup.rawValue
                 .split(',')
@@ -880,7 +874,10 @@ export class IngestionService {
 
       const upload = job.concertUpload;
 
-      if (job.stage !== IngestionStage.QUEUED && job.stage !== IngestionStage.ASSET_VALIDATED) {
+      if (
+        job.stage !== IngestionStage.QUEUED &&
+        job.stage !== IngestionStage.ASSET_VALIDATED
+      ) {
         return; // Idempotency: skip if already extracted or further along
       }
 
@@ -944,12 +941,16 @@ export class IngestionService {
         } catch (downloadErr) {
           this.logger.warn(
             `Could not download poster buffer for ${upload.storageUri}: ${
-              downloadErr instanceof Error ? downloadErr.message : String(downloadErr)
+              downloadErr instanceof Error
+                ? downloadErr.message
+                : String(downloadErr)
             }`,
           );
           throw downloadErr instanceof Error
             ? downloadErr
-            : new Error(`Failed to download poster image from ${upload.storageUri}`);
+            : new Error(
+                `Failed to download poster image from ${upload.storageUri}`,
+              );
         }
       }
 
@@ -982,7 +983,7 @@ export class IngestionService {
           }
         }
 
-        let suggestedBandIds: string[] = [];
+        const suggestedBandIds: string[] = [];
         if (result.performers && result.performers.length > 0) {
           for (const p of result.performers) {
             const bands = await this.bandService.findAll({ q: p.name });
@@ -996,7 +997,8 @@ export class IngestionService {
           candidateIndex: idx,
           status: 'pending',
           suggestedVenueId: suggestedVenueId || null,
-          suggestedBandIds: suggestedBandIds.length > 0 ? suggestedBandIds : null,
+          suggestedBandIds:
+            suggestedBandIds.length > 0 ? suggestedBandIds : null,
           provenance: {
             title: {
               rawValue: result.title,
@@ -1072,13 +1074,14 @@ export class IngestionService {
                   confidence: 0.9,
                 }))
               : undefined,
-            genres: (result.primaryGenre || result.genre)
-              ? {
-                  rawValue: result.primaryGenre || result.genre,
-                  source: 'extraction',
-                  confidence: 0.9,
-                }
-              : undefined,
+            genres:
+              result.primaryGenre || result.genre
+                ? {
+                    rawValue: result.primaryGenre || result.genre,
+                    source: 'extraction',
+                    confidence: 0.9,
+                  }
+                : undefined,
             primaryGenre: result.primaryGenre
               ? {
                   rawValue: result.primaryGenre,
@@ -1090,8 +1093,8 @@ export class IngestionService {
               result.genres && result.genres.length > 0
                 ? result.genres
                 : result.primaryGenre
-                ? [result.primaryGenre]
-                : undefined,
+                  ? [result.primaryGenre]
+                  : undefined,
             isFestival: Boolean(result.isFestival),
             ticketPrice: result.ticketPrice,
             ageRestriction: result.ageRestriction,
@@ -1133,6 +1136,8 @@ export class IngestionService {
         status: 'retryable_failure',
         stage: IngestionStage.QUEUED,
         errorMessage,
+        leaseOwner: null,
+        leaseExpiresAt: null,
       });
       throw error;
     }

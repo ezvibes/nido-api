@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { ExecutionContext, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import {
+  ExecutionContext,
+  UnauthorizedException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { GoogleOidcGuard } from './google-oidc.guard';
 
 const mockVerifyIdToken = jest.fn();
@@ -22,9 +26,12 @@ describe('GoogleOidcGuard', () => {
   beforeEach(async () => {
     mockConfigService = {
       get: jest.fn((key: string) => {
-        if (key === 'INGESTION_WORKER_AUDIENCE') return 'https://test-worker-url';
-        if (key === 'INGESTION_WORKER_URL') return 'https://test-worker-url/process';
-        if (key === 'CLOUD_TASKS_INVOKER_SA') return 'test-sa@test-project.iam.gserviceaccount.com';
+        if (key === 'INGESTION_WORKER_AUDIENCE')
+          return 'https://test-worker-url';
+        if (key === 'INGESTION_WORKER_URL')
+          return 'https://test-worker-url/process';
+        if (key === 'CLOUD_TASKS_INVOKER_SA')
+          return 'test-sa@test-project.iam.gserviceaccount.com';
         return undefined;
       }),
     };
@@ -61,18 +68,24 @@ describe('GoogleOidcGuard', () => {
 
   it('should throw UnauthorizedException if no auth header', async () => {
     const context = createMockContext();
-    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('should throw UnauthorizedException if auth header is not Bearer', async () => {
     const context = createMockContext('Basic dGVzdDp0ZXN0');
-    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('should throw ForbiddenException if missing config', async () => {
     (mockConfigService.get as jest.Mock).mockReturnValue(undefined);
     const context = createMockContext('Bearer test-token');
-    await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 
   it('should return true for valid token and email', async () => {
@@ -101,13 +114,42 @@ describe('GoogleOidcGuard', () => {
     });
 
     const context = createMockContext('Bearer attacker-token');
-    await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('should throw UnauthorizedException if token has wrong audience', async () => {
+    mockVerifyIdToken.mockRejectedValue(
+      new Error('Wrong recipient, payload audience != requiredAudience'),
+    );
+
+    const context = createMockContext('Bearer wrong-audience-token');
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('should throw ForbiddenException if email is not verified', async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      getPayload: () => ({
+        email: 'test-sa@test-project.iam.gserviceaccount.com',
+        email_verified: false,
+      }),
+    });
+
+    const context = createMockContext('Bearer unverified-email-token');
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 
   it('should throw UnauthorizedException if verifyIdToken fails', async () => {
     mockVerifyIdToken.mockRejectedValue(new Error('Invalid signature'));
 
     const context = createMockContext('Bearer invalid-token');
-    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 });

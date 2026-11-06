@@ -37,14 +37,21 @@ describe('IngestionWorkerController', () => {
     };
 
     jobRepository = {
-      findOne: jest.fn(),
+      findOne: jest.fn().mockImplementation(async ({ where }) => ({
+        id: where?.id || 'job-default',
+        stage: IngestionStage.QUEUED,
+        status: 'queued',
+      })),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [IngestionWorkerController],
       providers: [
-        { provide: IngestionStateMachineService, useValue: stateMachineService },
+        {
+          provide: IngestionStateMachineService,
+          useValue: stateMachineService,
+        },
         { provide: IngestionService, useValue: ingestionService },
         { provide: IngestionTasksDispatcherService, useValue: tasksDispatcher },
         { provide: getRepositoryToken(IngestionJob), useValue: jobRepository },
@@ -107,7 +114,9 @@ describe('IngestionWorkerController', () => {
       expect.any(String),
       expect.any(Number),
     );
-    expect(ingestionService.runExtractionPipeline).toHaveBeenCalledWith('job-2');
+    expect(ingestionService.runExtractionPipeline).toHaveBeenCalledWith(
+      'job-2',
+    );
   });
 
   it('should throw InternalServerErrorException for transient errors', async () => {
@@ -132,6 +141,8 @@ describe('IngestionWorkerController', () => {
     expect(jobRepository.update).toHaveBeenCalledWith('job-4', {
       status: IngestionTerminalStatus.TERMINAL_FAILURE,
       errorMessage: 'Job not found',
+      leaseOwner: null,
+      leaseExpiresAt: null,
     });
   });
 

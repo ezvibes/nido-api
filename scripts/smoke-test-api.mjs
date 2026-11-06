@@ -12,6 +12,10 @@ const authenticatedConcertsEnabled = parseBoolean(
   process.env.SMOKE_AUTHENTICATED_CONCERTS,
   false,
 );
+const ingestionPipelineEnabled = parseBoolean(
+  process.env.SMOKE_INGESTION_PIPELINE,
+  false,
+);
 const retries = Number(process.env.SMOKE_RETRIES ?? (mode === 'dev' ? 5 : 1));
 const retryDelayMs = Number(process.env.SMOKE_RETRY_DELAY_MS ?? 3000);
 const requestTimeoutMs = Number(process.env.SMOKE_TIMEOUT_MS ?? 10000);
@@ -86,6 +90,24 @@ if (authenticatedConcertsEnabled) {
       const body = await response.json();
       if (!body.newsletterDraft || typeof body.newsletterDraft !== 'string') {
         throw new Error('Newsletter generation did not return a valid draft');
+      }
+    },
+  });
+}
+
+if (ingestionPipelineEnabled) {
+  if (!bearerToken) {
+    throw new Error(
+      'SMOKE_INGESTION_PIPELINE requires API_BEARER_TOKEN or FIREBASE_REFRESH_TOKEN and FIREBASE_API_KEY',
+    );
+  }
+  checks.push({
+    name: 'authenticated ingestion submissions',
+    path: '/ingestion/submissions',
+    validate: async (response) => {
+      const body = await response.json();
+      if (!Array.isArray(body)) {
+        throw new Error('Submissions response does not include an array');
       }
     },
   });
