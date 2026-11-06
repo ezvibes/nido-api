@@ -90,11 +90,15 @@ Format EVERY show chronologically using this EXACT layout:
 **[Venue Name]** – [City, State]
 ***The Vibe:*** *[One punchy, specific sentence emphasizing energy or community aspect. No generic filler. Use italics.]*
 
-#### 6. Partner with EZ Vibes
+#### 6. Weekly Community Poll
+### Which show are you hitting this week?
+Cast your vote below or reply directly to this email with your weekend plans!
+
+#### 7. Partner with EZ Vibes
 ### Partner with the Vibe
 Are you a venue, festival organizer, or local brand looking to connect with North Carolina’s most dedicated live music community? EZ Vibes offers custom partnership packages, targeted social media promotion, and on-the-ground Squad Ambassador content coverage. With a highly engaged audience and a 40%+ newsletter open rate, we keep the music moving. Reach out to coordinate coverage for your upcoming calendar.
 
-#### 7. Join the EZ Vibes Street Team
+#### 8. Join the EZ Vibes Street Team
 ### Share the Vibe, Earn Free Merch & Tickets
 Share the music with your crew and get rewarded when they subscribe:
 - 🎟️ **5 Referrals:** Official EZ Vibes Holographic Sticker
@@ -103,10 +107,6 @@ Share the music with your crew and get rewarded when they subscribe:
 
 {{ referral_program }}
 
-#### 8. Weekly Community Poll
-### Which show are you hitting this week?
-Cast your vote below or reply directly to this email with your weekend plans!
-
-#### 9. Sign-off
+#### 9. Sign-off & Social Links
 Find a show and bring a friend,
 Evan and Camille from EZ Vibes
