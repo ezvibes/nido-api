@@ -474,6 +474,8 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
   - 5 Quick Hits emojis: 👑 EZ Vibes Update, 🐸 Featured Show, 💫 Featured Festival, ✅ Top Picks, 🤝 Partnership Opportunities.
   - Top Picks layout: [**Band Name**](Ticket URL) [(FREE!) if applicable] \\n **Venue Name** – City, State \\n *The Vibe:* One punchy sentence.
   - Partner with EZ Vibes: Highlight the 40%+ open rate.
+  - Join the Street Team: 5 referrals = sticker, 10 = hat, 20 = pair of free tickets to The Pour House or Bowstring (with {{ referral_program }}).
+  - Weekly Community Poll: Ask readers which show/festival they are hitting this week.
   - Sign-off: "Find a show and bring a friend,\\nEvan and Camille from EZ Vibes".`;
   }
 

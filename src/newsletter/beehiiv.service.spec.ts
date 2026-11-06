@@ -91,6 +91,8 @@ describe('BeehiivService', () => {
         title: 'EZ Vibes Top Picks: Sep 10 - Sep 15, 2026',
         post_template_id: 'tpl_67890',
         status: 'draft',
+        body_content:
+          '<h1>Weekly Top Picks</h1><p>Check out Papadosio live!</p>',
         blocks: [
           {
             type: 'html',
