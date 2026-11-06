@@ -20,11 +20,26 @@ const allowedInfrastructureAddresses = new Set([
   'google_cloud_run_v2_service_iam_member.worker_invoker[0]',
 ]);
 
+const approvedWorkerEnvVars = new Set([
+  'INGESTION_ASYNC_DISPATCH_ENABLED',
+  'CLOUD_TASKS_QUEUE_PATH',
+  'INGESTION_WORKER_URL',
+  'INGESTION_WORKER_AUDIENCE',
+  'CLOUD_TASKS_INVOKER_SA',
+]);
+
 const imageOf = (service) => service?.template?.[0]?.containers?.[0]?.image;
 
 const withoutReleaseImage = (service) => {
   const copy = structuredClone(service);
-  delete copy.template[0].containers[0].image;
+  if (copy?.template?.[0]?.containers?.[0]) {
+    delete copy.template[0].containers[0].image;
+    if (Array.isArray(copy.template[0].containers[0].env)) {
+      copy.template[0].containers[0].env = copy.template[0].containers[0].env.filter(
+        (e) => !approvedWorkerEnvVars.has(e?.name),
+      );
+    }
+  }
   delete copy.labels;
   delete copy.effective_labels;
   delete copy.terraform_labels;
