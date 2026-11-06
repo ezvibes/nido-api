@@ -85,6 +85,49 @@ test('accepts the built digest as the only service change or a no-op', () => {
   });
 });
 
+test('accepts initial provisioning of worker pipeline resources alongside API service image update', () => {
+  const initialBootstrapPlan = {
+    resource_changes: [
+      {
+        address: 'google_cloud_run_v2_service.nido_api',
+        change: {
+          actions: ['update'],
+          before: service(oldImage),
+          after: service(newImage),
+        },
+      },
+      {
+        address: 'google_project_service.cloudtasks[0]',
+        change: { actions: ['create'] },
+      },
+      {
+        address: 'google_cloud_tasks_queue.ingestion_worker[0]',
+        change: { actions: ['create'] },
+      },
+      {
+        address: 'google_cloud_tasks_queue_iam_member.api_enqueuer[0]',
+        change: { actions: ['create'] },
+      },
+      {
+        address: 'google_cloud_run_v2_service.nido_worker[0]',
+        change: {
+          actions: ['create'],
+          before: null,
+          after: service(newImage),
+        },
+      },
+      {
+        address: 'google_cloud_run_v2_service_iam_member.worker_invoker[0]',
+        change: { actions: ['create'] },
+      },
+    ],
+  };
+
+  assert.doesNotThrow(() =>
+    validateTerraformPlan(initialBootstrapPlan, newImage),
+  );
+});
+
 test('rejects configuration drift, unexpected resources, and other plans', () => {
   assert.throws(() =>
     validateTerraformPlan(
@@ -124,21 +167,74 @@ test('rejects configuration drift, unexpected resources, and other plans', () =>
     };
     validateTerraformPlan(plan(before, after), newImage);
   });
-  assert.throws(() =>
-    validateTerraformPlan({ resource_changes: [] }, newImage),
+  assert.throws(
+    () => validateTerraformPlan({ resource_changes: [] }, newImage),
+    /Plan must contain between 1 and 6 allowed resources/,
   );
-  assert.throws(() =>
-    validateTerraformPlan(
-      {
-        resource_changes: [
-          ...plan(service(oldImage), service(newImage)).resource_changes,
-          {
-            address: 'google_storage_bucket.state',
-            change: { actions: ['create'] },
-          },
-        ],
-      },
-      newImage,
-    ),
+  assert.throws(
+    () =>
+      validateTerraformPlan(
+        {
+          resource_changes: [
+            {
+              address: 'google_cloud_tasks_queue.ingestion_worker[0]',
+              change: { actions: ['create'] },
+            },
+          ],
+        },
+        newImage,
+      ),
+    /Plan must include the nido_api service/,
+  );
+  assert.throws(
+    () =>
+      validateTerraformPlan(
+        {
+          resource_changes: [
+            ...plan(service(oldImage), service(newImage)).resource_changes,
+            {
+              address: 'google_storage_bucket.state',
+              change: { actions: ['create'] },
+            },
+          ],
+        },
+        newImage,
+      ),
+    /Plan contains an unauthorized resource: google_storage_bucket.state/,
+  );
+  assert.throws(
+    () =>
+      validateTerraformPlan(
+        {
+          resource_changes: [
+            ...plan(service(oldImage), service(newImage)).resource_changes,
+            {
+              address: 'google_cloud_tasks_queue.ingestion_worker[0]',
+              change: { actions: ['delete'] },
+            },
+          ],
+        },
+        newImage,
+      ),
+    /Plan must not delete resources/,
+  );
+  assert.throws(
+    () =>
+      validateTerraformPlan(
+        {
+          resource_changes: [
+            ...plan(service(oldImage), service(newImage)).resource_changes,
+            {
+              address: 'google_cloud_run_v2_service.nido_worker[0]',
+              change: {
+                actions: ['create'],
+                after: service(oldImage), // wrong digest
+              },
+            },
+          ],
+        },
+        newImage,
+      ),
+    /Planned worker service image differs from the built digest/,
   );
 });
