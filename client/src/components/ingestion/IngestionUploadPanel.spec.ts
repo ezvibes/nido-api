@@ -177,6 +177,46 @@ describe('IngestionUploadPanel', () => {
         concertDate: new Date('2026-10-15').toISOString(),
         venueId: 'venue-1',
         bandId: 'band-1',
+        state: 'NC',
+      }),
+    );
+  });
+
+  it('defaults state to NC and normalizes full region "North Carolina" from venue to "NC"', async () => {
+    api.fetchVenues.mockResolvedValue([
+      {
+        id: 'venue-nc',
+        name: 'The Orange Peel',
+        city: 'Asheville',
+        region: 'North Carolina',
+        regionSlug: 'nc',
+      },
+    ]);
+
+    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
+    await flushPromises();
+
+    // Default state should be NC
+    expect(wrapper.get<HTMLInputElement>('input[placeholder="NC"]').element.value).toBe('NC');
+
+    // Select venue with region 'North Carolina'
+    await wrapper.get('select[aria-label="Venue"]').setValue('venue-nc');
+    await wrapper.get('select[aria-label="Venue"]').trigger('change');
+    await flushPromises();
+
+    // State field remains/normalizes to 'NC'
+    expect(wrapper.get<HTMLInputElement>('input[placeholder="NC"]').element.value).toBe('NC');
+
+    await selectValidFile(wrapper);
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(api.uploadIngestionImage).toHaveBeenCalledWith(
+      'firebase-token',
+      expect.objectContaining({
+        venueId: 'venue-nc',
+        city: 'Asheville',
+        state: 'NC',
       }),
     );
   });
