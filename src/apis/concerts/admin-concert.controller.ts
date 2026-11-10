@@ -34,6 +34,7 @@ import { ConcertService } from './concert.service';
 import { IngestionService } from '../../ingestion/ingestion.service';
 import { UploadableFile } from '../../ingestion/interfaces/uploadable-file.interface';
 import { SetConcertApprovalDto } from './dto/set-concert-approval.dto';
+import { BulkConcertApprovalDto } from './dto/bulk-concert-approval.dto';
 import {
   AdminConcertListResponseDto,
   AdminConcertResponseDto,
@@ -110,6 +111,36 @@ export class AdminConcertController {
   ) {
     const reviewer = await this.userService.syncFromToken(user);
     return this.concertService.setAdminApproval(id, reviewer, body.approved);
+  }
+
+  @Post('bulk-approval')
+  @ApiOperation({
+    summary: 'Approve or unapprove multiple concerts in bulk',
+    description:
+      'Admin-only endpoint. Updates approval status for an array of concerts in one atomic operation.',
+  })
+  @ApiBody({ type: BulkConcertApprovalDto })
+  @ApiOkResponse({
+    description: 'Bulk approval result summary.',
+    schema: {
+      type: 'object',
+      properties: {
+        totalRequested: { type: 'number', example: 10 },
+        updatedCount: { type: 'number', example: 10 },
+        approved: { type: 'boolean', example: true },
+      },
+    },
+  })
+  async setBulkApproval(
+    @Body() body: BulkConcertApprovalDto,
+    @CurrentUser() user: DecodedIdToken,
+  ) {
+    const reviewer = await this.userService.syncFromToken(user);
+    return this.concertService.setBulkAdminApproval(
+      body.concertIds,
+      reviewer,
+      body.approved,
+    );
   }
 
   @Post(':id/poster')

@@ -9,8 +9,6 @@ import { createHash } from 'crypto';
 import { Between, In, Repository } from 'typeorm';
 import { Concert } from '../apis/concerts/entities/concert.entity';
 import { ConcertCatalogStatus } from '../apis/concerts/entities/concert.entity';
-import { Venue } from '../apis/venues/entities/venue.entity';
-import { Band } from '../apis/bands/entities/band.entity';
 import {
   ConcertBandLineup,
   PerformanceRole,
@@ -31,6 +29,7 @@ import { GoogleCalendarClientService } from './services/google-calendar-client.s
 import { IcalCalendarClientService } from './services/ical-calendar-client.service';
 import type { ConcertExtractionResult } from './interfaces/concert-extraction.interface';
 import type { GoogleCalendarEvent } from './interfaces/google-calendar-event.interface';
+import { evaluateConcertCompleteness } from '../apis/concerts/utils/concert-completeness.util';
 
 @Injectable()
 export class ConcertSyncService {
@@ -91,6 +90,7 @@ export class ConcertSyncService {
           maxEvents: this.resolveMaxEvents(dto.maxEvents),
           geminiEnabled: this.geminiExtractor.isGeminiEnabled(),
           sampleMode: Boolean(sampleEvents?.length),
+          autoApproveQualified: dto.autoApproveQualified ?? true,
           syncSource: sampleEvents?.length
             ? 'sample_events'
             : this.isPublicCalendarUrl(calendarId)
@@ -149,6 +149,7 @@ export class ConcertSyncService {
         calendarEventId: mapping.calendarEventId,
         concertId: mapping.concert?.id ?? null,
         concertTitle: mapping.concert?.title ?? null,
+        isAdminApproved: mapping.concert?.isAdminApproved ?? false,
         extractionConfidence: mapping.extractionConfidence ?? null,
         needsGuidance: mapping.needsGuidance,
         extractionWarnings: mapping.extractionWarnings,
@@ -244,6 +245,8 @@ export class ConcertSyncService {
       let updated = 0;
       let skipped = 0;
       let processed = 0;
+      let autoApproved = 0;
+      let needsReview = 0;
       const extractionWarnings = new Set<string>();
       const fallbackReasons = new Map<string, number>();
       let geminiExtractions = 0;
@@ -290,14 +293,25 @@ export class ConcertSyncService {
           }
         }
 
-        const { concert, wasCreated, wasSkipped } =
+        const autoApproveQualified = Boolean(
+          job.jobMetadata?.autoApproveQualified ?? true,
+        );
+
+        const { concert, wasCreated, wasSkipped, wasAutoApproved } =
           await this.upsertConcertFromEvent(
             job.owner,
             extraction,
             existingMapping?.concert?.id,
+            autoApproveQualified,
           );
 
         if (!wasSkipped) {
+          if (wasAutoApproved) {
+            autoApproved += 1;
+          } else {
+            needsReview += 1;
+          }
+
           await this.upsertSyncMapping({
             owner: job.owner,
             job,
@@ -337,6 +351,8 @@ export class ConcertSyncService {
         processableEvents: processableEvents.length,
         geminiExtractions,
         heuristicExtractions,
+        autoApprovedCount: autoApproved,
+        needsReviewCount: needsReview,
         fallbackReasons: Object.fromEntries(fallbackReasons),
         extractionWarnings: Array.from(extractionWarnings).slice(0, 20),
       };
@@ -566,6 +582,7 @@ export class ConcertSyncService {
     owner: User,
     extraction: ConcertExtractionResult,
     existingConcertId?: string,
+    autoApproveQualified = true,
   ) {
     let concert = existingConcertId
       ? await this.concertRepository.findOne({
@@ -582,6 +599,7 @@ export class ConcertSyncService {
         concert,
         wasCreated: false,
         wasSkipped: true,
+        wasAutoApproved: Boolean(concert.isAdminApproved),
       };
     }
 
@@ -614,6 +632,14 @@ export class ConcertSyncService {
         return cbl;
       });
 
+    const completeness = evaluateConcertCompleteness({
+      title: extraction.title,
+      genre: extraction.genre,
+      startsAt: new Date(extraction.startsAt),
+      venue: resolvedVenue,
+    });
+    const shouldAutoApprove = autoApproveQualified && completeness.isComplete;
+
     if (!concert) {
       concert = this.concertRepository.create({
         owner,
@@ -624,6 +650,9 @@ export class ConcertSyncService {
         venue: resolvedVenue,
         lineup: buildLineup(),
         description: extraction.description ?? null,
+        isAdminApproved: shouldAutoApprove,
+        adminApprovedAt: shouldAutoApprove ? new Date() : null,
+        adminApprovedByUserId: shouldAutoApprove ? owner.id : null,
       });
 
       const saved = await this.concertRepository.save(concert);
@@ -631,6 +660,7 @@ export class ConcertSyncService {
         concert: saved,
         wasCreated: true,
         wasSkipped: false,
+        wasAutoApproved: shouldAutoApprove,
       };
     }
 
@@ -647,6 +677,13 @@ export class ConcertSyncService {
             endsAt: extraction.endsAt ? new Date(extraction.endsAt) : null,
             venueId: resolvedVenue?.id ?? null,
             description: extraction.description ?? null,
+            ...(shouldAutoApprove
+              ? {
+                  isAdminApproved: true,
+                  adminApprovedAt: new Date(),
+                  adminApprovedByUserId: owner.id,
+                }
+              : {}),
           })
           .where('id = :concertId', { concertId: existingConcert.id })
           .andWhere('owner_id = :ownerId', { ownerId: owner.id })
@@ -684,6 +721,7 @@ export class ConcertSyncService {
         concert: existingConcert,
         wasCreated: false,
         wasSkipped: true,
+        wasAutoApproved: Boolean(existingConcert.isAdminApproved),
       };
     }
 
@@ -691,6 +729,7 @@ export class ConcertSyncService {
       concert: saved,
       wasCreated: false,
       wasSkipped: false,
+      wasAutoApproved: Boolean(saved.isAdminApproved),
     };
   }
 
