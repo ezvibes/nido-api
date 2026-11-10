@@ -144,10 +144,25 @@
             </p>
 
             <div v-if="showConcertsHandoff" class="concert-sync__handoff">
-              <p>
+              <p v-if="activeJob.metadata?.autoApprovedCount">
+                <strong>{{ activeJob.metadata.autoApprovedCount }}</strong>
+                shows auto-approved and live on public /concerts.
+                <span v-if="activeJob.metadata?.needsReviewCount">
+                  ({{ activeJob.metadata.needsReviewCount }} show(s) need
+                  review).
+                </span>
+              </p>
+              <p v-else>
                 Synced concerts are in My Concerts while they await admin
                 approval.
               </p>
+              <router-link
+                v-if="activeJob.metadata?.needsReviewCount"
+                class="concert-sync__secondary"
+                to="/admin/concerts"
+              >
+                Review Pending Shows
+              </router-link>
               <router-link class="concert-sync__primary" to="/my-concerts">
                 My Concerts
               </router-link>

@@ -22,6 +22,7 @@ import {
 } from './entities/concert-band-lineup.entity';
 import { ConcertSet } from './entities/concert-set.entity';
 import {
+  AdminConcertApprovalFilter,
   AdminConcertCatalogFilter,
   ListAdminConcertsDto,
 } from './dto/list-admin-concerts.dto';
@@ -87,6 +88,12 @@ export class ConcertService {
       qb.where('concert.catalogStatus = :catalogStatus', {
         catalogStatus: query.catalogStatus,
       });
+    }
+
+    if (query.approvalStatus === AdminConcertApprovalFilter.APPROVED) {
+      qb.andWhere('concert.isAdminApproved = true');
+    } else if (query.approvalStatus === AdminConcertApprovalFilter.PENDING) {
+      qb.andWhere('concert.isAdminApproved = false');
     }
 
     if (query.isFeatured !== undefined) {
@@ -539,6 +546,41 @@ export class ConcertService {
     }
 
     return this.findOneAdmin(id);
+  }
+
+  async setBulkAdminApproval(
+    concertIds: string[],
+    reviewer: User,
+    approved: boolean,
+  ) {
+    if (!concertIds || concertIds.length === 0) {
+      return { totalRequested: 0, updatedCount: 0, approved };
+    }
+
+    const uniqueIds = Array.from(new Set(concertIds));
+    const update: Partial<Concert> = {
+      isAdminApproved: approved,
+      adminApprovedAt: approved ? new Date() : null,
+      adminApprovedByUserId: approved ? reviewer.id : null,
+    };
+    if (!approved) {
+      update.isTopPick = false;
+      update.topPickScore = null;
+      update.topPickRefreshedAt = new Date();
+    }
+
+    const result = await this.concertRepository
+      .createQueryBuilder()
+      .update(Concert)
+      .set(update)
+      .where('id IN (:...uniqueIds)', { uniqueIds })
+      .execute();
+
+    return {
+      totalRequested: uniqueIds.length,
+      updatedCount: result.affected ?? 0,
+      approved,
+    };
   }
 
   async findOneAdmin(id: string) {

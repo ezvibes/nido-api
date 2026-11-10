@@ -7,6 +7,7 @@ import {
   fetchAdminConcerts,
   fetchConcertGenres,
   fetchVenues,
+  setBulkConcertApproval,
   setConcertApproval,
   updateAdminConcert,
   uploadConcertPoster,
@@ -15,6 +16,7 @@ import {
   type UpdateAdminConcertPayload,
   type VenueListItem,
 } from '../composables/useApi';
+import { evaluateConcertCompleteness } from '../utils/concert-completeness';
 import { resolvePosterUrl, type ConcertApiItem } from '../types/concerts';
 
 const { user } = useAuth();
@@ -85,6 +87,96 @@ const statusOptions: Array<{
   { value: 'all', label: 'All' },
 ];
 
+const approvalStatus = ref<'all' | 'approved' | 'pending'>('all');
+const approvalOptions: Array<{
+  value: 'all' | 'approved' | 'pending';
+  label: string;
+}> = [
+  { value: 'all', label: 'All Approvals' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'pending', label: 'Pending Review' },
+];
+
+const selectedConcertIds = ref<string[]>([]);
+const isBulkSaving = ref(false);
+
+const isAllSelected = computed(() => {
+  return (
+    concerts.value.length > 0 &&
+    concerts.value.every((c) => selectedConcertIds.value.includes(c.id))
+  );
+});
+
+const readyToApproveIds = computed(() => {
+  return concerts.value
+    .filter(
+      (c) => !c.isAdminApproved && evaluateConcertCompleteness(c).isComplete,
+    )
+    .map((c) => c.id);
+});
+
+function toggleConcertSelection(id: string) {
+  if (selectedConcertIds.value.includes(id)) {
+    selectedConcertIds.value = selectedConcertIds.value.filter(
+      (item) => item !== id,
+    );
+  } else {
+    selectedConcertIds.value = [...selectedConcertIds.value, id];
+  }
+}
+
+function toggleSelectAll() {
+  if (isAllSelected.value) {
+    selectedConcertIds.value = [];
+  } else {
+    selectedConcertIds.value = concerts.value.map((c) => c.id);
+  }
+}
+
+function selectReadyOnly() {
+  selectedConcertIds.value = [...readyToApproveIds.value];
+}
+
+async function selectApproval(value: 'all' | 'approved' | 'pending') {
+  approvalStatus.value = value;
+  selectedConcertIds.value = [];
+  await applyFilters();
+}
+
+async function applyBulkApproval(approved = true) {
+  if (selectedConcertIds.value.length === 0) return;
+  isBulkSaving.value = true;
+  error.value = '';
+  notice.value = '';
+  try {
+    const authToken = await token();
+    const result = await setBulkConcertApproval(
+      authToken,
+      selectedConcertIds.value,
+      approved,
+    );
+    notice.value = `Successfully ${approved ? 'approved' : 'unapproved'} ${result.updatedCount} concert(s).`;
+    selectedConcertIds.value = [];
+    await load();
+  } catch (reason) {
+    error.value = getMessage(reason, 'Unable to complete bulk approval.');
+  } finally {
+    isBulkSaving.value = false;
+  }
+}
+
+function isConcertComplete(concert: ConcertApiItem): boolean {
+  return evaluateConcertCompleteness(concert).isComplete;
+}
+
+function completenessTitle(concert: ConcertApiItem): string {
+  const result = evaluateConcertCompleteness(concert);
+  if (result.isComplete) {
+    return '100% complete - ready for public discovery';
+  }
+  return `Missing required fields: ${result.missingFields.join(', ')}`;
+}
+
 const resultSummary = computed(() => {
   if (!total.value) return '0 concerts';
   const first = (page.value - 1) * pageSize + 1;
@@ -154,6 +246,8 @@ async function load() {
     const response = await fetchAdminConcerts(authToken, {
       q: search.value.trim() || undefined,
       catalogStatus: catalogStatus.value,
+      approvalStatus:
+        approvalStatus.value !== 'all' ? approvalStatus.value : undefined,
       isFeatured: featuredOnly.value || undefined,
       startsAfter,
       startsBefore,
@@ -267,7 +361,9 @@ async function saveCreateConcert() {
       title: createForm.title.trim(),
       genre: createForm.genre.trim(),
       startsAt: new Date(createForm.startsAt).toISOString(),
-      endsAt: createForm.endsAt ? new Date(createForm.endsAt).toISOString() : null,
+      endsAt: createForm.endsAt
+        ? new Date(createForm.endsAt).toISOString()
+        : null,
       venueId: createForm.venueId,
       description: createForm.description.trim() || null,
     };
@@ -276,7 +372,11 @@ async function saveCreateConcert() {
 
     if (createPosterFile.value && created?.id) {
       try {
-        await uploadConcertPoster(authToken, created.id, createPosterFile.value);
+        await uploadConcertPoster(
+          authToken,
+          created.id,
+          createPosterFile.value,
+        );
       } catch (uploadErr) {
         console.warn('Concert created but poster upload failed:', uploadErr);
       }
@@ -439,11 +539,18 @@ async function saveEditor() {
     if (editPosterFile.value) {
       try {
         const authToken = await token();
-        await uploadConcertPoster(authToken, currentConcertId, editPosterFile.value);
+        await uploadConcertPoster(
+          authToken,
+          currentConcertId,
+          editPosterFile.value,
+        );
         notice.value = `Saved changes and uploaded new poster for ${form.title.trim()}.`;
         await load();
       } catch (posterErr) {
-        error.value = getMessage(posterErr, 'Concert updated, but poster upload failed.');
+        error.value = getMessage(
+          posterErr,
+          'Concert updated, but poster upload failed.',
+        );
       }
     }
     closeEditor();
@@ -457,7 +564,11 @@ async function toggleApproval(concert: ConcertApiItem) {
   const nextApproved = !concert.isAdminApproved;
   try {
     const authToken = await token();
-    const updated = await setConcertApproval(authToken, concert.id, nextApproved);
+    const updated = await setConcertApproval(
+      authToken,
+      concert.id,
+      nextApproved,
+    );
     Object.assign(concert, updated);
     notice.value = `${concert.title} is now ${nextApproved ? 'approved for public discovery when active' : 'removed from public discovery'}.`;
   } catch (reason) {
@@ -565,17 +676,35 @@ onMounted(async () => {
       <button type="submit" class="button">Search</button>
     </form>
 
-    <div class="status-tabs" aria-label="Catalog status filter">
-      <button
-        v-for="option in statusOptions"
-        :key="option.value"
-        type="button"
-        :class="{ active: catalogStatus === option.value }"
-        :aria-pressed="catalogStatus === option.value"
-        @click="selectStatus(option.value)"
+    <div class="filter-bars">
+      <div class="status-tabs" aria-label="Catalog status filter">
+        <button
+          v-for="option in statusOptions"
+          :key="option.value"
+          type="button"
+          :class="{ active: catalogStatus === option.value }"
+          :aria-pressed="catalogStatus === option.value"
+          @click="selectStatus(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+
+      <div
+        class="status-tabs approval-tabs"
+        aria-label="Approval status filter"
       >
-        {{ option.label }}
-      </button>
+        <button
+          v-for="option in approvalOptions"
+          :key="option.value"
+          type="button"
+          :class="{ active: approvalStatus === option.value }"
+          :aria-pressed="approvalStatus === option.value"
+          @click="selectApproval(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
     </div>
 
     <p v-if="error" class="message message--error" role="alert">{{ error }}</p>
@@ -588,6 +717,39 @@ onMounted(async () => {
       <span v-if="loading">Loading latest catalog...</span>
     </div>
 
+    <div v-if="concerts.length" class="bulk-toolbar">
+      <label class="bulk-toolbar__checkbox">
+        <input
+          type="checkbox"
+          :checked="isAllSelected"
+          @change="toggleSelectAll"
+        />
+        <span>Select page ({{ selectedConcertIds.length }} selected)</span>
+      </label>
+      <div class="bulk-toolbar__actions">
+        <button
+          type="button"
+          class="button button--secondary"
+          :disabled="isBulkSaving || readyToApproveIds.length === 0"
+          @click="selectReadyOnly"
+        >
+          Select Ready ({{ readyToApproveIds.length }})
+        </button>
+        <button
+          type="button"
+          class="button button--primary"
+          :disabled="isBulkSaving || selectedConcertIds.length === 0"
+          @click="applyBulkApproval(true)"
+        >
+          {{
+            isBulkSaving
+              ? 'Approving...'
+              : `Approve Selected (${selectedConcertIds.length})`
+          }}
+        </button>
+      </div>
+    </div>
+
     <div v-if="!loading && !concerts.length" class="empty-state">
       No concerts match these filters.
     </div>
@@ -598,6 +760,16 @@ onMounted(async () => {
         :key="concert.id"
         class="concert-row"
       >
+        <label
+          class="concert-row__select"
+          :aria-label="`Select ${concert.title}`"
+        >
+          <input
+            type="checkbox"
+            :checked="selectedConcertIds.includes(concert.id)"
+            @change="toggleConcertSelection(concert.id)"
+          />
+        </label>
         <div class="concert-row__date">
           <strong>{{
             new Date(concert.startsAt).toLocaleDateString(undefined, {
@@ -629,6 +801,18 @@ onMounted(async () => {
               title="Approved for public discovery and Top Picks eligibility"
             >
               Approved
+            </span>
+            <span
+              v-else
+              :class="[
+                'status',
+                isConcertComplete(concert)
+                  ? 'status--ready'
+                  : 'status--incomplete',
+              ]"
+              :title="completenessTitle(concert)"
+            >
+              {{ isConcertComplete(concert) ? 'Ready' : 'Incomplete' }}
             </span>
             <span
               v-if="concert.syncSource"
@@ -719,7 +903,11 @@ onMounted(async () => {
     </nav>
 
     <!-- Add Concert Modal -->
-    <div v-if="isCreating" class="dialog-backdrop" @click.self="closeCreateModal">
+    <div
+      v-if="isCreating"
+      class="dialog-backdrop"
+      @click.self="closeCreateModal"
+    >
       <form
         class="editor"
         role="dialog"
@@ -769,7 +957,11 @@ onMounted(async () => {
           </label>
           <label class="field">
             <span>Starts *</span>
-            <input v-model="createForm.startsAt" type="datetime-local" required />
+            <input
+              v-model="createForm.startsAt"
+              type="datetime-local"
+              required
+            />
           </label>
           <label class="field">
             <span>Ends (Optional)</span>
@@ -778,15 +970,29 @@ onMounted(async () => {
           <div class="field field--wide poster-field">
             <span>Poster / Flyer Image (Optional)</span>
             <div v-if="createPosterPreviewUrl" class="poster-preview">
-              <img :src="createPosterPreviewUrl" alt="Concert poster preview" class="poster-thumbnail" />
+              <img
+                :src="createPosterPreviewUrl"
+                alt="Concert poster preview"
+                class="poster-thumbnail"
+              />
               <p class="poster-hint">Selected artwork for this new concert.</p>
             </div>
-            <input type="file" accept="image/*" @change="handleCreatePosterSelect" />
-            <p v-if="createPosterFile" class="file-selected-name">Selected: {{ createPosterFile.name }}</p>
+            <input
+              type="file"
+              accept="image/*"
+              @change="handleCreatePosterSelect"
+            />
+            <p v-if="createPosterFile" class="file-selected-name">
+              Selected: {{ createPosterFile.name }}
+            </p>
           </div>
           <label class="field field--wide">
             <span>Description / Lineup Notes</span>
-            <textarea v-model="createForm.description" rows="4" placeholder="Doors 7 PM, ticket link, bio, etc."></textarea>
+            <textarea
+              v-model="createForm.description"
+              rows="4"
+              placeholder="Doors 7 PM, ticket link, bio, etc."
+            ></textarea>
           </label>
         </div>
         <footer>
@@ -863,13 +1069,27 @@ onMounted(async () => {
           <div class="field field--wide poster-field">
             <span>Poster / Flyer Image</span>
             <div v-if="editPosterPreviewUrl" class="poster-preview">
-              <img :src="editPosterPreviewUrl" alt="Concert poster preview" class="poster-thumbnail" />
+              <img
+                :src="editPosterPreviewUrl"
+                alt="Concert poster preview"
+                class="poster-thumbnail"
+              />
               <p class="poster-hint">
-                {{ editPosterFile ? 'New image selected for upload.' : 'Current artwork. Choose a file below to replace.' }}
+                {{
+                  editPosterFile
+                    ? 'New image selected for upload.'
+                    : 'Current artwork. Choose a file below to replace.'
+                }}
               </p>
             </div>
-            <input type="file" accept="image/*" @change="handleEditPosterSelect" />
-            <p v-if="editPosterFile" class="file-selected-name">Selected: {{ editPosterFile.name }}</p>
+            <input
+              type="file"
+              accept="image/*"
+              @change="handleEditPosterSelect"
+            />
+            <p v-if="editPosterFile" class="file-selected-name">
+              Selected: {{ editPosterFile.name }}
+            </p>
           </div>
           <label class="field field--wide"
             ><span>Description</span
@@ -936,7 +1156,6 @@ onMounted(async () => {
     </div>
   </section>
 </template>
-
 
 <style scoped>
 .catalog-admin {
@@ -1138,10 +1357,61 @@ textarea {
   color: #0369a1;
   background: rgba(2, 132, 199, 0.08);
 }
+.status--ready {
+  border-color: #10b981;
+  color: #047857;
+  background: rgba(16, 185, 129, 0.08);
+}
+.status--incomplete {
+  border-color: #f59e0b;
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.08);
+}
 .status--synced {
   border-color: #6366f1;
   color: #4f46e5;
   background: rgba(99, 102, 241, 0.08);
+}
+.filter-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.bulk-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface, #f9fafb);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+.bulk-toolbar__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bulk-toolbar__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.concert-row__select {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: 0.5rem;
+  cursor: pointer;
+}
+.concert-row__select input {
+  width: 1.15rem;
+  height: 1.15rem;
+  cursor: pointer;
 }
 .catalog-admin__header-actions {
   display: flex;

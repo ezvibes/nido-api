@@ -11,6 +11,12 @@ export enum AdminConcertCatalogFilter {
   ARCHIVED = ConcertCatalogStatus.ARCHIVED,
 }
 
+export enum AdminConcertApprovalFilter {
+  ALL = 'all',
+  APPROVED = 'approved',
+  PENDING = 'pending',
+}
+
 export class ListAdminConcertsDto extends ListConcertsDto {
   @ApiPropertyOptional({
     description:
@@ -21,6 +27,16 @@ export class ListAdminConcertsDto extends ListConcertsDto {
   @IsOptional()
   @IsEnum(AdminConcertCatalogFilter)
   catalogStatus: AdminConcertCatalogFilter = AdminConcertCatalogFilter.ALL;
+
+  @ApiPropertyOptional({
+    description:
+      'Filter concerts by admin approval status: all (default), approved, or pending (unapproved).',
+    enum: AdminConcertApprovalFilter,
+    default: AdminConcertApprovalFilter.ALL,
+  })
+  @IsOptional()
+  @IsEnum(AdminConcertApprovalFilter)
+  approvalStatus?: AdminConcertApprovalFilter = AdminConcertApprovalFilter.ALL;
 
   @ApiPropertyOptional({
     description:

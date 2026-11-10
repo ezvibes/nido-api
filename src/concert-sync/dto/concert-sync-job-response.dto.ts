@@ -20,6 +20,9 @@ export class ConcertSyncRecentEventDto {
   @ApiPropertyOptional({ nullable: true, example: 0.63 })
   extractionConfidence?: number | null;
 
+  @ApiPropertyOptional({ nullable: true, example: true })
+  isAdminApproved?: boolean;
+
   @ApiProperty({ example: false })
   needsGuidance: boolean;
 

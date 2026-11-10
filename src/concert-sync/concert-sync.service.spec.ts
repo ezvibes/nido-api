@@ -434,6 +434,7 @@ describe('ConcertSyncService', () => {
       concert: lockedConcert,
       wasCreated: false,
       wasSkipped: true,
+      wasAutoApproved: false,
     });
     expect(venueService.findOrCreateByName).not.toHaveBeenCalled();
     expect(bandService.findOrCreateManyByName).not.toHaveBeenCalled();
@@ -630,5 +631,87 @@ describe('ConcertSyncService', () => {
     expect(mapping.eventFingerprint).toBe('previous-fingerprint');
     expect(job.eventsSkipped).toBe(1);
     expect(job.eventsUpdated).toBe(0);
+  });
+
+  it('auto-approves a new concert when minimum data criteria are satisfied and autoApproveQualified is true', async () => {
+    venueService.findOrCreateByName.mockResolvedValue({
+      id: 'venue-complete',
+      name: 'Lincoln Theatre',
+      city: 'Raleigh',
+      region: 'North Carolina',
+      regionSlug: 'nc',
+    } as any);
+    bandService.findOrCreateManyByName.mockResolvedValue([
+      { id: 'band-1', name: 'The Mountain Goats' } as any,
+    ]);
+    concertRepository.create.mockImplementation((val) => val);
+    concertRepository.save.mockImplementation(async (val) => ({
+      ...val,
+      id: 'saved-approved-concert',
+    }));
+
+    const result = await (service as any).upsertConcertFromEvent(
+      { id: 42 } as any,
+      {
+        title: 'The Mountain Goats',
+        genre: 'Indie Folk',
+        startsAt: '2026-10-15T20:00:00.000Z',
+        endsAt: null,
+        venues: [{ name: 'Lincoln Theatre', city: 'Raleigh', state: 'NC' }],
+        artists: [{ name: 'The Mountain Goats' }],
+      },
+      undefined,
+      true,
+    );
+
+    expect(result.wasCreated).toBe(true);
+    expect(result.wasAutoApproved).toBe(true);
+    expect(concertRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'The Mountain Goats',
+        isAdminApproved: true,
+        adminApprovedByUserId: 42,
+      }),
+    );
+  });
+
+  it('leaves a new concert unapproved when venue details are incomplete', async () => {
+    venueService.findOrCreateByName.mockResolvedValue({
+      id: 'venue-incomplete',
+      name: 'Unknown Spot',
+      city: '',
+      region: '',
+    } as any);
+    bandService.findOrCreateManyByName.mockResolvedValue([
+      { id: 'band-1', name: 'Local Act' } as any,
+    ]);
+    concertRepository.create.mockImplementation((val) => val);
+    concertRepository.save.mockImplementation(async (val) => ({
+      ...val,
+      id: 'saved-unapproved-concert',
+    }));
+
+    const result = await (service as any).upsertConcertFromEvent(
+      { id: 42 } as any,
+      {
+        title: 'Local Act',
+        genre: 'Rock',
+        startsAt: '2026-10-15T20:00:00.000Z',
+        endsAt: null,
+        venues: [{ name: 'Unknown Spot' }],
+        artists: [{ name: 'Local Act' }],
+      },
+      undefined,
+      true,
+    );
+
+    expect(result.wasCreated).toBe(true);
+    expect(result.wasAutoApproved).toBe(false);
+    expect(concertRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Local Act',
+        isAdminApproved: false,
+      }),
+    );
   });
 });

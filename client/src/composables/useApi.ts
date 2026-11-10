@@ -97,6 +97,7 @@ export async function fetchAdminConcerts(
   params?: {
     q?: string;
     catalogStatus?: AdminConcertCatalogStatus | 'all';
+    approvalStatus?: 'all' | 'approved' | 'pending';
     isFeatured?: boolean;
     startsAfter?: string;
     startsBefore?: string;
@@ -139,6 +140,23 @@ export async function setConcertApproval(
   const response = await apiClient.put<ConcertApiItem>(
     `/admin/concerts/${concertId}/approval`,
     { approved },
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  return response.data;
+}
+
+export async function setBulkConcertApproval(
+  token: string,
+  concertIds: string[],
+  approved: boolean,
+): Promise<{ totalRequested: number; updatedCount: number; approved: boolean }> {
+  const response = await apiClient.post<{
+    totalRequested: number;
+    updatedCount: number;
+    approved: boolean;
+  }>(
+    '/admin/concerts/bulk-approval',
+    { concertIds, approved },
     { headers: { Authorization: `Bearer ${token}` } },
   );
   return response.data;
@@ -463,6 +481,7 @@ export interface CreateConcertSyncJobPayload {
   fromDate?: string;
   toDate?: string;
   refreshTopPicks?: boolean;
+  autoApproveQualified?: boolean;
   dryRun?: boolean;
   maxEvents?: number;
   geminiPrompt?: string;
@@ -474,6 +493,7 @@ export interface ConcertSyncRecentEvent {
   calendarEventId: string;
   concertId?: string | null;
   concertTitle?: string | null;
+  isAdminApproved?: boolean;
   extractionConfidence?: number | null;
   needsGuidance: boolean;
   extractionWarnings: string[];

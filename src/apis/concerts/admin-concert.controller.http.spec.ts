@@ -17,6 +17,7 @@ describe('AdminConcertController HTTP contract', () => {
     findOneAdmin: jest.fn(),
     updateAdmin: jest.fn(),
     setAdminApproval: jest.fn(),
+    setBulkAdminApproval: jest.fn(),
   };
   const userService = { syncFromToken: jest.fn() };
   const authService = { verifyIdToken: jest.fn() };
@@ -227,6 +228,41 @@ describe('AdminConcertController HTTP contract', () => {
       expect.objectContaining({ originalname: 'poster.jpg' }),
       'admin-token-uid',
       1,
+    );
+  });
+
+  it('updates concert approval in bulk on POST /admin/concerts/bulk-approval', async () => {
+    userService.syncFromToken.mockResolvedValue({
+      id: 1,
+      email: 'admin@example.com',
+    });
+    concertService.setBulkAdminApproval.mockResolvedValue({
+      totalRequested: 2,
+      updatedCount: 2,
+      approved: true,
+    });
+
+    const c1 = '87c28620-0a38-4187-89c8-c83a0246e828';
+    const c2 = '99c28620-0a38-4187-89c8-c83a0246e829';
+
+    await request(app.getHttpServer())
+      .post('/admin/concerts/bulk-approval')
+      .set('Authorization', 'Bearer admin-token')
+      .send({
+        concertIds: [c1, c2],
+        approved: true,
+      })
+      .expect(201)
+      .expect({
+        totalRequested: 2,
+        updatedCount: 2,
+        approved: true,
+      });
+
+    expect(concertService.setBulkAdminApproval).toHaveBeenCalledWith(
+      [c1, c2],
+      { id: 1, email: 'admin@example.com' },
+      true,
     );
   });
 });

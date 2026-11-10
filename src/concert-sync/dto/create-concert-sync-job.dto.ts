@@ -61,6 +61,16 @@ export class CreateConcertSyncJobDto {
   refreshTopPicks?: boolean = true;
 
   @ApiPropertyOptional({
+    default: true,
+    description:
+      'Automatically approve concerts that pass the minimum data completeness gate (valid date, performer, genre, and resolved venue with city/state). Incomplete concerts remain pending review.',
+  })
+  @Type(() => Boolean)
+  @IsBoolean()
+  @IsOptional()
+  autoApproveQualified?: boolean = true;
+
+  @ApiPropertyOptional({
     default: false,
     description:
       'Load and sanitize source events without calling Gemini or writing concerts. Use this before paid Gemini-backed runs.',

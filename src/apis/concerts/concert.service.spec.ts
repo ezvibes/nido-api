@@ -8,6 +8,7 @@ import { Concert, ConcertCatalogStatus } from './entities/concert.entity';
 import { ConcertUpvote } from './entities/concert-upvote.entity';
 import { User } from '../users/entities/user.entity';
 import {
+  AdminConcertApprovalFilter,
   AdminConcertCatalogFilter,
   ListAdminConcertsDto,
 } from './dto/list-admin-concerts.dto';
@@ -266,6 +267,64 @@ describe('ConcertService', () => {
       'concert.isAdminApproved = :isAdminApproved',
       expect.anything(),
     );
+  });
+
+  it('filters admin catalog by pending approval status', async () => {
+    const qb = createQueryBuilderMock();
+    concertRepository.createQueryBuilder.mockReturnValue(qb);
+    qb.getCount.mockResolvedValue(0);
+    qb.getRawAndEntities.mockResolvedValue({ entities: [], raw: [] });
+
+    await service.findAllAdmin({
+      approvalStatus: AdminConcertApprovalFilter.PENDING,
+      page: 1,
+      pageSize: 20,
+    } as ListAdminConcertsDto);
+
+    expect(qb.andWhere).toHaveBeenCalledWith('concert.isAdminApproved = false');
+  });
+
+  it('filters admin catalog by approved status', async () => {
+    const qb = createQueryBuilderMock();
+    concertRepository.createQueryBuilder.mockReturnValue(qb);
+    qb.getCount.mockResolvedValue(0);
+    qb.getRawAndEntities.mockResolvedValue({ entities: [], raw: [] });
+
+    await service.findAllAdmin({
+      approvalStatus: AdminConcertApprovalFilter.APPROVED,
+      page: 1,
+      pageSize: 20,
+    } as ListAdminConcertsDto);
+
+    expect(qb.andWhere).toHaveBeenCalledWith('concert.isAdminApproved = true');
+  });
+
+  it('sets bulk admin approval across concert ids', async () => {
+    const qb = createQueryBuilderMock();
+    concertRepository.createQueryBuilder.mockReturnValue(qb);
+    qb.execute.mockResolvedValue({ affected: 3 });
+
+    const reviewer = { id: 99, email: 'admin@example.com' } as User;
+    const result = await service.setBulkAdminApproval(
+      ['uuid-1', 'uuid-2', 'uuid-3'],
+      reviewer,
+      true,
+    );
+
+    expect(result).toEqual({
+      totalRequested: 3,
+      updatedCount: 3,
+      approved: true,
+    });
+    expect(qb.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isAdminApproved: true,
+        adminApprovedByUserId: 99,
+      }),
+    );
+    expect(qb.where).toHaveBeenCalledWith('id IN (:...uniqueIds)', {
+      uniqueIds: ['uuid-1', 'uuid-2', 'uuid-3'],
+    });
   });
 
   it('returns complete decorated metadata for admin detail responses', async () => {

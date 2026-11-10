@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   fetchVenues: vi.fn(),
   updateAdminConcert: vi.fn(),
   setConcertApproval: vi.fn(),
+  setBulkConcertApproval: vi.fn(),
   createConcert: vi.fn(),
   uploadConcertPoster: vi.fn(),
 }));
@@ -53,6 +54,7 @@ describe('AdminConcertsPage', () => {
     expect(api.fetchAdminConcerts).toHaveBeenCalledWith('firebase-token', {
       q: undefined,
       catalogStatus: 'active',
+      approvalStatus: undefined,
       isFeatured: undefined,
       startsAfter: undefined,
       startsBefore: undefined,
@@ -114,6 +116,7 @@ describe('AdminConcertsPage', () => {
     expect(api.fetchAdminConcerts).toHaveBeenLastCalledWith('firebase-token', {
       q: undefined,
       catalogStatus: 'active',
+      approvalStatus: undefined,
       isFeatured: undefined,
       startsAfter: undefined,
       startsBefore: undefined,
@@ -264,12 +267,12 @@ describe('AdminConcertsPage', () => {
     expect(wrapper.text()).toContain('Add new concert');
 
     await wrapper
-      .get<HTMLInputElement>('.editor input[placeholder="e.g. Dr. Bacon & Friends"]')
+      .get<HTMLInputElement>(
+        '.editor input[placeholder="e.g. Dr. Bacon & Friends"]',
+      )
       .setValue('New Funk Show');
     await selectGenre(wrapper, 'jazz', 'Jazz');
-    await wrapper
-      .get<HTMLSelectElement>('.editor select')
-      .setValue('venue-1');
+    await wrapper.get<HTMLSelectElement>('.editor select').setValue('venue-1');
 
     await wrapper.get('.editor').trigger('submit');
     await flushPromises();
@@ -330,7 +333,9 @@ describe('AdminConcertsPage', () => {
     expect(wrapper.get('[role="alertdialog"]').text()).toContain('Summer Jam');
     expect(api.updateAdminConcert).not.toHaveBeenCalled();
 
-    await wrapper.get('[role="alertdialog"] .button--secondary').trigger('click');
+    await wrapper
+      .get('[role="alertdialog"] .button--secondary')
+      .trigger('click');
     expect(wrapper.find('[role="alertdialog"]').exists()).toBe(false);
     expect(api.updateAdminConcert).not.toHaveBeenCalled();
 
@@ -419,7 +424,75 @@ describe('AdminConcertsPage', () => {
 
     expect(wrapper.find('.poster-preview').exists()).toBe(true);
     const img = wrapper.get('.poster-thumbnail');
-    expect(img.attributes('src')).toContain('/ingestion/uploads/sample-123/image');
+    expect(img.attributes('src')).toContain(
+      '/ingestion/uploads/sample-123/image',
+    );
+  });
+
+  it('filters catalog by approval status tab', async () => {
+    const wrapper = mount(AdminConcertsPage);
+    await flushPromises();
+
+    const pendingTab = wrapper
+      .findAll('.approval-tabs button')
+      .find((b) => b.text().includes('Pending Review'));
+    expect(pendingTab).toBeDefined();
+
+    await pendingTab!.trigger('click');
+    await flushPromises();
+
+    expect(api.fetchAdminConcerts).toHaveBeenLastCalledWith(
+      'firebase-token',
+      expect.objectContaining({
+        approvalStatus: 'pending',
+      }),
+    );
+  });
+
+  it('selects concerts and executes bulk approval', async () => {
+    api.fetchAdminConcerts.mockResolvedValue({
+      data: [
+        buildConcert({ id: 'c-1', title: 'Show One', isAdminApproved: false }),
+        buildConcert({ id: 'c-2', title: 'Show Two', isAdminApproved: false }),
+      ],
+      total: 2,
+      page: 1,
+      pageSize: 25,
+    });
+    api.setBulkConcertApproval.mockResolvedValue({
+      totalRequested: 2,
+      updatedCount: 2,
+      approved: true,
+    });
+
+    const wrapper = mount(AdminConcertsPage);
+    await flushPromises();
+
+    // Check row checkboxes
+    const checkboxes = wrapper.findAll(
+      '.concert-row__select input[type="checkbox"]',
+    );
+    expect(checkboxes).toHaveLength(2);
+
+    await checkboxes[0]!.setValue(true);
+    await checkboxes[1]!.setValue(true);
+    await flushPromises();
+
+    // Find and click approve selected button
+    const approveBtn = wrapper
+      .findAll('.bulk-toolbar button')
+      .find((b) => b.text().includes('Approve Selected'));
+    expect(approveBtn).toBeDefined();
+
+    await approveBtn!.trigger('click');
+    await flushPromises();
+
+    expect(api.setBulkConcertApproval).toHaveBeenCalledWith(
+      'firebase-token',
+      ['c-1', 'c-2'],
+      true,
+    );
+    expect(wrapper.text()).toContain('Successfully approved 2 concert(s).');
   });
 });
 
