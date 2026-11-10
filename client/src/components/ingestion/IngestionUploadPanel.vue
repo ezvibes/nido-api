@@ -35,15 +35,23 @@
         <div class="ingestion-panel__dropzone-copy">
           <p class="ingestion-panel__dropzone-eyebrow">Poster image</p>
           <p class="ingestion-panel__dropzone-title">
-            {{ selectedFile ? selectedFile.name : 'Choose a file or drag it here' }}
+            {{
+              selectedFile ? selectedFile.name : 'Choose a file or drag it here'
+            }}
           </p>
           <p class="ingestion-panel__dropzone-subtitle">
             Supports JPG, PNG, WEBP, GIF, and HEIC up to 50 MB.
           </p>
         </div>
         <div class="ingestion-panel__dropzone-meta">
-          <span v-if="selectedFile" class="ingestion-panel__file-pill">{{ formattedFileSize }}</span>
-          <button type="button" class="ingestion-panel__file-button" @click.stop="openFilePicker">
+          <span v-if="selectedFile" class="ingestion-panel__file-pill">{{
+            formattedFileSize
+          }}</span>
+          <button
+            type="button"
+            class="ingestion-panel__file-button"
+            @click.stop="openFilePicker"
+          >
             {{ selectedFile ? 'Replace image' : 'Choose file' }}
           </button>
         </div>
@@ -57,100 +65,139 @@
           :aria-expanded="showOptionalDetails"
         >
           <span class="ingestion-panel__hints-toggle-left">
-            <span class="ingestion-panel__hints-toggle-icon">{{ showOptionalDetails ? '▼' : '▶' }}</span>
+            <span class="ingestion-panel__hints-toggle-icon">{{
+              showOptionalDetails ? '▼' : '▶'
+            }}</span>
             <span class="ingestion-panel__hints-title">
-              {{ showOptionalDetails ? 'Event Details' : 'Add optional details (if missing from poster)' }}
+              {{
+                showOptionalDetails
+                  ? 'Event Details'
+                  : 'Add optional details (if missing from poster)'
+              }}
             </span>
           </span>
           <span class="ingestion-panel__hints-badge">Optional</span>
         </button>
 
         <div v-show="showOptionalDetails" class="ingestion-panel__hints-body">
-          <p class="ingestion-panel__hints-subtitle">Provide known details to help our team match and publish the show faster.</p>
+          <p class="ingestion-panel__hints-subtitle">
+            Provide known details to help our team match and publish the show
+            faster.
+          </p>
 
           <div class="ingestion-panel__fields-grid">
-          <label class="ingestion-panel__field">
-            <span>Date</span>
-            <input
-              v-model="concertDate"
-              type="date"
-              aria-label="Concert date"
-            />
-          </label>
+            <label class="ingestion-panel__field">
+              <span>Date</span>
+              <input
+                v-model="concertDate"
+                type="date"
+                aria-label="Concert date"
+              />
+            </label>
 
-          <label class="ingestion-panel__field">
-            <span>Venue</span>
-            <select v-model="venueId" aria-label="Venue" @change="onVenueChange">
-              <option value="">Select a venue (optional)</option>
-              <option v-for="v in venues" :key="v.id" :value="v.id">
-                {{ v.name }} ({{ v.city }}, {{ v.region || v.city }})
-              </option>
-            </select>
-          </label>
+            <label class="ingestion-panel__field">
+              <span>Venue</span>
+              <select
+                v-model="venueId"
+                aria-label="Venue"
+                @change="onVenueChange"
+              >
+                <option value="">Select a venue (optional)</option>
+                <option v-for="v in venues" :key="v.id" :value="v.id">
+                  {{ v.name }} ({{ v.city }}, {{ v.region || v.city }})
+                </option>
+              </select>
+            </label>
 
-          <div class="ingestion-panel__field ingestion-panel__genre-field">
-            <GenreCombobox
-              v-model="genre"
-              :options="userGenreOptions"
-              placeholder="Select a genre"
-              :loading="genreLoadState === 'loading'"
-              :allow-custom="false"
-              :max-visible-options="25"
-              :described-by="genreHelpMessage ? 'genre-help' : undefined"
-            />
-            <small
-              v-if="genreHelpMessage"
-              id="genre-help"
-              class="ingestion-panel__field-help"
-            >
-              {{ genreHelpMessage }}
-            </small>
+            <div class="ingestion-panel__field ingestion-panel__genre-field">
+              <GenreCombobox
+                v-model="genre"
+                :options="userGenreOptions"
+                placeholder="Select a genre"
+                :loading="genreLoadState === 'loading'"
+                :allow-custom="false"
+                :max-visible-options="25"
+                :described-by="genreHelpMessage ? 'genre-help' : undefined"
+              />
+              <small
+                v-if="genreHelpMessage"
+                id="genre-help"
+                class="ingestion-panel__field-help"
+              >
+                {{ genreHelpMessage }}
+              </small>
+            </div>
+
+            <label class="ingestion-panel__field">
+              <span>Band / Artist</span>
+              <select v-model="bandId" aria-label="Band or artist">
+                <option value="">Select an artist (optional)</option>
+                <option v-for="b in bands" :key="b.id" :value="b.id">
+                  {{ b.name }}
+                </option>
+              </select>
+            </label>
+
+            <label class="ingestion-panel__field">
+              <span>City</span>
+              <input v-model="city" type="text" placeholder="Raleigh" />
+            </label>
+
+            <label class="ingestion-panel__field">
+              <span>State</span>
+              <input
+                v-model="state"
+                type="text"
+                maxlength="2"
+                placeholder="NC"
+              />
+            </label>
           </div>
-
-          <label class="ingestion-panel__field">
-            <span>Band / Artist</span>
-            <select v-model="bandId" aria-label="Band or artist">
-              <option value="">Select an artist (optional)</option>
-              <option v-for="b in bands" :key="b.id" :value="b.id">
-                {{ b.name }}
-              </option>
-            </select>
-          </label>
-
-          <label class="ingestion-panel__field">
-            <span>City</span>
-            <input v-model="city" type="text" placeholder="Raleigh" />
-          </label>
-
-          <label class="ingestion-panel__field">
-            <span>State</span>
-            <input v-model="state" type="text" maxlength="2" placeholder="NC" />
-          </label>
-        </div>
         </div>
       </div>
 
       <p v-if="message" :class="messageClass">{{ message }}</p>
 
       <div class="ingestion-panel__actions">
-        <button type="submit" class="ingestion-panel__submit" :disabled="isSubmitDisabled">
+        <button
+          type="submit"
+          class="ingestion-panel__submit"
+          :disabled="isSubmitDisabled"
+        >
           {{ isSubmitting ? 'Uploading…' : 'Upload poster' }}
         </button>
       </div>
     </form>
 
-    <div v-if="showProgress" class="ingestion-panel__progress" role="status" aria-live="polite">
-      <div v-if="isJobLoading" class="ingestion-panel__spinner" aria-hidden="true"></div>
+    <div
+      v-if="showProgress"
+      class="ingestion-panel__progress"
+      role="status"
+      aria-live="polite"
+    >
+      <div
+        v-if="isJobLoading"
+        class="ingestion-panel__spinner"
+        aria-hidden="true"
+      ></div>
       <div class="ingestion-panel__progress-body">
         <div class="ingestion-panel__progress-header">
           <p class="ingestion-panel__progress-title">{{ progressTitle }}</p>
-          <span :class="['ingestion-status-pill', `ingestion-status-pill--${contributorStatusKey}`]">
+          <span
+            :class="[
+              'ingestion-status-pill',
+              `ingestion-status-pill--${contributorStatusKey}`,
+            ]"
+          >
             {{ contributorStatusLabel }}
           </span>
         </div>
         <p class="ingestion-panel__progress-copy">{{ progressCopy }}</p>
 
-        <div v-if="activeCandidates.length > 0" class="ingestion-extracted-list">
+        <div
+          v-if="activeCandidates.length > 0"
+          class="ingestion-extracted-list"
+        >
           <div
             v-for="cand in activeCandidates"
             :key="cand.id"
@@ -166,18 +213,32 @@
                     : 'ingestion-confidence-tag--ok',
                 ]"
               >
-                {{ cand.warnings && cand.warnings.length > 0 ? 'Check this' : 'Details found' }}
+                {{
+                  cand.warnings && cand.warnings.length > 0
+                    ? 'Check this'
+                    : 'Details found'
+                }}
               </span>
             </div>
             <p class="ingestion-extracted-card__meta">
-              {{ cand.venueName || selectedVenueName || 'Venue pending review' }}
-              <span v-if="cand.date"> · {{ formatSummaryDate(cand.date) }}</span>
+              {{
+                cand.venueName || selectedVenueName || 'Venue pending review'
+              }}
+              <span v-if="cand.date">
+                · {{ formatSummaryDate(cand.date) }}</span
+              >
               <span v-if="cand.time"> · {{ cand.time.slice(0, 5) }}</span>
             </p>
-            <p v-if="cand.bandNames && cand.bandNames.length > 0" class="ingestion-extracted-card__lineup">
+            <p
+              v-if="cand.bandNames && cand.bandNames.length > 0"
+              class="ingestion-extracted-card__lineup"
+            >
               Lineup: {{ cand.bandNames.join(', ') }}
             </p>
-            <p v-if="cand.warnings && cand.warnings.length > 0" class="ingestion-extracted-card__warning">
+            <p
+              v-if="cand.warnings && cand.warnings.length > 0"
+              class="ingestion-extracted-card__warning"
+            >
               Note for editor: {{ cand.warnings[0] }}
             </p>
           </div>
@@ -227,7 +288,9 @@
         </div>
         <div>
           <dt>Venue hint</dt>
-          <dd>{{ selectedVenueName || uploadResult.venueId || 'Not provided' }}</dd>
+          <dd>
+            {{ selectedVenueName || uploadResult.venueId || 'Not provided' }}
+          </dd>
         </div>
         <div>
           <dt>Genre</dt>
@@ -235,7 +298,9 @@
         </div>
         <div>
           <dt>Band hint</dt>
-          <dd>{{ selectedBandName || uploadResult.bandId || 'Not provided' }}</dd>
+          <dd>
+            {{ selectedBandName || uploadResult.bandId || 'Not provided' }}
+          </dd>
         </div>
         <div>
           <dt>Location</dt>
@@ -263,6 +328,7 @@ import {
   uploadIngestionImage,
 } from '../../composables/useApi';
 import { useAuth } from '../../composables/useAuth';
+import { normalizeStateCode } from '../../utils/state';
 import GenreCombobox from '../GenreCombobox.vue';
 
 const { user } = useAuth();
@@ -293,7 +359,9 @@ const genre = ref('');
 const genres = ref<string[]>([]);
 const venues = ref<VenueListItem[]>([]);
 const bands = ref<BandListItem[]>([]);
-const genreLoadState = ref<'loading' | 'loaded' | 'empty' | 'failed'>('loading');
+const genreLoadState = ref<'loading' | 'loaded' | 'empty' | 'failed'>(
+  'loading',
+);
 const message = ref('');
 const messageType = ref<'success' | 'error'>('success');
 const isSubmitting = ref(false);
@@ -306,11 +374,14 @@ const submissionsLoading = ref(false);
 const jobId = computed(() => job.value?.id ?? '');
 const currentStatus = computed(() => job.value?.status ?? 'not_started');
 const activeUploadId = computed(
-  () => uploadResult.value?.concertUploadId || job.value?.concertUpload?.id || '',
+  () =>
+    uploadResult.value?.concertUploadId || job.value?.concertUpload?.id || '',
 );
 const activeCandidates = computed(() => job.value?.candidates ?? []);
 const publishedConcertId = computed(() => {
-  const fromCand = activeCandidates.value.find((c) => c.publishedConcertId)?.publishedConcertId;
+  const fromCand = activeCandidates.value.find(
+    (c) => c.publishedConcertId,
+  )?.publishedConcertId;
   return fromCand || job.value?.concertUpload?.concertId || null;
 });
 
@@ -334,11 +405,17 @@ const getJobStatusKey = (targetJob?: IngestionJobResponse | null) => {
     targetJob.candidates?.some((c) => c.status === 'published');
   if (hasPublished) return 'published';
   if (FAILED_JOB_STATUSES.includes(targetJob.status)) return 'failed';
-  if (targetJob.status === 'rejected' || targetJob.concertUpload?.reviewStatus === 'rejected') {
+  if (
+    targetJob.status === 'rejected' ||
+    targetJob.concertUpload?.reviewStatus === 'rejected'
+  ) {
     return 'rejected';
   }
   if (targetJob.status === 'needs_review') return 'awaiting_review';
-  if (IN_FLIGHT_JOB_STATUSES.includes(targetJob.status) && targetJob.status !== 'queued') {
+  if (
+    IN_FLIGHT_JOB_STATUSES.includes(targetJob.status) &&
+    targetJob.status !== 'queued'
+  ) {
     return 'reading';
   }
   return 'submitted';
@@ -378,7 +455,10 @@ const getJobNextStepCopy = (targetJob: IngestionJobResponse) => {
     return 'Reading show details from your poster graphic.';
   }
   if (key === 'failed') {
-    return targetJob.errorMessage || 'We could not finish reading this poster. Click Retry to try again.';
+    return (
+      targetJob.errorMessage ||
+      'We could not finish reading this poster. Click Retry to try again.'
+    );
   }
   if (key === 'rejected') {
     return 'This upload was reviewed and not added to the concert calendar.';
@@ -394,7 +474,8 @@ const contributorStatusLabel = computed(() =>
 );
 
 const isJobLoading = computed(
-  () => isSubmitting.value || IN_FLIGHT_JOB_STATUSES.includes(currentStatus.value),
+  () =>
+    isSubmitting.value || IN_FLIGHT_JOB_STATUSES.includes(currentStatus.value),
 );
 const showProgress = computed(
   () => isSubmitting.value || !!uploadResult.value || !!job.value,
@@ -427,8 +508,11 @@ const progressCopy = computed(() => {
   }
   return 'Nothing else to do — our editors will take it from here.';
 });
-const uploadLocation = computed(() =>
-  [uploadResult.value?.city, uploadResult.value?.state].filter(Boolean).join(', ') || 'Not provided',
+const uploadLocation = computed(
+  () =>
+    [uploadResult.value?.city, uploadResult.value?.state]
+      .filter(Boolean)
+      .join(', ') || 'Not provided',
 );
 const userGenreOptions = computed(() => [
   ...genres.value.filter(
@@ -557,9 +641,24 @@ const loadBands = async () => {
   if (isDev && import.meta.env.MODE !== 'test' && bands.value.length === 0) {
     bands.value = [
       { id: 'b-1', name: 'Doctor S', slug: 'doctor-s', genres: ['Rock'] },
-      { id: 'b-2', name: 'Archers of Loaf', slug: 'archers-of-loaf', genres: ['Indie Rock'] },
-      { id: 'b-3', name: 'Sylvan Esso', slug: 'sylvan-esso', genres: ['Electronic'] },
-      { id: 'b-4', name: 'Wednesday', slug: 'wednesday', genres: ['Indie Rock'] },
+      {
+        id: 'b-2',
+        name: 'Archers of Loaf',
+        slug: 'archers-of-loaf',
+        genres: ['Indie Rock'],
+      },
+      {
+        id: 'b-3',
+        name: 'Sylvan Esso',
+        slug: 'sylvan-esso',
+        genres: ['Electronic'],
+      },
+      {
+        id: 'b-4',
+        name: 'Wednesday',
+        slug: 'wednesday',
+        genres: ['Indie Rock'],
+      },
     ];
   }
 };
@@ -570,9 +669,11 @@ const onVenueChange = () => {
     if (!city.value.trim() && matched.city) {
       city.value = matched.city;
     }
-    if (matched.region) {
-      state.value = matched.region;
-    }
+    const regionCode =
+      matched.regionSlug?.trim().length === 2
+        ? matched.regionSlug.trim().toUpperCase()
+        : normalizeStateCode(matched.region);
+    state.value = regionCode || 'NC';
   }
 };
 
@@ -604,14 +705,18 @@ const selectedVenueName = computed(() => {
   const currentVenueId = uploadResult.value?.venueId || venueId.value;
   if (!currentVenueId) return '';
   const v = venues.value.find((item) => item.id === currentVenueId);
-  return v ? `${v.name} (${v.city}, ${v.region || v.city})` : (uploadResult.value?.venueId ? 'Selected venue' : '');
+  return v
+    ? `${v.name} (${v.city}, ${v.region || v.city})`
+    : uploadResult.value?.venueId
+      ? 'Selected venue'
+      : '';
 });
 
 const selectedBandName = computed(() => {
   const currentBandId = uploadResult.value?.bandId || bandId.value;
   if (!currentBandId) return '';
   const b = bands.value.find((item) => item.id === currentBandId);
-  return b ? b.name : (uploadResult.value?.bandId ? 'Selected band' : '');
+  return b ? b.name : uploadResult.value?.bandId ? 'Selected band' : '';
 });
 
 const loadMySubmissions = async () => {
@@ -629,7 +734,6 @@ const loadMySubmissions = async () => {
     submissionsLoading.value = false;
   }
 };
-
 
 onMounted(() => {
   void loadGenres();
@@ -666,7 +770,9 @@ const validateFile = (file: File | null) => {
   }
 
   if (!acceptedMimeTypes.includes(file.type)) {
-    setErrorMessage('Please upload a standard image file such as JPG, PNG, WEBP, GIF, TIFF, BMP, HEIC, or AVIF.');
+    setErrorMessage(
+      'Please upload a standard image file such as JPG, PNG, WEBP, GIF, TIFF, BMP, HEIC, or AVIF.',
+    );
     resetFileInput();
     return null;
   }
@@ -784,7 +890,7 @@ const handleSubmit = async () => {
           size: selectedFile.value!.size,
           originalFilename: selectedFile.value!.name,
           city: city.value.trim() || undefined,
-          state: state.value.trim() || undefined,
+          state: normalizeStateCode(state.value),
           genre: genre.value || undefined,
           concertDate: concertDate.value
             ? new Date(`${concertDate.value}T00:00:00Z`).toISOString()
@@ -795,7 +901,8 @@ const handleSubmit = async () => {
           uploadedAt: new Date().toISOString(),
         };
         messageType.value = 'success';
-        message.value = 'Local preview: Poster simulated upload complete! See details below.';
+        message.value =
+          'Local preview: Poster simulated upload complete! See details below.';
         isSubmitting.value = false;
       }, 400);
     }
@@ -811,7 +918,7 @@ const handleSubmit = async () => {
     uploadResult.value = await uploadIngestionImage(token, {
       file: selectedFile.value,
       city: city.value.trim() || undefined,
-      state: state.value.trim().toUpperCase() || undefined,
+      state: normalizeStateCode(state.value),
       ...(genre.value ? { genre: genre.value } : {}),
       concertDate: concertDate.value
         ? new Date(`${concertDate.value}T00:00:00Z`).toISOString()
@@ -820,7 +927,10 @@ const handleSubmit = async () => {
       bandId: bandId.value || undefined,
       source: 'flyer_upload',
     });
-    job.value = await createIngestionJob(token, uploadResult.value.concertUploadId);
+    job.value = await createIngestionJob(
+      token,
+      uploadResult.value.concertUploadId,
+    );
     messageType.value = 'success';
     message.value = 'Poster uploaded! Reading show details now.';
     await pollJobStatus();

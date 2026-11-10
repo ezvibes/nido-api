@@ -8,6 +8,7 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { normalizeStateCode } from '../utils/state-code.util';
 
 export class CreateIngestionUploadDto {
   @ApiPropertyOptional({
@@ -23,12 +24,19 @@ export class CreateIngestionUploadDto {
   @ApiPropertyOptional({
     description: 'Two-letter state hint for the uploaded concert asset.',
     maxLength: 2,
-    example: 'NY',
+    example: 'NC',
+    default: 'NC',
   })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => {
+    if (typeof value !== 'string') return 'NC';
+    const trimmed = value.trim();
+    if (!trimmed) return 'NC';
+    return normalizeStateCode(trimmed, 'NC');
+  })
   @IsString()
   @MaxLength(2)
-  state?: string;
+  state?: string = 'NC';
 
   @ApiPropertyOptional({
     description: 'User-selected genre hint for the uploaded concert asset.',
