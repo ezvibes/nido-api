@@ -54,7 +54,9 @@ describe('IngestionPublicationService', () => {
       ],
     }).compile();
 
-    service = module.get<IngestionPublicationService>(IngestionPublicationService);
+    service = module.get<IngestionPublicationService>(
+      IngestionPublicationService,
+    );
   });
 
   it('should publish candidate in transaction', async () => {
@@ -70,14 +72,18 @@ describe('IngestionPublicationService', () => {
     job.concertUpload = {} as any;
     manager.findOne.mockResolvedValueOnce(job);
 
-    const result = await service.publishCandidate('cand-1', {
-      title: 'Test',
-      date: '2026-01-01',
-      time: '20:00',
-      bandIds: ['band-1'],
-      genreIds: [],
-      reviewDurationMs: 5000,
-    }, 1);
+    const result = await service.publishCandidate(
+      'cand-1',
+      {
+        title: 'Test',
+        date: '2026-01-01',
+        time: '20:00',
+        bandIds: ['band-1'],
+        genreIds: [],
+        reviewDurationMs: 5000,
+      },
+      1,
+    );
 
     expect(result.publishedConcertId).toBeDefined();
     expect(candidate.status).toBe('published');
@@ -92,14 +98,18 @@ describe('IngestionPublicationService', () => {
 
     manager.findOne.mockResolvedValueOnce(candidate);
 
-    const result = await service.publishCandidate('cand-1', {
-      title: 'Test',
-      date: '2026-01-01',
-      time: '20:00',
-      bandIds: [],
-      genreIds: [],
-      reviewDurationMs: 5000,
-    }, 1);
+    const result = await service.publishCandidate(
+      'cand-1',
+      {
+        title: 'Test',
+        date: '2026-01-01',
+        time: '20:00',
+        bandIds: [],
+        genreIds: [],
+        reviewDurationMs: 5000,
+      },
+      1,
+    );
 
     expect(result.publishedConcertId).toBe('existing-concert-id');
     expect(manager.save).not.toHaveBeenCalled();
@@ -117,11 +127,15 @@ describe('IngestionPublicationService', () => {
     job.id = 'job-1';
     manager.findOne.mockResolvedValueOnce(job);
 
-    const result = await service.handleDuplicateDecision('cand-1', {
-      decision: 'reject',
-      rejectReason: 'duplicate',
-      reviewDurationMs: 5000,
-    }, 1);
+    const result = await service.handleDuplicateDecision(
+      'cand-1',
+      {
+        decision: 'reject',
+        rejectReason: 'duplicate',
+        reviewDurationMs: 5000,
+      },
+      1,
+    );
 
     expect(result.status).toBe('rejected');
     expect(candidate.status).toBe('rejected');
@@ -129,7 +143,11 @@ describe('IngestionPublicationService', () => {
   });
 
   it('should list candidates with pagination and status filter', async () => {
-    const result = await service.listCandidates({ status: 'pending', limit: 10, offset: 0 });
+    const result = await service.listCandidates({
+      status: 'pending',
+      limit: 10,
+      offset: 0,
+    });
     expect(result).toEqual({ total: 0, items: [] });
   });
 
@@ -144,15 +162,31 @@ describe('IngestionPublicationService', () => {
         id: 'upload-123',
         originalFilename: 'poster.jpg',
         createdAt: new Date(),
+        uploadedByUser: {
+          email: 'matt@bowstring.com',
+          claimedVenueId: 'bowstring-raleigh',
+          venueClaimStatus: 'pending',
+          claimedVenue: {
+            id: 'bowstring-raleigh',
+            name: 'Bowstring Brewyard',
+          },
+        },
       },
     } as any;
 
-    (dataSource.getRepository(IngestionCandidate) as any).findOne.mockResolvedValueOnce(candidate);
+    (
+      dataSource.getRepository(IngestionCandidate) as any
+    ).findOne.mockResolvedValueOnce(candidate);
 
     const result = await service.getCandidate('cand-1');
     expect(result.candidate.id).toBe('cand-1');
     expect(result.probableDuplicates).toEqual([]);
-    expect(result.upload?.posterUrl).toBe('/ingestion/uploads/upload-123/image');
+    expect(result.upload?.posterUrl).toBe(
+      '/ingestion/uploads/upload-123/image',
+    );
+    expect(result.upload?.uploaderClaimedVenueId).toBe('bowstring-raleigh');
+    expect(result.upload?.uploaderClaimedVenueName).toBe('Bowstring Brewyard');
+    expect(result.upload?.uploaderVenueClaimStatus).toBe('pending');
   });
 
   it('should parse HH:mm:ss time strings and resolve venueName and bandNames in transaction', async () => {
@@ -165,7 +199,11 @@ describe('IngestionPublicationService', () => {
 
     const job = new IngestionJob();
     job.id = 'job-2';
-    job.concertUpload = { city: 'Raleigh', state: 'NC', genre: 'Indie Rock' } as any;
+    job.concertUpload = {
+      city: 'Raleigh',
+      state: 'NC',
+      genre: 'Indie Rock',
+    } as any;
     manager.findOne.mockResolvedValueOnce(job);
 
     const result = await service.publishCandidate(

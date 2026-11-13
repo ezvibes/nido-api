@@ -20,6 +20,9 @@ export interface AdminConcertUploadListItem {
   uploadedByUid: string;
   uploadedByUserId?: number;
   uploadedByUserEmail?: string;
+  uploaderClaimedVenueId?: string | null;
+  uploaderClaimedVenueName?: string | null;
+  uploaderVenueClaimStatus?: string | null;
   createdAt: string;
   reviewStatus: UploadReviewStatus;
   reviewNotes?: string;
