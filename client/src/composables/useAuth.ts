@@ -1,5 +1,5 @@
 // src/composables/useAuth.ts
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import {
   getAuth,
   onAuthStateChanged,
@@ -18,16 +18,45 @@ import {
 import { googleProvider, storage } from '../firebase';
 import {
   syncUserToBackend,
+  updateUserOnboarding,
   updateUserProfile as updateUserProfileApi,
+  type BackendUserProfile,
 } from './useApi';
 import router from '../router';
 
 // A reactive object to hold the user's state
 const auth = getAuth();
 const user = ref<User | null>(auth.currentUser);
+const backendUser = ref<BackendUserProfile | null>(null);
+const needsOnboarding = computed(() =>
+  Boolean(
+    user.value && backendUser.value && !backendUser.value.onboardingCompletedAt,
+  ),
+);
+
+const syncCurrentBackendUser = async (firebaseUser: User | null) => {
+  if (!firebaseUser) {
+    backendUser.value = null;
+    return null;
+  }
+
+  try {
+    const token = await firebaseUser.getIdToken();
+    if (!token || token === 'mock-dev-token') {
+      return null;
+    }
+    const synced = await syncUserToBackend(token);
+    backendUser.value = synced;
+    return synced;
+  } catch (error) {
+    console.warn('Unable to sync user profile with backend:', error);
+    return null;
+  }
+};
 
 onAuthStateChanged(auth, (firebaseUser) => {
   user.value = firebaseUser;
+  void syncCurrentBackendUser(firebaseUser);
 });
 
 /**
@@ -46,11 +75,14 @@ export function useAuth() {
 
   const signInWithGoogle = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      const credential = await signInWithPopup(auth, googleProvider);
+      await syncCurrentBackendUser(credential.user ?? auth.currentUser);
       await router.push('/concerts');
     } catch (error) {
       if (import.meta.env.DEV) {
-        console.warn('Firebase Google Auth unavailable locally; falling back to Dev Login mode.');
+        console.warn(
+          'Firebase Google Auth unavailable locally; falling back to Dev Login mode.',
+        );
         devLogin();
         return;
       }
@@ -60,7 +92,12 @@ export function useAuth() {
 
   const signUpWithEmail = async (email: string, password: string) => {
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const credential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password,
+      );
+      await syncCurrentBackendUser(credential.user ?? auth.currentUser);
       await router.push('/concerts');
     } catch (error: any) {
       if (import.meta.env.DEV) {
@@ -74,7 +111,12 @@ export function useAuth() {
 
   const signInWithEmail = async (email: string, password: string) => {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const credential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password,
+      );
+      await syncCurrentBackendUser(credential.user ?? auth.currentUser);
       await router.push('/concerts');
     } catch (error: any) {
       if (import.meta.env.DEV) {
@@ -89,6 +131,7 @@ export function useAuth() {
   const signOut = async () => {
     try {
       await firebaseSignOut(auth);
+      backendUser.value = null;
       // Redirect to home page after sign out
       router.push('/');
     } catch (error) {
@@ -156,7 +199,9 @@ export function useAuth() {
     return null;
   };
 
-  const getIdToken = async (forceRefresh?: boolean): Promise<string | undefined> => {
+  const getIdToken = async (
+    forceRefresh?: boolean,
+  ): Promise<string | undefined> => {
     if (auth.currentUser) {
       return auth.currentUser.getIdToken(forceRefresh);
     }
@@ -166,8 +211,27 @@ export function useAuth() {
     return undefined;
   };
 
+  const completeOnboarding = async (payload: {
+    claimedVenueId?: string | null;
+    skipAsFan?: boolean;
+  }): Promise<BackendUserProfile> => {
+    const token = await getIdToken();
+    if (!token) {
+      throw new Error('You must be signed in to complete onboarding.');
+    }
+    const updated = await updateUserOnboarding(token, payload);
+    backendUser.value = updated;
+    return updated;
+  };
+
+  const refreshBackendUser = async () => {
+    return syncCurrentBackendUser(auth.currentUser ?? user.value);
+  };
+
   return {
     user,
+    backendUser,
+    needsOnboarding,
     getIdToken,
     signInWithGoogle,
     signUpWithEmail,
@@ -175,6 +239,8 @@ export function useAuth() {
     signOut,
     updateUserProfile,
     updateProfilePicture,
+    completeOnboarding,
+    refreshBackendUser,
     devLogin,
   };
 }

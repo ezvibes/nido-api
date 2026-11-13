@@ -1,17 +1,49 @@
 <template>
   <div class="login-container">
     <form @submit.prevent class="login-form">
-      <h2>Sign Up or Sign In</h2>
-      <p>Enter your email and password below.</p>
-      
+      <p class="login-eyebrow">Venue Partners • Talent Buyers • Fans</p>
+      <h2>Sign in to EZ Vibes</h2>
+      <p class="login-subtitle">
+        Claim your venue and post upcoming concert posters in seconds, or save
+        shows you want to catch.
+      </p>
+
+      <button
+        type="button"
+        class="btn btn-google btn-google--hero"
+        @click="signInWithGoogle"
+      >
+        <img
+          src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg"
+          alt="Google logo"
+        />
+        Continue with Google
+      </button>
+
+      <div class="divider-row" aria-hidden="true">
+        <hr class="divider" />
+        <span>or use email</span>
+        <hr class="divider" />
+      </div>
+
       <div class="form-group">
         <label for="email">Email</label>
-        <input type="email" id="email" v-model="email" placeholder="you@example.com" />
+        <input
+          type="email"
+          id="email"
+          v-model="email"
+          placeholder="you@example.com"
+        />
       </div>
 
       <div class="form-group">
         <label for="password">Password</label>
-        <input type="password" id="password" v-model="password" placeholder="••••••••" />
+        <input
+          type="password"
+          id="password"
+          v-model="password"
+          placeholder="••••••••"
+        />
       </div>
 
       <div class="button-group">
@@ -19,18 +51,16 @@
         <button class="btn btn-secondary" @click="handleSignIn">Sign In</button>
       </div>
 
-      <hr class="divider" />
-
-      <button class="btn btn-google" @click="signInWithGoogle">
-        <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google logo" />
-        Sign in with Google
-      </button>
-
       <button
         v-if="isDev"
         type="button"
         class="btn btn-secondary"
-        style="margin-top: 1rem; width: 100%; border: 1px dashed var(--accent); color: var(--accent);"
+        style="
+          margin-top: 1rem;
+          width: 100%;
+          border: 1px dashed var(--accent);
+          color: var(--accent);
+        "
         @click="devLogin"
       >
         ⚡ Dev Quick Login (Preview Mode)
@@ -47,7 +77,8 @@ const email = ref('');
 const password = ref('');
 const isDev = import.meta.env.DEV;
 
-const { signUpWithEmail, signInWithEmail, signInWithGoogle, devLogin } = useAuth();
+const { signUpWithEmail, signInWithEmail, signInWithGoogle, devLogin } =
+  useAuth();
 
 const handleSignUp = () => {
   signUpWithEmail(email.value, password.value);
@@ -68,18 +99,49 @@ const handleSignIn = () => {
   border: 1px solid var(--border);
 }
 
+.login-eyebrow {
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin: 0 0 0.5rem;
+}
+
 .login-form h2 {
   font-size: 1.75rem;
   font-weight: 500;
-  font-family: "Georgia", "Palatino", serif;
+  font-family: 'Georgia', 'Palatino', serif;
   text-align: center;
   margin-bottom: 0.5rem;
 }
 
-.login-form p {
+.login-subtitle {
   text-align: center;
   color: var(--text-light);
-  margin-bottom: 2rem;
+  margin-bottom: 1.75rem;
+  line-height: 1.5;
+}
+
+.btn-google--hero {
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  font-size: 1.05rem;
+  padding: 0.95rem 1.5rem;
+}
+
+.divider-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.75rem 0;
+  color: var(--text-light);
+  font-size: 0.85rem;
+}
+
+.divider-row .divider {
+  flex: 1;
+  margin: 0;
 }
 
 .form-group {
@@ -149,7 +211,7 @@ const handleSignIn = () => {
 
 .btn-secondary:hover {
   background-color: var(--background);
-  border-color: #D1D5DB;
+  border-color: #d1d5db;
 }
 
 .divider {

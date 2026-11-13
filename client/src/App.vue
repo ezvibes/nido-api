@@ -3,8 +3,9 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useAuth } from './composables/useAuth';
 import { routeLoading } from './stores/routeLoading';
 import { isAdminEmail } from './utils/admin';
+import PartnerOnboardingModal from './components/onboarding/PartnerOnboardingModal.vue';
 
-const { user, signOut } = useAuth();
+const { user, signOut, needsOnboarding } = useAuth();
 const menuOpen = ref(false);
 const accountMenuOpen = ref(false);
 const accountMenuRef = ref<HTMLElement | null>(null);
@@ -203,6 +204,7 @@ onBeforeUnmount(() => {
         <router-view />
       </div>
     </main>
+    <PartnerOnboardingModal v-if="needsOnboarding" />
   </div>
 </template>
 

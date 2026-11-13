@@ -1,17 +1,22 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateOnboardingDto } from './dto/update-onboarding.dto';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { AuthService } from '../../auth/auth.service';
+import { Venue } from '../venues/entities/venue.entity';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectRepository(User) private readonly userRepository: Repository<User>,
     private readonly authService: AuthService,
+    @Optional()
+    @InjectRepository(Venue)
+    private readonly venueRepository?: Repository<Venue>,
   ) {}
 
   async syncFromToken(decodedToken: DecodedIdToken): Promise<User> {
@@ -57,7 +62,10 @@ export class UserService {
   }
 
   async update(uid: string, updateUserDto: UpdateUserDto): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { uid } });
+    const user = await this.userRepository.findOne({
+      where: { uid },
+      relations: ['claimedVenue'],
+    });
 
     if (!user) {
       throw new NotFoundException(`User with UID ${uid} not found`);
@@ -67,11 +75,51 @@ export class UserService {
     return this.userRepository.save(user);
   }
 
+  async updateOnboarding(uid: string, dto: UpdateOnboardingDto): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { uid },
+      relations: ['claimedVenue'],
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with UID ${uid} not found`);
+    }
+
+    if (dto.claimedVenueId) {
+      if (!this.venueRepository) {
+        throw new Error('Venue repository not configured.');
+      }
+      const venue = await this.venueRepository.findOne({
+        where: { id: dto.claimedVenueId },
+      });
+      if (!venue) {
+        throw new NotFoundException(
+          `Venue with ID ${dto.claimedVenueId} not found`,
+        );
+      }
+
+      const keepVerified =
+        user.claimedVenueId === venue.id &&
+        user.venueClaimStatus === 'verified';
+      user.claimedVenueId = venue.id;
+      user.claimedVenue = venue;
+      user.venueClaimStatus = keepVerified ? 'verified' : 'pending';
+    } else {
+      user.claimedVenueId = null;
+      user.claimedVenue = null;
+      user.venueClaimStatus = 'none';
+    }
+
+    user.onboardingCompletedAt = new Date();
+    return this.userRepository.save(user);
+  }
+
   private async findExisting(
     userProfile: Pick<CreateUserDto, 'email' | 'uid'>,
   ): Promise<User | null> {
     const userByEmail = await this.userRepository.findOne({
       where: { email: userProfile.email },
+      relations: ['claimedVenue'],
     });
     if (userByEmail) {
       return userByEmail;
@@ -79,6 +127,7 @@ export class UserService {
 
     return this.userRepository.findOne({
       where: { uid: userProfile.uid },
+      relations: ['claimedVenue'],
     });
   }
 
