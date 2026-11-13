@@ -134,6 +134,7 @@ onBeforeUnmount(() => {
                 My Poster Submissions
               </router-link>
               <router-link
+                v-if="isAdmin"
                 to="/concert-sync"
                 class="account-menu__item"
                 @click="closeMenu"
@@ -146,7 +147,7 @@ onBeforeUnmount(() => {
                 class="account-menu__item"
                 @click="closeMenu"
               >
-                Admin concerts
+                Admin Concerts
               </router-link>
               <router-link
                 v-if="isAdmin"
@@ -154,7 +155,7 @@ onBeforeUnmount(() => {
                 class="account-menu__item"
                 @click="closeMenu"
               >
-                Admin review
+                Poster Review (OCR)
               </router-link>
               <router-link
                 v-if="isAdmin"

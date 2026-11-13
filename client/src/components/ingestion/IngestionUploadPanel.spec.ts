@@ -23,15 +23,31 @@ const auth = vi.hoisted(() => ({
         value: null | { getIdToken: () => Promise<string> };
       }
     | undefined,
+  backendUser: undefined as
+    | {
+        value: null | {
+          claimedVenueId?: string | null;
+          claimedVenue?: {
+            id: string;
+            name: string;
+            city: string;
+            region: string;
+            regionSlug: string;
+          } | null;
+        };
+      }
+    | undefined,
 }));
 
 vi.mock('../../composables/useAuth', async () => {
   const { ref } = await import('vue');
   auth.user = ref(null);
+  auth.backendUser = ref(null);
 
   return {
     useAuth: () => ({
       user: auth.user,
+      backendUser: auth.backendUser,
     }),
   };
 });
@@ -60,6 +76,7 @@ describe('IngestionUploadPanel', () => {
     auth.user!.value = {
       getIdToken: vi.fn().mockResolvedValue('firebase-token'),
     };
+    auth.backendUser!.value = null;
     api.fetchConcertGenres.mockResolvedValue({ genres: ['Electronic'] });
     api.fetchVenues.mockResolvedValue([]);
     api.fetchBands.mockResolvedValue([]);
@@ -74,7 +91,9 @@ describe('IngestionUploadPanel', () => {
       genres: ['Jazz', 'other', 'Other', 'Funk'],
     });
 
-    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
+    const wrapper = mount(IngestionUploadPanel, {
+      global: { stubs: routerStubs },
+    });
     await flushPromises();
 
     expect(api.fetchConcertGenres).toHaveBeenCalledWith();
@@ -106,7 +125,9 @@ describe('IngestionUploadPanel', () => {
   it('submits Other only after explicit selection and resets to empty on clear', async () => {
     api.fetchConcertGenres.mockResolvedValue({ genres: [] });
 
-    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
+    const wrapper = mount(IngestionUploadPanel, {
+      global: { stubs: routerStubs },
+    });
     await flushPromises();
     const genreInput = wrapper.get<HTMLInputElement>('[role="combobox"]');
 
@@ -127,7 +148,9 @@ describe('IngestionUploadPanel', () => {
   });
 
   it('does not submit arbitrary user text', async () => {
-    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
+    const wrapper = mount(IngestionUploadPanel, {
+      global: { stubs: routerStubs },
+    });
     await flushPromises();
 
     await wrapper
@@ -160,10 +183,14 @@ describe('IngestionUploadPanel', () => {
       },
     ]);
 
-    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
+    const wrapper = mount(IngestionUploadPanel, {
+      global: { stubs: routerStubs },
+    });
     await flushPromises();
 
-    await wrapper.get('input[aria-label="Concert date"]').setValue('2026-10-15');
+    await wrapper
+      .get('input[aria-label="Concert date"]')
+      .setValue('2026-10-15');
     await wrapper.get('select[aria-label="Venue"]').setValue('venue-1');
     await wrapper.get('select[aria-label="Band or artist"]').setValue('band-1');
     await selectValidFile(wrapper);
@@ -193,11 +220,15 @@ describe('IngestionUploadPanel', () => {
       },
     ]);
 
-    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
+    const wrapper = mount(IngestionUploadPanel, {
+      global: { stubs: routerStubs },
+    });
     await flushPromises();
 
     // Default state should be NC
-    expect(wrapper.get<HTMLInputElement>('input[placeholder="NC"]').element.value).toBe('NC');
+    expect(
+      wrapper.get<HTMLInputElement>('input[placeholder="NC"]').element.value,
+    ).toBe('NC');
 
     // Select venue with region 'North Carolina'
     await wrapper.get('select[aria-label="Venue"]').setValue('venue-nc');
@@ -205,7 +236,9 @@ describe('IngestionUploadPanel', () => {
     await flushPromises();
 
     // State field remains/normalizes to 'NC'
-    expect(wrapper.get<HTMLInputElement>('input[placeholder="NC"]').element.value).toBe('NC');
+    expect(
+      wrapper.get<HTMLInputElement>('input[placeholder="NC"]').element.value,
+    ).toBe('NC');
 
     await selectValidFile(wrapper);
     await wrapper.get('form').trigger('submit');
@@ -224,7 +257,9 @@ describe('IngestionUploadPanel', () => {
   it('keeps upload available while genres are loading', async () => {
     api.fetchConcertGenres.mockReturnValue(new Promise(() => undefined));
 
-    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
+    const wrapper = mount(IngestionUploadPanel, {
+      global: { stubs: routerStubs },
+    });
     await selectValidFile(wrapper);
 
     expect(wrapper.text()).toContain('Loading current genres…');
@@ -239,7 +274,9 @@ describe('IngestionUploadPanel', () => {
   it('keeps upload available and omits genre when the API returns no genres', async () => {
     api.fetchConcertGenres.mockResolvedValue({ genres: [] });
 
-    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
+    const wrapper = mount(IngestionUploadPanel, {
+      global: { stubs: routerStubs },
+    });
     await flushPromises();
     await selectValidFile(wrapper);
 
@@ -265,7 +302,9 @@ describe('IngestionUploadPanel', () => {
   it('keeps upload available when genre loading fails', async () => {
     api.fetchConcertGenres.mockRejectedValue(new Error('metadata unavailable'));
 
-    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
+    const wrapper = mount(IngestionUploadPanel, {
+      global: { stubs: routerStubs },
+    });
     await flushPromises();
     await selectValidFile(wrapper);
 
@@ -288,24 +327,81 @@ describe('IngestionUploadPanel', () => {
     );
   });
 
+  it('pre-fills venue, city, and state=NC and shows partner pill for claimed venue users', async () => {
+    auth.backendUser!.value = {
+      claimedVenueId: 'bowstring-raleigh',
+      claimedVenue: {
+        id: 'bowstring-raleigh',
+        name: 'Bowstring Brewyard',
+        city: 'Raleigh',
+        region: 'North Carolina',
+        regionSlug: 'nc',
+      },
+    };
+    api.fetchVenues.mockResolvedValue([
+      {
+        id: 'bowstring-raleigh',
+        name: 'Bowstring Brewyard',
+        city: 'Raleigh',
+        citySlug: 'raleigh',
+        region: 'North Carolina',
+        regionSlug: 'nc',
+        createdAt: '',
+        updatedAt: '',
+      },
+    ]);
+
+    const wrapper = mount(IngestionUploadPanel, {
+      global: { stubs: routerStubs },
+    });
+    await flushPromises();
+
+    expect(wrapper.find('.ingestion-panel__partner-pill').text()).toContain(
+      'Posting for: Bowstring Brewyard',
+    );
+    expect(
+      wrapper.get<HTMLSelectElement>('select[aria-label="Venue"]').element
+        .value,
+    ).toBe('bowstring-raleigh');
+    expect(
+      wrapper.get<HTMLInputElement>('input[placeholder="Raleigh"]').element
+        .value,
+    ).toBe('Raleigh');
+    expect(
+      wrapper.get<HTMLInputElement>('input[placeholder="NC"]').element.value,
+    ).toBe('NC');
+
+    await wrapper.get('.ingestion-panel__partner-change').trigger('click');
+    expect(wrapper.find('.ingestion-panel__partner-pill').exists()).toBe(false);
+    expect(wrapper.find('.ingestion-panel__hints-body').isVisible()).toBe(true);
+  });
+
   it('shows progress and link to dedicated poster submissions view upon upload', async () => {
-    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
+    const wrapper = mount(IngestionUploadPanel, {
+      global: { stubs: routerStubs },
+    });
     await flushPromises();
 
     await selectValidFile(wrapper);
     await wrapper.get('form').trigger('submit');
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Poster uploaded! Reading show details now.');
+    expect(wrapper.text()).toContain(
+      'Poster uploaded! Reading show details now.',
+    );
     const submissionsLink = wrapper.get('a[href="/my-submissions"]');
     expect(submissionsLink.text()).toContain('View my poster submissions');
   });
 
   it('supports image-first disclosure toggle for optional details', async () => {
-    const wrapper = mount(IngestionUploadPanel, { global: { stubs: routerStubs } });
+    const wrapper = mount(IngestionUploadPanel, {
+      global: { stubs: routerStubs },
+    });
     await flushPromises();
 
-    const toggle = wrapper.get<HTMLButtonElement>('.ingestion-panel__hints-toggle');
+    const toggle = wrapper.get<HTMLButtonElement>(
+      '.ingestion-panel__hints-toggle',
+    );
     expect(toggle.attributes('aria-expanded')).toBe('false');
     expect(toggle.text()).toContain('Add optional details');
 

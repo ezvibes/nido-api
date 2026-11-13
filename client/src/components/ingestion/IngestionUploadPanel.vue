@@ -8,6 +8,19 @@
     </div>
 
     <form class="ingestion-panel__form" @submit.prevent="handleSubmit">
+      <div v-if="activeClaimedVenueName" class="ingestion-panel__partner-pill">
+        <span>
+          Posting for: <strong>{{ activeClaimedVenueName }}</strong>
+        </span>
+        <button
+          type="button"
+          class="ingestion-panel__partner-change"
+          @click="handleChangeClaimedVenue"
+        >
+          (Change)
+        </button>
+      </div>
+
       <div
         class="ingestion-panel__dropzone"
         :class="{
@@ -331,7 +344,7 @@ import { useAuth } from '../../composables/useAuth';
 import { normalizeStateCode } from '../../utils/state';
 import GenreCombobox from '../GenreCombobox.vue';
 
-const { user } = useAuth();
+const { user, backendUser } = useAuth();
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 const acceptedMimeTypes = [
@@ -735,12 +748,71 @@ const loadMySubmissions = async () => {
   }
 };
 
+const hasOverriddenClaimedVenue = ref(false);
+
+const claimedVenue = computed(() => {
+  const claimedId = backendUser?.value?.claimedVenueId;
+  if (!claimedId) {
+    return null;
+  }
+  return (
+    backendUser?.value?.claimedVenue ??
+    venues.value.find((v) => v.id === claimedId) ??
+    null
+  );
+});
+
+const activeClaimedVenueName = computed(() => {
+  const claimedId = backendUser?.value?.claimedVenueId;
+  if (!claimedId || hasOverriddenClaimedVenue.value) {
+    return '';
+  }
+  if (venueId.value && venueId.value !== claimedId) {
+    return '';
+  }
+  return claimedVenue.value?.name || 'Your claimed venue';
+});
+
+const applyClaimedVenuePrefill = () => {
+  const claimedId = backendUser?.value?.claimedVenueId;
+  if (!claimedId || hasOverriddenClaimedVenue.value || venueId.value) {
+    return;
+  }
+  venueId.value = claimedId;
+  if (claimedVenue.value) {
+    if (!city.value.trim() && claimedVenue.value.city) {
+      city.value = claimedVenue.value.city;
+    }
+    const regionCode =
+      claimedVenue.value.regionSlug?.trim().length === 2
+        ? claimedVenue.value.regionSlug.trim().toUpperCase()
+        : normalizeStateCode(claimedVenue.value.region);
+    state.value = regionCode || 'NC';
+  } else {
+    state.value = state.value || 'NC';
+  }
+};
+
+const handleChangeClaimedVenue = () => {
+  hasOverriddenClaimedVenue.value = true;
+  showOptionalDetails.value = true;
+};
+
 onMounted(() => {
   void loadGenres();
   void loadVenues();
   void loadBands();
   void loadMySubmissions();
+  applyClaimedVenuePrefill();
 });
+
+watch(
+  [() => backendUser?.value?.claimedVenueId, () => venues.value],
+  () => {
+    applyClaimedVenuePrefill();
+  },
+  { immediate: true },
+);
 
 watch(
   () => user.value,
@@ -1542,6 +1614,28 @@ const handleSubmit = async () => {
 .ingestion-panel__details dd {
   margin-top: 0.2rem;
   word-break: break-word;
+}
+
+.ingestion-panel__partner-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 9999px;
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--primary, #1d4ed8);
+  font-size: 0.88rem;
+  width: fit-content;
+}
+
+.ingestion-panel__partner-change {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
 }
 
 @media (min-width: 720px) {
