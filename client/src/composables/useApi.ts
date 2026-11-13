@@ -766,6 +766,9 @@ export interface AdminIngestionCandidateListItem {
     concertDate?: string;
     uploadedByUid?: string;
     uploadedByUserEmail?: string;
+    uploaderClaimedVenueId?: string | null;
+    uploaderClaimedVenueName?: string | null;
+    uploaderVenueClaimStatus?: VenueClaimStatus | null;
     createdAt: string;
     posterUrl: string;
   } | null;
