@@ -86,6 +86,12 @@ export class ConcertResponseDto {
   @ApiProperty({ example: false })
   isTopPick: boolean;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 'https://etix.com/ticket/p/12345',
+  })
+  ticketUrl?: string | null;
+
   @ApiPropertyOptional({ nullable: true, example: 0.8123 })
   topPickScore?: number | null;
 

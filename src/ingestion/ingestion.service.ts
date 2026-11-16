@@ -286,6 +286,7 @@ export class IngestionService {
         concertDate: validConcertDate,
         venueId,
         bandId,
+        ticketUrl: dto.ticketUrl ?? null,
         source: normalizedSource,
         reviewStatus: 'submitted',
         uploadedByUid: uid,
@@ -308,6 +309,7 @@ export class IngestionService {
       concertDate: validConcertDate?.toISOString(),
       venueId,
       bandId,
+      ticketUrl: concertUpload.ticketUrl ?? null,
       source: normalizedSource,
       uploadedByUserId,
       uploadedAt,
@@ -553,6 +555,7 @@ export class IngestionService {
       venueName: upload.venue?.name ?? undefined,
       bandId: upload.bandId ?? undefined,
       bandName: upload.band?.name ?? undefined,
+      ticketUrl: upload.ticketUrl ?? null,
       source: upload.source,
       uploadedByUid: upload.uploadedByUid,
       uploadedByUserId: upload.uploadedByUserId,
@@ -629,6 +632,7 @@ export class IngestionService {
     });
     const description =
       dto.concertDescription?.trim() || dto.notes?.trim() || null;
+    const ticketUrl = dto.concertTicketUrl?.trim() || upload.ticketUrl || null;
 
     if (existingConcert) {
       const updateResult = await concertRepository
@@ -642,6 +646,7 @@ export class IngestionService {
           endsAt: null,
           venueId: resolvedVenue.id,
           description,
+          ticketUrl,
           isAdminApproved: true,
           adminApprovedAt: new Date(),
           adminApprovedByUserId: reviewedByUserId,
@@ -680,6 +685,7 @@ export class IngestionService {
       venue: resolvedVenue,
       lineup,
       description,
+      ticketUrl,
       isAdminApproved: true,
       adminApprovedAt: new Date(),
       adminApprovedByUserId: reviewedByUserId,

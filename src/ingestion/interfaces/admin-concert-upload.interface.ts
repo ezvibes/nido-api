@@ -16,6 +16,7 @@ export interface AdminConcertUploadListItem {
   venueName?: string;
   bandId?: string;
   bandName?: string;
+  ticketUrl?: string | null;
   source: string;
   uploadedByUid: string;
   uploadedByUserId?: number;

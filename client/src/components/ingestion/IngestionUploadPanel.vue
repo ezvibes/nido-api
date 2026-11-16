@@ -165,6 +165,15 @@
                 placeholder="NC"
               />
             </label>
+
+            <label class="ingestion-panel__field">
+              <span>Ticket Link / URL</span>
+              <input
+                v-model="ticketUrl"
+                type="url"
+                placeholder="https://etix.com/... or https://dice.fm/..."
+              />
+            </label>
           </div>
         </div>
       </div>
@@ -369,6 +378,7 @@ const bandId = ref('');
 const city = ref('');
 const state = ref('NC');
 const genre = ref('');
+const ticketUrl = ref('');
 const genres = ref<string[]>([]);
 const venues = ref<VenueListItem[]>([]);
 const bands = ref<BandListItem[]>([]);
@@ -997,6 +1007,7 @@ const handleSubmit = async () => {
         : undefined,
       venueId: venueId.value || undefined,
       bandId: bandId.value || undefined,
+      ...(ticketUrl.value.trim() ? { ticketUrl: ticketUrl.value.trim() } : {}),
       source: 'flyer_upload',
     });
     job.value = await createIngestionJob(

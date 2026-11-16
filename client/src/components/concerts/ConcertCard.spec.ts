@@ -108,6 +108,35 @@ describe('ConcertCard', () => {
     expect(wrapper.find('.concert-card__poster img').exists()).toBe(false);
     expect(wrapper.find('.concert-card__fallback').exists()).toBe(true);
   });
+
+  it('renders an external Get Tickets link when ticketUrl is a valid http(s) URL', () => {
+    const wrapper = mount(ConcertCard, {
+      props: {
+        concert: buildConcert({
+          ticketUrl: 'https://etix.com/ticket/p/12345',
+        }),
+      },
+    });
+
+    const link = wrapper.get('a.concert-card__tickets');
+    expect(link.text()).toBe('Get Tickets');
+    expect(link.attributes('href')).toBe('https://etix.com/ticket/p/12345');
+    expect(link.attributes('target')).toBe('_blank');
+    expect(link.attributes('rel')).toBe('noopener noreferrer');
+  });
+
+  it('keeps Tickets disabled for unsafe or missing ticketUrl', () => {
+    const wrapper = mount(ConcertCard, {
+      props: {
+        concert: buildConcert({
+          ticketUrl: 'javascript:alert(1)',
+        }),
+      },
+    });
+
+    expect(wrapper.find('a.concert-card__tickets').exists()).toBe(false);
+    expect(wrapper.get('button.concert-card__tickets').attributes('disabled')).toBeDefined();
+  });
 });
 
 function buildConcert(
