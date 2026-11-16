@@ -38,6 +38,7 @@ export interface ConcertApiItem {
   lineup: ConcertLineupEntry[];
   sets: ConcertSet[];
   description?: string | null;
+  ticketUrl?: string | null;
   catalogStatus?: 'active' | 'hidden' | 'archived';
   isFeatured?: boolean;
   editorialLockedAt?: string | null;

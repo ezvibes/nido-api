@@ -57,8 +57,12 @@
           </svg>
         </div>
         <div class="concert-card__fallback-content">
-          <span class="concert-card__fallback-badge">{{ posterBadgeText }}</span>
-          <div class="concert-card__fallback-initials">{{ artistInitials }}</div>
+          <span class="concert-card__fallback-badge">{{
+            posterBadgeText
+          }}</span>
+          <div class="concert-card__fallback-initials">
+            {{ artistInitials }}
+          </div>
           <div class="concert-card__fallback-footer">
             <span class="concert-card__fallback-brand">NIDO</span>
           </div>
@@ -79,11 +83,7 @@
         class="concert-card__badges"
         aria-label="Concert details"
       >
-        <span
-          v-for="tag in cardTags"
-          :key="tag"
-          class="concert-card__badge"
-        >
+        <span v-for="tag in cardTags" :key="tag" class="concert-card__badge">
           {{ tag }}
         </span>
       </div>
@@ -100,7 +100,16 @@
           <span class="concert-card__upvote-icon" aria-hidden="true">♥</span>
           <span>{{ concert.upvoteCount ?? 0 }}</span>
         </button>
-        <button class="concert-card__tickets" type="button" disabled>
+        <a
+          v-if="safeTicketUrl"
+          :href="safeTicketUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="concert-card__tickets concert-card__tickets--active"
+        >
+          Get Tickets
+        </a>
+        <button v-else class="concert-card__tickets" type="button" disabled>
           Tickets
         </button>
       </div>
@@ -123,6 +132,20 @@ defineEmits<{
 }>();
 
 const imageError = ref(false);
+
+const safeTicketUrl = computed(() => {
+  const raw = props.concert.ticketUrl?.trim();
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.toString();
+    }
+  } catch {
+    return null;
+  }
+  return null;
+});
 
 watch(
   () => props.concert.posterUrl,
@@ -247,7 +270,10 @@ const eventLabel = computed(() => {
 });
 
 function normalizeDisplayText(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 }
 
 const primaryVenueName = computed(
@@ -477,6 +503,13 @@ const formattedStartTime = computed(() =>
   border-radius: 999px;
   border: 1px solid var(--border);
   font-weight: 600;
+  text-decoration: none;
+}
+
+.concert-card__tickets--active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
 }
 
 .concert-card__upvote {

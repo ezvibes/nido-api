@@ -32,6 +32,7 @@ export interface PublishCandidateDto {
   genreIds: string[];
   genre?: string;
   notes?: string;
+  ticketUrl?: string | null;
   reviewDurationMs: number;
 }
 
@@ -270,6 +271,7 @@ export class IngestionPublicationService {
       venue: resolvedVenueId ? ({ id: resolvedVenueId } as any) : null,
       startsAt,
       description: dto.notes?.trim() || null,
+      ticketUrl: dto.ticketUrl?.trim() || job.concertUpload?.ticketUrl || null,
       catalogStatus: ConcertCatalogStatus.ACTIVE,
       isAdminApproved: true,
       adminApprovedAt: new Date(),
@@ -681,6 +683,7 @@ export class IngestionPublicationService {
       city: upload.city,
       state: upload.state,
       genre: upload.genre,
+      ticketUrl: upload.ticketUrl ?? null,
       concertDate: upload.concertDate?.toISOString?.() ?? upload.concertDate,
       uploadedByUid: upload.uploadedByUid,
       uploadedByUserEmail: upload.uploadedByUser?.email,

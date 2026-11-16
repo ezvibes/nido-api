@@ -134,6 +134,7 @@ export interface UpdateAdminConcertPayload {
   endsAt?: string | null;
   venueId?: string | null;
   description?: string | null;
+  ticketUrl?: string | null;
   catalogStatus?: AdminConcertCatalogStatus;
   isFeatured?: boolean;
   resumeSyncUpdates?: boolean;
@@ -440,6 +441,7 @@ export async function uploadIngestionImage(
     concertDate?: string;
     venueId?: string;
     bandId?: string;
+    ticketUrl?: string;
   },
 ) {
   try {
@@ -466,6 +468,10 @@ export async function uploadIngestionImage(
     }
     if (payload.bandId) {
       formData.append('bandId', payload.bandId);
+    }
+    const ticketUrl = payload.ticketUrl?.trim();
+    if (ticketUrl) {
+      formData.append('ticketUrl', ticketUrl);
     }
 
     const response = await apiClient.post<IngestionUploadResult>(
@@ -647,6 +653,7 @@ export interface AdminConcertUploadListItem {
   bandId?: string;
   bandName?: string;
   source: string;
+  ticketUrl?: string | null;
   uploadedByUid: string;
   uploadedByUserId?: number;
   uploadedByUserEmail?: string;
@@ -694,6 +701,7 @@ export async function reviewAdminIngestionUpload(
     concertVenueName?: string;
     concertBandName?: string;
     concertDescription?: string;
+    concertTicketUrl?: string;
   },
 ) {
   const response = await apiClient.put<AdminConcertUploadListItem>(
@@ -763,6 +771,7 @@ export interface AdminIngestionCandidateListItem {
     city?: string;
     state?: string;
     genre?: string;
+    ticketUrl?: string | null;
     concertDate?: string;
     uploadedByUid?: string;
     uploadedByUserEmail?: string;
@@ -802,6 +811,7 @@ export interface PublishCandidatePayload {
   genreIds: string[];
   genre?: string;
   notes?: string;
+  ticketUrl?: string | null;
   reviewDurationMs: number;
 }
 

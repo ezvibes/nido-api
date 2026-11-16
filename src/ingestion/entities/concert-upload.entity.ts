@@ -44,6 +44,9 @@ export class ConcertUpload {
   @Column({ type: 'varchar', length: 120, nullable: true })
   genre?: string | null;
 
+  @Column({ name: 'ticket_url', type: 'varchar', length: 1000, nullable: true })
+  ticketUrl?: string | null;
+
   @Column({ name: 'concert_date', type: 'timestamptz', nullable: true })
   concertDate?: Date | null;
 
