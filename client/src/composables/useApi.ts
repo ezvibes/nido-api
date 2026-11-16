@@ -109,6 +109,19 @@ export async function fetchConcerts(
   }
 }
 
+export async function fetchConcertById(
+  id: string,
+  token?: string,
+): Promise<ConcertApiItem> {
+  const response = await apiClient.get<ConcertApiItem>(
+    `/concerts/${encodeURIComponent(id)}`,
+    {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    },
+  );
+  return response.data;
+}
+
 export interface ConcertGenresResponse {
   genres: string[];
   options?: Array<{

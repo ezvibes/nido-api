@@ -95,6 +95,8 @@ describe('MySubmissionsPage', () => {
     expect(wrapper.text()).toContain('Sylvan Esso at The Pour House');
     expect(wrapper.text()).toContain('Published');
     expect(wrapper.text()).toContain('View Live Show →');
+    const liveShowLink = wrapper.get('.submission-card__link--published');
+    expect(liveShowLink.attributes('href')).toBe('/concerts/concert-42');
   });
 
   it('shows Needs retry and allows retrying when job failed', async () => {

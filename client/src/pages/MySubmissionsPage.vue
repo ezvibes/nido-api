@@ -72,13 +72,13 @@
         </div>
 
         <div class="submission-card__actions">
-          <a
+          <router-link
             v-if="getPublishedConcertIdForJob(item)"
-            href="/concerts"
+            :to="`/concerts/${getPublishedConcertIdForJob(item)}`"
             class="submission-card__link submission-card__link--published"
           >
             View Live Show →
-          </a>
+          </router-link>
           <button
             v-else-if="getJobStatusKey(item) === 'failed' && item.concertUpload?.id"
             type="button"

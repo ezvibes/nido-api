@@ -372,6 +372,42 @@ export class ConcertService {
     return concert;
   }
 
+  async findOneForViewer(id: string, currentUser?: User) {
+    const qb = this.concertRepository
+      .createQueryBuilder('concert')
+      .where('concert.id = :id', { id });
+
+    if (currentUser?.id) {
+      qb.andWhere(
+        '((concert.catalogStatus = :activeCatalogStatus AND concert.isAdminApproved = :isAdminApproved) OR (concert.owner_id = :ownerId AND concert.catalogStatus = :activeCatalogStatus))',
+        {
+          activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
+          isAdminApproved: true,
+          ownerId: currentUser.id,
+        },
+      );
+    } else {
+      qb.andWhere('concert.catalogStatus = :activeCatalogStatus', {
+        activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
+      }).andWhere('concert.isAdminApproved = :isAdminApproved', {
+        isAdminApproved: true,
+      });
+    }
+
+    const result = await this.findWithQuery(
+      qb,
+      { page: 1, pageSize: 1 },
+      currentUser,
+      false,
+    );
+
+    if (!result.data[0]) {
+      throw new NotFoundException('Concert not found');
+    }
+
+    return result.data[0];
+  }
+
   async updateForOwner(id: string, owner: User, dto: UpdateConcertDto) {
     const concert = await this.findOneForOwner(id, owner);
     if (

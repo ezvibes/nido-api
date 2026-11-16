@@ -8,6 +8,7 @@ describe('ConcertController', () => {
   const concertService = {
     findAll: jest.fn(),
     findAllForOwner: jest.fn(),
+    findOneForViewer: jest.fn(),
     createForOwner: jest.fn(),
     upvote: jest.fn(),
     removeUpvote: jest.fn(),
@@ -107,5 +108,41 @@ describe('ConcertController', () => {
       'concert-1',
       owner,
     );
+  });
+
+  it('gets a single concert publicly without syncing a user', async () => {
+    concertService.findOneForViewer.mockResolvedValue({ id: 'concert-1' });
+
+    const result = await controller.getConcert(undefined, 'concert-1');
+
+    expect(userService.findExistingFromToken).not.toHaveBeenCalled();
+    expect(userService.syncFromToken).not.toHaveBeenCalled();
+    expect(concertService.findOneForViewer).toHaveBeenCalledWith(
+      'concert-1',
+      undefined,
+    );
+    expect(result).toEqual({ id: 'concert-1' });
+  });
+
+  it('gets a single concert with existing user context when authenticated', async () => {
+    const decodedToken = { uid: 'uid-1' } as DecodedIdToken;
+    const currentUser = { id: 3 };
+    userService.findExistingFromToken.mockResolvedValue(currentUser);
+    concertService.findOneForViewer.mockResolvedValue({
+      id: 'concert-1',
+      upvotedByMe: true,
+    });
+
+    const result = await controller.getConcert(decodedToken, 'concert-1');
+
+    expect(userService.findExistingFromToken).toHaveBeenCalledWith(
+      decodedToken,
+    );
+    expect(userService.syncFromToken).not.toHaveBeenCalled();
+    expect(concertService.findOneForViewer).toHaveBeenCalledWith(
+      'concert-1',
+      currentUser,
+    );
+    expect(result).toEqual({ id: 'concert-1', upvotedByMe: true });
   });
 });

@@ -74,7 +74,14 @@
       <time class="concert-card__time" :datetime="concert.startsAt">
         {{ formattedStartTime }}
       </time>
-      <h3 class="concert-card__artist">{{ artistLabel }}</h3>
+      <h3 class="concert-card__artist">
+        <router-link
+          :to="`/concerts/${concert.id}`"
+          class="concert-card__artist-link"
+        >
+          {{ artistLabel }}
+        </router-link>
+      </h3>
       <p v-if="eventLabel" class="concert-card__event">{{ eventLabel }}</p>
       <p class="concert-card__venue">{{ primaryVenueName }}</p>
       <p class="concert-card__location">{{ locationLabel }}</p>
@@ -112,6 +119,12 @@
         <button v-else class="concert-card__tickets" type="button" disabled>
           Tickets
         </button>
+        <router-link
+          :to="`/concerts/${concert.id}`"
+          class="concert-card__details-link"
+        >
+          View Details
+        </router-link>
       </div>
     </div>
   </article>
@@ -120,6 +133,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import type { ConcertListItem } from '../../types/concerts';
+import {
+  computeArtistInitials,
+  extractOrderedArtistNames,
+  resolveDistinctEventTitle,
+  resolveGenreThemeVariant,
+  sanitizeTicketUrl,
+} from '../../utils/concert-presentation';
 
 const props = defineProps<{
   concert: ConcertListItem;
@@ -133,19 +153,9 @@ defineEmits<{
 
 const imageError = ref(false);
 
-const safeTicketUrl = computed(() => {
-  const raw = props.concert.ticketUrl?.trim();
-  if (!raw) return null;
-  try {
-    const parsed = new URL(raw);
-    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-      return parsed.toString();
-    }
-  } catch {
-    return null;
-  }
-  return null;
-});
+const safeTicketUrl = computed(() =>
+  sanitizeTicketUrl(props.concert.ticketUrl),
+);
 
 watch(
   () => props.concert.posterUrl,
@@ -162,69 +172,15 @@ const handleImageError = () => {
   imageError.value = true;
 };
 
-const normalizedGenre = computed(() =>
-  (props.concert.genre || '').toLowerCase().trim(),
+const genreThemeClass = computed(
+  () => `concert-card__fallback--${resolveGenreThemeVariant(props.concert.genre)}`,
 );
-
-const genreThemeClass = computed(() => {
-  const g = normalizedGenre.value;
-  if (
-    g.includes('electronic') ||
-    g.includes('edm') ||
-    g.includes('dance') ||
-    g.includes('dj') ||
-    g.includes('house') ||
-    g.includes('techno')
-  ) {
-    return 'concert-card__fallback--electronic';
-  }
-  if (
-    g.includes('rock') ||
-    g.includes('metal') ||
-    g.includes('punk') ||
-    g.includes('alternative') ||
-    g.includes('indie')
-  ) {
-    return 'concert-card__fallback--rock';
-  }
-  if (
-    g.includes('jazz') ||
-    g.includes('blues') ||
-    g.includes('soul') ||
-    g.includes('r&b') ||
-    g.includes('funk')
-  ) {
-    return 'concert-card__fallback--jazz';
-  }
-  if (
-    g.includes('country') ||
-    g.includes('folk') ||
-    g.includes('acoustic') ||
-    g.includes('bluegrass')
-  ) {
-    return 'concert-card__fallback--acoustic';
-  }
-  if (g.includes('hip hop') || g.includes('rap') || g.includes('urban')) {
-    return 'concert-card__fallback--hiphop';
-  }
-  return 'concert-card__fallback--default';
-});
 
 const posterBadgeText = computed(() => props.concert.genre || 'Live Show');
 
-const artistInitials = computed(() => {
-  const label = artistLabel.value || props.concert.title || 'EZ';
-  const parts = label.split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return 'EZ';
-  }
-  if (parts.length === 1) {
-    return (parts[0] || 'EZ').slice(0, 2).toUpperCase();
-  }
-  const first = parts[0]?.[0] || 'E';
-  const second = parts[1]?.[0] || 'Z';
-  return (first + second).toUpperCase();
-});
+const artistInitials = computed(() =>
+  computeArtistInitials(artistLabel.value || props.concert.title),
+);
 
 const primaryVenue = computed(() => props.concert.venue);
 const isSynced = computed(
@@ -246,10 +202,7 @@ const cardTags = computed(() => {
 });
 
 const artistNames = computed(() =>
-  [...props.concert.lineup]
-    .sort((left, right) => left.performanceOrder - right.performanceOrder)
-    .map((entry) => entry.band.name)
-    .filter((name, index, names) => names.indexOf(name) === index),
+  extractOrderedArtistNames(props.concert.lineup),
 );
 
 const artistLabel = computed(() =>
@@ -258,23 +211,9 @@ const artistLabel = computed(() =>
     : props.concert.title,
 );
 
-const eventLabel = computed(() => {
-  if (!artistNames.value.length) return '';
-
-  const normalizedTitle = normalizeDisplayText(props.concert.title);
-  const titleAddsInformation = artistNames.value.some(
-    (name) => !normalizedTitle.includes(normalizeDisplayText(name)),
-  );
-
-  return titleAddsInformation ? props.concert.title : '';
-});
-
-function normalizeDisplayText(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
+const eventLabel = computed(() =>
+  resolveDistinctEventTitle(props.concert.title, artistNames.value),
+);
 
 const primaryVenueName = computed(
   () => primaryVenue.value?.name ?? 'Venue TBD',
@@ -470,6 +409,31 @@ const formattedStartTime = computed(() =>
 .concert-card__artist {
   font-size: 1.2rem;
   line-height: 1.2;
+}
+
+.concert-card__artist-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.concert-card__artist-link:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.concert-card__details-link {
+  justify-self: start;
+  padding: 0.6rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--text-dark);
+}
+
+.concert-card__details-link:hover {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .concert-card__time {

@@ -4,6 +4,9 @@ export interface ConcertVenue {
   address?: string | null;
   city?: string;
   region?: string;
+  postalCode?: string | null;
+  capacity?: number | null;
+  verificationState?: string | null;
 }
 
 export interface ConcertBand {
