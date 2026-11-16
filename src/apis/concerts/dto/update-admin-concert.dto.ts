@@ -8,6 +8,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUrl,
   IsUUID,
   MaxLength,
   Min,
@@ -82,6 +83,21 @@ export class UpdateAdminConcertDto {
   @IsOptional()
   @IsString()
   description?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Direct ticket purchase URL, or null/empty to clear it.',
+    maxLength: 1000,
+    example: 'https://etix.com/ticket/p/12345',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() || null : value,
+  )
+  @ValidateIf((_object, value) => value !== null && value !== undefined)
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @MaxLength(1000)
+  ticketUrl?: string | null;
 
   @ApiPropertyOptional({
     enum: ConcertCatalogStatus,

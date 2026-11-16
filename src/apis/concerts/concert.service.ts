@@ -608,7 +608,8 @@ export class ConcertService {
       dto.startsAt !== undefined ||
       dto.endsAt !== undefined ||
       dto.venueId !== undefined ||
-      dto.description !== undefined;
+      dto.description !== undefined ||
+      dto.ticketUrl !== undefined;
 
     if (contentChanged && dto.resumeSyncUpdates) {
       throw new BadRequestException(
@@ -650,6 +651,9 @@ export class ConcertService {
     }
     if (dto.description !== undefined) {
       update.description = this.normalizeOptionalString(dto.description);
+    }
+    if (dto.ticketUrl !== undefined) {
+      update.ticketUrl = this.normalizeOptionalString(dto.ticketUrl);
     }
     if (contentChanged) {
       update.editorialLockedAt = new Date();

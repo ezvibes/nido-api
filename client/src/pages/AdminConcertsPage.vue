@@ -75,6 +75,7 @@ const form = reactive({
   endsAt: '',
   venueId: '',
   description: '',
+  ticketUrl: '',
 });
 
 const statusOptions: Array<{
@@ -402,6 +403,7 @@ function openEditor(concert: ConcertApiItem) {
   form.endsAt = toLocalInput(concert.endsAt);
   form.venueId = concert.venue?.id || '';
   form.description = concert.description || '';
+  form.ticketUrl = concert.ticketUrl || '';
   void nextTick(() => closeEditorButton.value?.focus());
 }
 
@@ -531,6 +533,7 @@ async function saveEditor() {
       endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
       venueId: form.venueId || null,
       description: form.description.trim() || null,
+      ticketUrl: form.ticketUrl.trim() || null,
     },
     `Saved changes to ${form.title.trim()}.`,
   );
@@ -1091,6 +1094,14 @@ onMounted(async () => {
               Selected: {{ editPosterFile.name }}
             </p>
           </div>
+          <label class="field field--wide"
+            ><span>Ticket Link</span
+            ><input
+              v-model="form.ticketUrl"
+              type="url"
+              placeholder="https://etix.com/... or https://dice.fm/..."
+            />
+          </label>
           <label class="field field--wide"
             ><span>Description</span
             ><textarea v-model="form.description" rows="5"></textarea>

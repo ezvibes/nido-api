@@ -12,6 +12,7 @@ export interface IngestionUploadResult {
   concertDate?: string;
   venueId?: string;
   bandId?: string;
+  ticketUrl?: string | null;
   source: string;
   uploadedByUserId?: number;
   uploadedAt: string;

@@ -342,6 +342,18 @@
                 </select>
               </div>
 
+              <!-- Ticket Link -->
+              <div class="show-editor-field">
+                <label for="candidate-ticket-url">Ticket link / URL</label>
+                <input
+                  id="candidate-ticket-url"
+                  v-model="showForm.ticketUrl"
+                  type="url"
+                  class="show-editor-input"
+                  placeholder="https://etix.com/... or https://dice.fm/..."
+                />
+              </div>
+
               <!-- Performers & Lineup Tags -->
               <div class="show-editor-field">
                 <label>Performers &amp; Lineup</label>
@@ -1030,6 +1042,16 @@
               <label
                 class="admin-uploads__control admin-uploads__control--stack"
               >
+                <span>Ticket link / URL</span>
+                <input
+                  v-model="concertTicketUrlDraft"
+                  type="url"
+                  placeholder="https://etix.com/... or https://dice.fm/..."
+                />
+              </label>
+              <label
+                class="admin-uploads__control admin-uploads__control--stack"
+              >
                 <span>Public description</span>
                 <textarea
                   v-model="concertDescriptionDraft"
@@ -1147,6 +1169,7 @@ const showForm = ref({
   venueName: '',
   bandNames: [] as string[],
   genre: '',
+  ticketUrl: '',
   notes: '',
 });
 const newBandInput = ref('');
@@ -1254,6 +1277,13 @@ const selectCandidate = async (candidate: AdminIngestionCandidateListItem) => {
       : (prov.genres as any)?.rawValue);
   showForm.value.genre =
     extractedGenre || candidate.upload?.genre || genres.value[0] || 'Rock';
+  const extractedTicketUrl =
+    typeof prov.ticketUrlOrInfo?.rawValue === 'string' &&
+    /^https?:\/\//i.test(prov.ticketUrlOrInfo.rawValue.trim())
+      ? prov.ticketUrlOrInfo.rawValue.trim()
+      : '';
+  showForm.value.ticketUrl =
+    candidate.upload?.ticketUrl || extractedTicketUrl || '';
 
   if (Array.isArray(prov.bands) && prov.bands.length > 0) {
     showForm.value.bandNames = prov.bands
@@ -1325,6 +1355,7 @@ const publishShow = async () => {
       bandNames: showForm.value.bandNames,
       genreIds: selectedCandidate.value.suggestedGenreIds || [],
       genre: showForm.value.genre || undefined,
+      ticketUrl: showForm.value.ticketUrl.trim() || undefined,
       notes: showForm.value.notes || undefined,
       reviewDurationMs: durationMs,
     });
@@ -1546,6 +1577,7 @@ const concertTimeDraft = ref('19:00');
 const concertVenueNameDraft = ref('');
 const concertBandNameDraft = ref('');
 const concertDescriptionDraft = ref('');
+const concertTicketUrlDraft = ref('');
 
 const limit = 25;
 const offset = ref(0);
@@ -1665,6 +1697,7 @@ const openPreview = async (upload: AdminConcertUploadListItem) => {
   concertVenueNameDraft.value = upload.venueName ?? '';
   concertBandNameDraft.value = upload.bandName ?? concertTitleDraft.value;
   concertDescriptionDraft.value = '';
+  concertTicketUrlDraft.value = upload.ticketUrl || '';
 
   try {
     const token = await getToken();
@@ -1772,6 +1805,10 @@ const saveReview = async () => {
       concertDescription:
         reviewStatusDraft.value === 'approved'
           ? concertDescriptionDraft.value.trim() || undefined
+          : undefined,
+      concertTicketUrl:
+        reviewStatusDraft.value === 'approved'
+          ? concertTicketUrlDraft.value.trim() || undefined
           : undefined,
     });
     patchLocalUpload(updated);
@@ -2920,10 +2957,9 @@ onBeforeUnmount(() => {
 .admin-uploads__table-header,
 .admin-uploads__row {
   display: grid;
-  grid-template-columns: minmax(170px, 1.15fr) minmax(220px, 1.45fr) minmax(
-      140px,
-      0.95fr
-    ) minmax(190px, 1.1fr) 120px;
+  grid-template-columns:
+    minmax(170px, 1.15fr) minmax(220px, 1.45fr) minmax(140px, 0.95fr)
+    minmax(190px, 1.1fr) 120px;
   gap: 0.875rem;
   align-items: center;
   padding: 0.9rem 1.25rem;
