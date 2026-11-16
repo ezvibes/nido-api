@@ -63,7 +63,7 @@ const routes = [
     path: '/concert-sync',
     name: 'ConcertSync',
     component: ConcertSyncPage,
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, requiresAdmin: true },
   },
   {
     path: '/admin/concerts',
