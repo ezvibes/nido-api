@@ -231,7 +231,7 @@ describe('AdminIngestionUploadsPage', () => {
       uploaderClaimedVenueId: 'bowstring-raleigh',
       uploaderClaimedVenueName: 'Bowstring Brewyard',
       uploaderVenueClaimStatus: 'pending',
-    };
+    } as any;
     api.fetchAdminIngestionCandidates.mockResolvedValue({
       total: 1,
       items: [cand],
