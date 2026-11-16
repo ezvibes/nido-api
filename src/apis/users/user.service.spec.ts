@@ -1,5 +1,6 @@
 import { UserService } from './user.service';
 import { User } from './entities/user.entity';
+import { NotFoundException } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 
 describe('UserService', () => {
@@ -7,7 +8,7 @@ describe('UserService', () => {
     getUserProfileFromToken: jest.fn(),
   };
 
-  function createService(repositoryOverrides = {}) {
+  function createService(repositoryOverrides = {}, venueOverrides = {}) {
     const repository = {
       findOne: jest.fn(),
       create: jest.fn((dto) => dto),
@@ -16,8 +17,17 @@ describe('UserService', () => {
       ...repositoryOverrides,
     };
 
-    const service = new UserService(repository as any, authService as any);
-    return { service, repository };
+    const venueRepository = {
+      findOne: jest.fn(),
+      ...venueOverrides,
+    };
+
+    const service = new UserService(
+      repository as any,
+      authService as any,
+      venueRepository as any,
+    );
+    return { service, repository, venueRepository };
   }
 
   it('returns and refreshes an existing user found by uid', async () => {
@@ -179,5 +189,73 @@ describe('UserService', () => {
 
     expect(repository.create).not.toHaveBeenCalled();
     expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it('claims a venue during onboarding and marks status pending', async () => {
+    const existingUser = {
+      id: 4,
+      uid: 'matt-uid',
+      email: 'matt@bowstring.com',
+      venueClaimStatus: 'none',
+    } as User;
+    const bowstring = {
+      id: 'e6efac75-ab36-46fb-a79d-4c3807a083f0',
+      name: 'Bowstring Brewyard',
+      city: 'Raleigh',
+    };
+    const { service, repository } = createService(
+      { findOne: jest.fn().mockResolvedValue(existingUser) },
+      { findOne: jest.fn().mockResolvedValue(bowstring) },
+    );
+
+    const result = await service.updateOnboarding('matt-uid', {
+      claimedVenueId: bowstring.id,
+    });
+
+    expect(result.claimedVenueId).toBe(bowstring.id);
+    expect(result.claimedVenue).toEqual(bowstring);
+    expect(result.venueClaimStatus).toBe('pending');
+    expect(result.onboardingCompletedAt).toBeInstanceOf(Date);
+    expect(repository.save).toHaveBeenCalledWith(existingUser);
+  });
+
+  it('completes onboarding as a fan without claiming a venue', async () => {
+    const existingUser = {
+      id: 5,
+      uid: 'fan-uid',
+      email: 'fan@example.com',
+      claimedVenueId: 'old-venue-id',
+      venueClaimStatus: 'pending',
+    } as User;
+    const { service } = createService({
+      findOne: jest.fn().mockResolvedValue(existingUser),
+    });
+
+    const result = await service.updateOnboarding('fan-uid', {
+      skipAsFan: true,
+    });
+
+    expect(result.claimedVenueId).toBeNull();
+    expect(result.claimedVenue).toBeNull();
+    expect(result.venueClaimStatus).toBe('none');
+    expect(result.onboardingCompletedAt).toBeInstanceOf(Date);
+  });
+
+  it('throws NotFoundException when claiming a non-existent venue', async () => {
+    const existingUser = {
+      id: 6,
+      uid: 'matt-uid',
+      email: 'matt@bowstring.com',
+    } as User;
+    const { service } = createService(
+      { findOne: jest.fn().mockResolvedValue(existingUser) },
+      { findOne: jest.fn().mockResolvedValue(null) },
+    );
+
+    await expect(
+      service.updateOnboarding('matt-uid', {
+        claimedVenueId: '00000000-0000-0000-0000-000000000000',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

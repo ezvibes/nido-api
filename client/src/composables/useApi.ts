@@ -6,23 +6,70 @@ const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
 });
 
+export type VenueClaimStatus = 'none' | 'pending' | 'verified';
+
+export interface BackendUserProfile {
+  id: number;
+  email: string;
+  uid: string;
+  name?: string | null;
+  picture?: string | null;
+  claimedVenueId?: string | null;
+  claimedVenue?: VenueListItem | null;
+  venueClaimStatus: VenueClaimStatus;
+  onboardingCompletedAt?: string | null;
+}
+
 /**
  * Sends the user's Firebase ID token to the backend API to sync the user.
  * @param {string} token The Firebase ID token.
  */
-export async function syncUserToBackend(token: string) {
+export async function syncUserToBackend(
+  token: string,
+): Promise<BackendUserProfile> {
   try {
-    const response = await apiClient.post('/users/sync', null, {
-      headers: {
-        Authorization: `Bearer ${token}`,
+    const response = await apiClient.post<BackendUserProfile>(
+      '/users/sync',
+      null,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       },
-    });
+    );
     return response.data;
   } catch (error) {
     console.error('Error syncing user to backend:', error);
     // Handle specific errors if needed
     throw error;
   }
+}
+
+export async function fetchCurrentUser(
+  token: string,
+): Promise<BackendUserProfile> {
+  const response = await apiClient.get<BackendUserProfile>('/users/me', {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data;
+}
+
+export async function updateUserOnboarding(
+  token: string,
+  payload: { claimedVenueId?: string | null; skipAsFan?: boolean },
+): Promise<BackendUserProfile> {
+  const response = await apiClient.patch<BackendUserProfile>(
+    '/users/me/onboarding',
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+  return response.data;
 }
 
 export async function updateUserProfile(
@@ -149,7 +196,11 @@ export async function setBulkConcertApproval(
   token: string,
   concertIds: string[],
   approved: boolean,
-): Promise<{ totalRequested: number; updatedCount: number; approved: boolean }> {
+): Promise<{
+  totalRequested: number;
+  updatedCount: number;
+  approved: boolean;
+}> {
   const response = await apiClient.post<{
     totalRequested: number;
     updatedCount: number;
@@ -177,11 +228,9 @@ export async function createConcert(
   token: string,
   payload: CreateConcertPayload,
 ) {
-  const response = await apiClient.post<ConcertApiItem>(
-    '/concerts',
-    payload,
-    { headers: { Authorization: `Bearer ${token}` } },
-  );
+  const response = await apiClient.post<ConcertApiItem>('/concerts', payload, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return response.data;
 }
 
@@ -192,16 +241,15 @@ export async function uploadConcertPoster(
 ) {
   const formData = new FormData();
   formData.append('file', file);
-  const response = await apiClient.post<{ uploadId: string; posterUrl: string }>(
-    `/admin/concerts/${concertId}/poster`,
-    formData,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data',
-      },
+  const response = await apiClient.post<{
+    uploadId: string;
+    posterUrl: string;
+  }>(`/admin/concerts/${concertId}/poster`, formData, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'multipart/form-data',
     },
-  );
+  });
   return response.data;
 }
 
@@ -683,10 +731,21 @@ export interface AdminIngestionCandidateListItem {
     date?: { rawValue: string; confidence?: number; warnings?: string[] };
     time?: { rawValue: string; confidence?: number; warnings?: string[] };
     venue?: { rawValue: string; confidence?: number; warnings?: string[] };
-    venueExtracted?: { rawValue: string; confidence?: number; warnings?: string[] };
-    performerLineup?: { rawValue: string; normalizedValue?: any[]; confidence?: number; warnings?: string[] };
+    venueExtracted?: {
+      rawValue: string;
+      confidence?: number;
+      warnings?: string[];
+    };
+    performerLineup?: {
+      rawValue: string;
+      normalizedValue?: any[];
+      confidence?: number;
+      warnings?: string[];
+    };
     bands?: { rawValue: string; confidence?: number }[];
-    genres?: { rawValue: string; confidence?: number }[] | { rawValue: string; confidence?: number };
+    genres?:
+      | { rawValue: string; confidence?: number }[]
+      | { rawValue: string; confidence?: number };
     ticketUrl?: { rawValue: string; confidence?: number };
     price?: { rawValue: string; confidence?: number };
     rawOcrText?: string;
@@ -802,13 +861,12 @@ export async function submitAdminDuplicateDecision(
   candidateId: string,
   payload: DuplicateDecisionPayload,
 ): Promise<{ publishedConcertId?: string; status: string }> {
-  const response = await apiClient.post<{ publishedConcertId?: string; status: string }>(
-    `/admin/ingestion/candidates/${candidateId}/duplicate-decision`,
-    payload,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-    },
-  );
+  const response = await apiClient.post<{
+    publishedConcertId?: string;
+    status: string;
+  }>(`/admin/ingestion/candidates/${candidateId}/duplicate-decision`, payload, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return response.data;
 }
 

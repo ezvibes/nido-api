@@ -9,6 +9,29 @@
 
     <p v-if="pageMessage" :class="pageMessageClass">{{ pageMessage }}</p>
 
+    <section
+      v-if="!user && !isDev"
+      class="concerts-page__partner-cta"
+      aria-label="Venue partner sign in"
+    >
+      <div class="concerts-page__partner-cta-copy">
+        <p class="concerts-page__partner-eyebrow">
+          Venue Partners &amp; Talent Buyers
+        </p>
+        <h3>Posting shows for your venue?</h3>
+        <p>
+          Sign in with Google to claim your venue and upload concert posters in
+          seconds.
+        </p>
+      </div>
+      <router-link
+        to="/login"
+        class="button-primary concerts-page__partner-btn"
+      >
+        Continue with Google
+      </router-link>
+    </section>
+
     <IngestionUploadPanel v-if="user || isDev" />
 
     <ConcertFiltersBar
@@ -378,6 +401,50 @@ onBeforeUnmount(() => {
 .concerts-page__empty p {
   margin-top: 0.45rem;
   color: var(--text-light);
+}
+
+.concerts-page__partner-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.35rem;
+  margin-bottom: 1.25rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--border);
+  background: var(--card-bg, #ffffff);
+}
+
+.concerts-page__partner-eyebrow {
+  margin: 0 0 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--primary);
+}
+
+.concerts-page__partner-cta-copy h3 {
+  margin: 0 0 0.2rem;
+  font-size: 1.1rem;
+}
+
+.concerts-page__partner-cta-copy p:last-child {
+  margin: 0;
+  color: var(--text-light);
+  font-size: 0.92rem;
+}
+
+.concerts-page__partner-btn {
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+@media (max-width: 759px) {
+  .concerts-page__partner-cta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 @media (min-width: 760px) {
