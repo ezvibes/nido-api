@@ -1,85 +1,88 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import PartnerOnboardingModal from './PartnerOnboardingModal.vue';
 
 const completeOnboarding = vi.fn();
-const getIdToken = vi.fn();
-const fetchVenues = vi.fn();
 
 vi.mock('../../composables/useAuth', () => ({
+  PARTNER_INVITE_STORAGE_KEY: 'nido_partner_invite_code',
   useAuth: () => ({
     completeOnboarding,
-    getIdToken,
   }),
 }));
-
-vi.mock('../../composables/useApi', async () => {
-  const actual = await vi.importActual<typeof import('../../composables/useApi')>(
-    '../../composables/useApi',
-  );
-  return {
-    ...actual,
-    fetchVenues: (...args: unknown[]) => fetchVenues(...args),
-  };
-});
 
 describe('PartnerOnboardingModal', () => {
   beforeEach(() => {
     completeOnboarding.mockReset();
-    getIdToken.mockReset().mockResolvedValue('mock-token');
-    fetchVenues.mockReset().mockResolvedValue([
-      {
-        id: 'e6efac75-ab36-46fb-a79d-4c3807a083f0',
-        name: 'Bowstring Brewyard',
-        city: 'Raleigh',
-        citySlug: 'raleigh',
-        region: 'North Carolina',
-        regionSlug: 'nc',
-        createdAt: '',
-        updatedAt: '',
-      },
-      {
-        id: '19e888c5-a777-4174-a506-94c34f38480b',
-        name: 'The Pour House Music Hall',
-        city: 'Raleigh',
-        citySlug: 'raleigh',
-        region: 'North Carolina',
-        regionSlug: 'nc',
-        createdAt: '',
-        updatedAt: '',
-      },
-    ]);
+    window.sessionStorage.clear();
   });
 
-  it('filters venues and claims the selected venue', async () => {
+  it('redeems a partner invite code and clears sessionStorage', async () => {
+    completeOnboarding.mockResolvedValue({
+      id: 4,
+      venueClaimStatus: 'verified',
+    });
+
     const wrapper = mount(PartnerOnboardingModal);
-    await flushPromises();
-
-    await wrapper.find('#venue-claim-search').setValue('Bowstring');
-    const options = wrapper.findAll('.onboarding-modal__venue-option');
-    expect(options).toHaveLength(1);
-    const firstOption = options[0];
-    if (!firstOption) {
-      throw new Error('Expected one matching venue option');
-    }
-    expect(firstOption.text()).toContain('Bowstring Brewyard');
-
-    await firstOption.trigger('click');
-    await wrapper.find('.btn-claim').trigger('click');
+    await wrapper.get('[data-testid="partner-invite-input"]').setValue('nido-8f3k9a2b');
+    await wrapper.get('[data-testid="redeem-invite-btn"]').trigger('click');
     await flushPromises();
 
     expect(completeOnboarding).toHaveBeenCalledWith({
-      claimedVenueId: 'e6efac75-ab36-46fb-a79d-4c3807a083f0',
+      inviteCode: 'NIDO-8F3K9A2B',
     });
   });
 
-  it('allows skipping onboarding as a fan', async () => {
+  it('pre-fills invite code from sessionStorage when opened from an invite link', async () => {
+    window.sessionStorage.setItem('nido_partner_invite_code', 'NIDO-BOWSTRNG');
+    completeOnboarding.mockResolvedValue({
+      id: 4,
+      venueClaimStatus: 'verified',
+    });
+
     const wrapper = mount(PartnerOnboardingModal);
     await flushPromises();
 
-    await wrapper.find('.btn-skip').trigger('click');
+    const input = wrapper.get('[data-testid="partner-invite-input"]');
+    expect((input.element as HTMLInputElement).value).toBe('NIDO-BOWSTRNG');
+
+    await wrapper.get('[data-testid="redeem-invite-btn"]').trigger('click');
+    await flushPromises();
+
+    expect(completeOnboarding).toHaveBeenCalledWith({
+      inviteCode: 'NIDO-BOWSTRNG',
+    });
+    expect(window.sessionStorage.getItem('nido_partner_invite_code')).toBeNull();
+  });
+
+  it('displays backend error message when invite code is invalid or restricted', async () => {
+    completeOnboarding.mockRejectedValue({
+      response: {
+        data: {
+          message: 'This invite code is restricted to a different email address.',
+        },
+      },
+    });
+
+    const wrapper = mount(PartnerOnboardingModal);
+    await wrapper.get('[data-testid="partner-invite-input"]').setValue('NIDO-RESTRICT');
+    await wrapper.get('[data-testid="redeem-invite-btn"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="onboarding-error"]').text()).toContain(
+      'This invite code is restricted to a different email address.',
+    );
+  });
+
+  it('allows skipping onboarding as a fan', async () => {
+    window.sessionStorage.setItem('nido_partner_invite_code', 'NIDO-UNUSED');
+    const wrapper = mount(PartnerOnboardingModal);
+    await flushPromises();
+
+    await wrapper.get('[data-testid="skip-fan-btn"]').trigger('click');
     await flushPromises();
 
     expect(completeOnboarding).toHaveBeenCalledWith({ skipAsFan: true });
+    expect(window.sessionStorage.getItem('nido_partner_invite_code')).toBeNull();
   });
 });

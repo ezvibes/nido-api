@@ -8,6 +8,9 @@ const api = vi.hoisted(() => ({
   createVenue: vi.fn(),
   updateVenue: vi.fn(),
   deleteVenue: vi.fn(),
+  fetchAdminVenueInvites: vi.fn(),
+  createAdminVenueInvite: vi.fn(),
+  revokeAdminVenueInvite: vi.fn(),
 }));
 
 const auth = vi.hoisted(() => ({
@@ -92,6 +95,7 @@ describe('AdminVenuesPage', () => {
       getIdToken: vi.fn().mockResolvedValue('admin-token'),
     };
     api.fetchVenues.mockResolvedValue([...mockVenues]);
+    api.fetchAdminVenueInvites.mockResolvedValue([]);
   });
 
   it('renders venue list with verification badges and metrics ribbon', async () => {
@@ -244,6 +248,84 @@ describe('AdminVenuesPage', () => {
     );
     expect(wrapper.find('[data-testid="alert-success"]').text()).toContain(
       'Successfully created venue "The Orange Peel"',
+    );
+  });
+
+  it('loads, generates, copies link, and revokes venue partner invites', async () => {
+    api.fetchAdminVenueInvites.mockResolvedValue([
+      {
+        id: 'invite-1',
+        code: 'NIDO-CRADLE01',
+        venueId: 'venue-1',
+        venue: mockVenues[0],
+        invitedEmail: 'owner@catscradle.com',
+        status: 'active',
+        createdAt: '2026-01-01T00:00:00Z',
+      },
+    ]);
+    api.createAdminVenueInvite.mockResolvedValue({
+      id: 'invite-2',
+      code: 'NIDO-POURHS02',
+      venueId: 'venue-2',
+      venue: mockVenues[1],
+      invitedEmail: 'matt@pourhouse.com',
+      status: 'active',
+      createdAt: '2026-01-02T00:00:00Z',
+    });
+    api.revokeAdminVenueInvite.mockResolvedValue({
+      id: 'invite-1',
+      code: 'NIDO-CRADLE01',
+      venueId: 'venue-1',
+      venue: mockVenues[0],
+      invitedEmail: 'owner@catscradle.com',
+      status: 'revoked',
+      createdAt: '2026-01-01T00:00:00Z',
+    });
+
+    const writeTextMock = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: { writeText: writeTextMock },
+    });
+
+    const wrapper = mount(AdminVenuesPage);
+    await flushPromises();
+
+    expect(api.fetchAdminVenueInvites).toHaveBeenCalledWith('admin-token');
+    expect(wrapper.text()).toContain('NIDO-CRADLE01');
+    expect(wrapper.text()).toContain('owner@catscradle.com');
+
+    // Generate new invite
+    await wrapper.get('[data-testid="invite-venue-select"]').setValue('venue-2');
+    await wrapper
+      .get('[data-testid="invite-email-input"]')
+      .setValue('matt@pourhouse.com');
+    await wrapper.get('[data-testid="partner-invite-form"]').trigger('submit');
+    await flushPromises();
+
+    expect(api.createAdminVenueInvite).toHaveBeenCalledWith('admin-token', {
+      venueId: 'venue-2',
+      invitedEmail: 'matt@pourhouse.com',
+    });
+    expect(wrapper.text()).toContain('NIDO-POURHS02');
+
+    // Copy invite link
+    const copyBtn = wrapper.get('[data-testid="copy-invite-invite-1"]');
+    await copyBtn.trigger('click');
+    await flushPromises();
+    expect(writeTextMock).toHaveBeenCalledWith(
+      `${window.location.origin}/login?invite=NIDO-CRADLE01`,
+    );
+    expect(copyBtn.text()).toBe('Copied!');
+
+    // Revoke invite
+    await wrapper.get('[data-testid="revoke-invite-invite-1"]').trigger('click');
+    await flushPromises();
+    expect(api.revokeAdminVenueInvite).toHaveBeenCalledWith(
+      'admin-token',
+      'invite-1',
+    );
+    expect(wrapper.get('[data-testid="invite-row-invite-1"]').text()).toContain(
+      'revoked',
     );
   });
 });

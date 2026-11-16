@@ -6,13 +6,21 @@ import {
   createVenue,
   updateVenue,
   deleteVenue,
+  fetchAdminVenueInvites,
+  createAdminVenueInvite,
+  revokeAdminVenueInvite,
   type VenueListItem,
   type VenueVerificationState,
+  type VenuePartnerInviteItem,
 } from '../composables/useApi';
 
 const { user } = useAuth();
 
 const venues = ref<VenueListItem[]>([]);
+const invites = ref<VenuePartnerInviteItem[]>([]);
+const inviteVenueId = ref('');
+const inviteEmail = ref('');
+const copiedInviteId = ref<string | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const successMessage = ref<string | null>(null);
@@ -120,6 +128,10 @@ const load = async () => {
   try {
     const token = await user.value.getIdToken();
     venues.value = await fetchVenues(token);
+    if (typeof fetchAdminVenueInvites === 'function') {
+      const loadedInvites = await fetchAdminVenueInvites(token);
+      invites.value = Array.isArray(loadedInvites) ? loadedInvites : [];
+    }
   } catch (err: any) {
     console.error('Failed to load venues:', err);
     error.value =
@@ -127,6 +139,59 @@ const load = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+const handleCreateInvite = async () => {
+  if (!user.value || !inviteVenueId.value) return;
+  error.value = null;
+  successMessage.value = null;
+  try {
+    const token = await user.value.getIdToken();
+    const created = await createAdminVenueInvite(token, {
+      venueId: inviteVenueId.value,
+      invitedEmail: inviteEmail.value.trim() || undefined,
+    });
+    invites.value.unshift(created);
+    inviteVenueId.value = '';
+    inviteEmail.value = '';
+    successMessage.value = `Generated partner invite ${created.code} for "${created.venue?.name || 'venue'}"`;
+  } catch (err: any) {
+    console.error('Failed to generate partner invite:', err);
+    error.value =
+      err.response?.data?.message || 'Failed to generate partner invite.';
+  }
+};
+
+const handleRevokeInvite = async (invite: VenuePartnerInviteItem) => {
+  if (!user.value) return;
+  error.value = null;
+  successMessage.value = null;
+  try {
+    const token = await user.value.getIdToken();
+    const revoked = await revokeAdminVenueInvite(token, invite.id);
+    const idx = invites.value.findIndex((i) => i.id === invite.id);
+    if (idx !== -1) {
+      invites.value[idx] = revoked;
+    }
+    successMessage.value = `Revoked invite ${invite.code}`;
+  } catch (err: any) {
+    console.error('Failed to revoke partner invite:', err);
+    error.value =
+      err.response?.data?.message || 'Failed to revoke partner invite.';
+  }
+};
+
+const handleCopyInviteLink = async (invite: VenuePartnerInviteItem) => {
+  const link = `${window.location.origin}/login?invite=${encodeURIComponent(invite.code)}`;
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(link);
+  }
+  copiedInviteId.value = invite.id;
+  window.setTimeout(() => {
+    if (copiedInviteId.value === invite.id) {
+      copiedInviteId.value = null;
+    }
+  }, 2000);
 };
 
 const handleCreate = async () => {
@@ -485,6 +550,133 @@ onMounted(() => {
           </button>
         </div>
       </form>
+    </div>
+
+    <!-- Partner Invites Panel -->
+    <div
+      class="admin-venues__form-card"
+      data-testid="partner-invites-section"
+    >
+      <h3 class="admin-venues__form-title">Venue Partner Invites</h3>
+      <form
+        class="admin-venues__form"
+        data-testid="partner-invite-form"
+        @submit.prevent="handleCreateInvite"
+      >
+        <div class="admin-venues__form-grid">
+          <label class="admin-venues__field">
+            <span>Select Venue *</span>
+            <select
+              v-model="inviteVenueId"
+              class="admin-venues__select"
+              data-testid="invite-venue-select"
+              required
+            >
+              <option value="" disabled>Choose a venue…</option>
+              <option
+                v-for="venue in filteredVenues"
+                :key="venue.id"
+                :value="venue.id"
+              >
+                {{ venue.name }} ({{ venue.city }}, {{ venue.regionSlug.toUpperCase() }})
+              </option>
+            </select>
+          </label>
+          <label class="admin-venues__field">
+            <span>Restrict to Partner Email (Optional)</span>
+            <input
+              v-model="inviteEmail"
+              type="email"
+              placeholder="e.g. matt@bowstring.com"
+              data-testid="invite-email-input"
+            />
+          </label>
+        </div>
+        <div class="admin-venues__form-actions">
+          <button
+            type="submit"
+            class="admin-venues__btn admin-venues__btn--primary"
+            :disabled="!inviteVenueId"
+            data-testid="generate-invite-btn"
+          >
+            Generate Partner Invite
+          </button>
+        </div>
+      </form>
+
+      <div
+        v-if="invites.length > 0"
+        class="admin-venues__table-container"
+        style="margin-top: 1rem"
+      >
+        <table class="admin-venues__table" data-testid="partner-invites-table">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Venue</th>
+              <th>Email Restriction</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="inv in invites"
+              :key="inv.id"
+              :data-testid="`invite-row-${inv.id}`"
+            >
+              <td>
+                <code class="admin-venues__code">{{ inv.code }}</code>
+              </td>
+              <td>
+                <strong>{{ inv.venue?.name || inv.venueId }}</strong>
+              </td>
+              <td>
+                {{ inv.invitedEmail || 'Any email' }}
+              </td>
+              <td>
+                <span
+                  class="admin-venues__badge"
+                  :class="
+                    inv.status === 'active'
+                      ? 'admin-venues__badge--verified'
+                      : inv.status === 'redeemed'
+                        ? 'admin-venues__badge--canonical'
+                        : 'admin-venues__badge--flagged'
+                  "
+                >
+                  {{ inv.status }}
+                </span>
+              </td>
+              <td>
+                <div class="admin-venues__quick-actions">
+                  <button
+                    type="button"
+                    class="admin-venues__btn admin-venues__btn--edit"
+                    :data-testid="`copy-invite-${inv.id}`"
+                    @click="handleCopyInviteLink(inv)"
+                  >
+                    {{
+                      copiedInviteId === inv.id
+                        ? 'Copied!'
+                        : 'Copy Invite Link'
+                    }}
+                  </button>
+                  <button
+                    v-if="inv.status === 'active'"
+                    type="button"
+                    class="admin-venues__btn admin-venues__btn--delete"
+                    :data-testid="`revoke-invite-${inv.id}`"
+                    @click="handleRevokeInvite(inv)"
+                  >
+                    Revoke
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Venues Table -->

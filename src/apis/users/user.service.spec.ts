@@ -1,14 +1,22 @@
-import { UserService } from './user.service';
-import { User } from './entities/user.entity';
-import { NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
+import { User } from './entities/user.entity';
+import { UserService } from './user.service';
 
 describe('UserService', () => {
   const authService = {
     getUserProfileFromToken: jest.fn(),
   };
 
-  function createService(repositoryOverrides = {}, venueOverrides = {}) {
+  function createService(
+    repositoryOverrides = {},
+    venueOverrides = {},
+    inviteOverrides = {},
+  ) {
     const repository = {
       findOne: jest.fn(),
       create: jest.fn((dto) => dto),
@@ -22,12 +30,21 @@ describe('UserService', () => {
       ...venueOverrides,
     };
 
+    const inviteRepository = {
+      find: jest.fn(),
+      findOne: jest.fn(),
+      create: jest.fn((dto) => dto),
+      save: jest.fn(async (invite) => invite),
+      ...inviteOverrides,
+    };
+
     const service = new UserService(
       repository as any,
       authService as any,
       venueRepository as any,
+      inviteRepository as any,
     );
-    return { service, repository, venueRepository };
+    return { service, repository, venueRepository, inviteRepository };
   }
 
   it('returns and refreshes an existing user found by uid', async () => {
@@ -191,7 +208,7 @@ describe('UserService', () => {
     expect(repository.save).not.toHaveBeenCalled();
   });
 
-  it('claims a venue during onboarding and marks status pending', async () => {
+  it('redeems a valid venue partner invite code and marks venueClaimStatus verified', async () => {
     const existingUser = {
       id: 4,
       uid: 'matt-uid',
@@ -203,20 +220,128 @@ describe('UserService', () => {
       name: 'Bowstring Brewyard',
       city: 'Raleigh',
     };
-    const { service, repository } = createService(
+    const activeInvite = {
+      id: 'invite-1',
+      code: 'NIDO-BOWSTRNG',
+      venueId: bowstring.id,
+      venue: bowstring,
+      invitedEmail: 'matt@bowstring.com',
+      status: 'active',
+      expiresAt: null,
+    };
+
+    const { service, repository, inviteRepository } = createService(
       { findOne: jest.fn().mockResolvedValue(existingUser) },
-      { findOne: jest.fn().mockResolvedValue(bowstring) },
+      {},
+      { findOne: jest.fn().mockResolvedValue(activeInvite) },
     );
 
     const result = await service.updateOnboarding('matt-uid', {
-      claimedVenueId: bowstring.id,
+      inviteCode: ' nido-bowstrng ',
     });
 
+    expect(inviteRepository.findOne).toHaveBeenCalledWith({
+      where: { code: 'NIDO-BOWSTRNG' },
+      relations: ['venue'],
+    });
+    expect(inviteRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'redeemed',
+        redeemedByUserId: 4,
+        redeemedAt: expect.any(Date),
+      }),
+    );
     expect(result.claimedVenueId).toBe(bowstring.id);
     expect(result.claimedVenue).toEqual(bowstring);
-    expect(result.venueClaimStatus).toBe('pending');
+    expect(result.venueClaimStatus).toBe('verified');
     expect(result.onboardingCompletedAt).toBeInstanceOf(Date);
     expect(repository.save).toHaveBeenCalledWith(existingUser);
+  });
+
+  it('rejects open claimedVenueId requests without an inviteCode with ForbiddenException', async () => {
+    const existingUser = {
+      id: 4,
+      uid: 'uninvited-uid',
+      email: 'random@example.com',
+      venueClaimStatus: 'none',
+    } as User;
+
+    const { service } = createService({
+      findOne: jest.fn().mockResolvedValue(existingUser),
+    });
+
+    await expect(
+      service.updateOnboarding('uninvited-uid', {
+        claimedVenueId: 'e6efac75-ab36-46fb-a79d-4c3807a083f0',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('rejects an email-restricted invite when redeemed by a different email', async () => {
+    const existingUser = {
+      id: 7,
+      uid: 'other-uid',
+      email: 'intruder@example.com',
+      venueClaimStatus: 'none',
+    } as User;
+    const invite = {
+      id: 'invite-2',
+      code: 'NIDO-RESTRICT',
+      venueId: 'venue-1',
+      venue: { id: 'venue-1', name: 'Bowstring Brewyard' },
+      invitedEmail: 'matt@bowstring.com',
+      status: 'active',
+    };
+
+    const { service } = createService(
+      { findOne: jest.fn().mockResolvedValue(existingUser) },
+      {},
+      { findOne: jest.fn().mockResolvedValue(invite) },
+    );
+
+    await expect(
+      service.updateOnboarding('other-uid', { inviteCode: 'NIDO-RESTRICT' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('rejects invalid, already-redeemed, revoked, or expired invite codes with BadRequestException', async () => {
+    const existingUser = {
+      id: 8,
+      uid: 'matt-uid',
+      email: 'matt@bowstring.com',
+      venueClaimStatus: 'none',
+    } as User;
+
+    const { service, inviteRepository } = createService({
+      findOne: jest.fn().mockResolvedValue(existingUser),
+    });
+
+    // Missing invite
+    inviteRepository.findOne.mockResolvedValueOnce(null);
+    await expect(
+      service.updateOnboarding('matt-uid', { inviteCode: 'NIDO-UNKNOWN1' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    // Already redeemed invite
+    inviteRepository.findOne.mockResolvedValueOnce({
+      id: 'inv-used',
+      code: 'NIDO-USED1234',
+      status: 'redeemed',
+    });
+    await expect(
+      service.updateOnboarding('matt-uid', { inviteCode: 'NIDO-USED1234' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    // Expired invite
+    inviteRepository.findOne.mockResolvedValueOnce({
+      id: 'inv-exp',
+      code: 'NIDO-EXPIRED1',
+      status: 'active',
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+    await expect(
+      service.updateOnboarding('matt-uid', { inviteCode: 'NIDO-EXPIRED1' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('completes onboarding as a fan without claiming a venue', async () => {
@@ -241,21 +366,37 @@ describe('UserService', () => {
     expect(result.onboardingCompletedAt).toBeInstanceOf(Date);
   });
 
-  it('throws NotFoundException when claiming a non-existent venue', async () => {
-    const existingUser = {
-      id: 6,
-      uid: 'matt-uid',
-      email: 'matt@bowstring.com',
-    } as User;
-    const { service } = createService(
-      { findOne: jest.fn().mockResolvedValue(existingUser) },
-      { findOne: jest.fn().mockResolvedValue(null) },
+  it('creates a NIDO-XXXXXXXX venue partner invite and revokes it cleanly', async () => {
+    const bowstring = {
+      id: 'e6efac75-ab36-46fb-a79d-4c3807a083f0',
+      name: 'Bowstring Brewyard',
+      city: 'Raleigh',
+    };
+    const creator = { id: 99, email: 'admin@example.com' } as User;
+
+    const { service, inviteRepository } = createService(
+      {},
+      { findOne: jest.fn().mockResolvedValue(bowstring) },
     );
 
-    await expect(
-      service.updateOnboarding('matt-uid', {
-        claimedVenueId: '00000000-0000-0000-0000-000000000000',
-      }),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    const created = await service.createVenueInvite(
+      {
+        venueId: bowstring.id,
+        invitedEmail: 'Matt@Bowstring.com ',
+        expiresInDays: 14,
+      },
+      creator,
+    );
+
+    expect(created.code).toMatch(/^NIDO-[A-Z0-9]{8}$/);
+    expect(created.venueId).toBe(bowstring.id);
+    expect(created.invitedEmail).toBe('matt@bowstring.com');
+    expect(created.status).toBe('active');
+    expect(created.createdByUserId).toBe(99);
+    expect(created.expiresAt).toBeInstanceOf(Date);
+
+    inviteRepository.findOne.mockResolvedValueOnce(created);
+    const revoked = await service.revokeVenueInvite('invite-99');
+    expect(revoked.status).toBe('revoked');
   });
 });

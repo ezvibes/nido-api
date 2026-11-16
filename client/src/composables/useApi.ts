@@ -58,7 +58,11 @@ export async function fetchCurrentUser(
 
 export async function updateUserOnboarding(
   token: string,
-  payload: { claimedVenueId?: string | null; skipAsFan?: boolean },
+  payload: {
+    inviteCode?: string | null;
+    claimedVenueId?: string | null;
+    skipAsFan?: boolean;
+  },
 ): Promise<BackendUserProfile> {
   const response = await apiClient.patch<BackendUserProfile>(
     '/users/me/onboarding',
@@ -983,6 +987,68 @@ export async function deleteVenue(token: string, id: string) {
   const response = await apiClient.delete<void>(`/venues/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
+  return response.data;
+}
+
+export interface VenuePartnerInviteItem {
+  id: string;
+  code: string;
+  venueId: string;
+  venue?: VenueListItem | null;
+  invitedEmail?: string | null;
+  status: 'active' | 'redeemed' | 'revoked';
+  redeemedByUserId?: number | null;
+  redeemedByUser?: {
+    id: number;
+    email: string;
+    name?: string | null;
+  } | null;
+  redeemedAt?: string | null;
+  expiresAt?: string | null;
+  createdByUserId?: number | null;
+  createdAt: string;
+}
+
+export async function fetchAdminVenueInvites(
+  token: string,
+): Promise<VenuePartnerInviteItem[]> {
+  const response = await apiClient.get<VenuePartnerInviteItem[]>(
+    '/admin/venue-invites',
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  return response.data;
+}
+
+export async function createAdminVenueInvite(
+  token: string,
+  payload: {
+    venueId: string;
+    invitedEmail?: string;
+    expiresInDays?: number;
+  },
+): Promise<VenuePartnerInviteItem> {
+  const response = await apiClient.post<VenuePartnerInviteItem>(
+    '/admin/venue-invites',
+    payload,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  return response.data;
+}
+
+export async function revokeAdminVenueInvite(
+  token: string,
+  id: string,
+): Promise<VenuePartnerInviteItem> {
+  const response = await apiClient.delete<VenuePartnerInviteItem>(
+    `/admin/venue-invites/${id}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
   return response.data;
 }
 

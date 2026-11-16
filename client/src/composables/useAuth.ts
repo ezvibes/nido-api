@@ -24,6 +24,26 @@ import {
 } from './useApi';
 import router from '../router';
 
+export const PARTNER_INVITE_STORAGE_KEY = 'nido_partner_invite_code';
+
+export function captureInviteCodeFromUrl(
+  search: string = typeof window !== 'undefined' ? window.location.search : '',
+): string | null {
+  try {
+    const params = new URLSearchParams(search);
+    const raw = params.get('invite')?.trim().toUpperCase();
+    if (raw && typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.setItem(PARTNER_INVITE_STORAGE_KEY, raw);
+      return raw;
+    }
+  } catch {
+    // Ignore sessionStorage or URL parsing errors
+  }
+  return null;
+}
+
+captureInviteCodeFromUrl();
+
 // A reactive object to hold the user's state
 const auth = getAuth();
 const user = ref<User | null>(auth.currentUser);
@@ -212,6 +232,7 @@ export function useAuth() {
   };
 
   const completeOnboarding = async (payload: {
+    inviteCode?: string | null;
     claimedVenueId?: string | null;
     skipAsFan?: boolean;
   }): Promise<BackendUserProfile> => {
@@ -241,6 +262,7 @@ export function useAuth() {
     updateProfilePicture,
     completeOnboarding,
     refreshBackendUser,
+    captureInviteCodeFromUrl,
     devLogin,
   };
 }
