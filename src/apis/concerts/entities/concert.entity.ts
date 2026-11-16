@@ -70,6 +70,9 @@ export class Concert {
   @Column({ type: 'text', nullable: true })
   description?: string | null;
 
+  @Column({ name: 'ticket_url', type: 'varchar', length: 1000, nullable: true })
+  ticketUrl?: string | null;
+
   @Column({
     name: 'catalog_status',
     type: 'varchar',

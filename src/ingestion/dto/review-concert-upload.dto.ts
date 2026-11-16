@@ -3,8 +3,11 @@ import {
   IsISO8601,
   IsOptional,
   IsString,
+  IsUrl,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import type { UploadReviewStatus } from '../entities/concert-upload.entity';
 
@@ -84,4 +87,18 @@ export class ReviewConcertUploadDto {
   @IsString()
   @MaxLength(2000)
   concertDescription?: string;
+
+  @ApiPropertyOptional({
+    description: 'Direct ticket link URL to publish when approving the upload.',
+    maxLength: 1000,
+    example: 'https://etix.com/ticket/p/12345',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() || undefined : value,
+  )
+  @ValidateIf((_object, value) => value !== undefined && value !== null)
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @MaxLength(1000)
+  concertTicketUrl?: string;
 }

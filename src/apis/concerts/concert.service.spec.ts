@@ -777,4 +777,128 @@ describe('ConcertService', () => {
       expect(result).toEqual([]);
     });
   });
+
+  describe('findOneForViewer', () => {
+    it('returns an active approved concert with posterUrl and engagement without admin metadata for anonymous viewers', async () => {
+      const qb = createQueryBuilderMock();
+      concertRepository.createQueryBuilder.mockReturnValue(qb);
+      qb.getCount.mockResolvedValue(1);
+      qb.getRawAndEntities.mockResolvedValue({
+        entities: [
+          {
+            id: 'concert-1',
+            title: 'Sylvan Esso at Lincoln Theatre',
+            genre: 'Electronic',
+            startsAt: new Date('2026-08-15T23:00:00.000Z'),
+            catalogStatus: ConcertCatalogStatus.ACTIVE,
+            isAdminApproved: true,
+            version: 2,
+            venue: {
+              id: 'venue-1',
+              name: 'Lincoln Theatre',
+              address: '126 E Cabarrus St',
+              city: 'Raleigh',
+              region: 'NC',
+              postalCode: '27601',
+              capacity: 750,
+            },
+            lineup: [],
+            sets: [],
+          },
+        ],
+        raw: [
+          {
+            concert_id: 'concert-1',
+            upvote_count: '7',
+            upvoted_by_me_count: '0',
+            trending_week_upvotes: '3',
+            upload_id: 'upload-99',
+          },
+        ],
+      });
+
+      const result = await service.findOneForViewer('concert-1');
+
+      expect(qb.where).toHaveBeenCalledWith('concert.id = :id', {
+        id: 'concert-1',
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'concert.catalogStatus = :activeCatalogStatus',
+        { activeCatalogStatus: ConcertCatalogStatus.ACTIVE },
+      );
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'concert.isAdminApproved = :isAdminApproved',
+        { isAdminApproved: true },
+      );
+      expect(result).toEqual(
+        expect.objectContaining({
+          id: 'concert-1',
+          title: 'Sylvan Esso at Lincoln Theatre',
+          upvoteCount: 7,
+          upvotedByMe: false,
+          trendingWeekUpvotes: 3,
+          posterUrl: '/ingestion/uploads/upload-99/image',
+        }),
+      );
+      expect(result).not.toHaveProperty('catalogStatus');
+      expect(result).not.toHaveProperty('version');
+    });
+
+    it('allows the owner to view their own unapproved active concert', async () => {
+      const qb = createQueryBuilderMock();
+      concertRepository.createQueryBuilder.mockReturnValue(qb);
+      qb.getCount.mockResolvedValue(1);
+      qb.getRawAndEntities.mockResolvedValue({
+        entities: [
+          {
+            id: 'concert-owner-1',
+            title: 'Owner Draft Show',
+            genre: 'Indie Rock',
+            startsAt: new Date('2026-09-01T20:00:00.000Z'),
+            catalogStatus: ConcertCatalogStatus.ACTIVE,
+            isAdminApproved: false,
+          },
+        ],
+        raw: [
+          {
+            concert_id: 'concert-owner-1',
+            upvote_count: '0',
+            upvoted_by_me_count: '0',
+            trending_week_upvotes: '0',
+          },
+        ],
+      });
+
+      const result = await service.findOneForViewer('concert-owner-1', owner);
+
+      expect(qb.where).toHaveBeenCalledWith('concert.id = :id', {
+        id: 'concert-owner-1',
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        '((concert.catalogStatus = :activeCatalogStatus AND concert.isAdminApproved = :isAdminApproved) OR (concert.owner_id = :ownerId AND concert.catalogStatus = :activeCatalogStatus))',
+        {
+          activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
+          isAdminApproved: true,
+          ownerId: owner.id,
+        },
+      );
+      expect(result).toEqual(
+        expect.objectContaining({
+          id: 'concert-owner-1',
+          title: 'Owner Draft Show',
+        }),
+      );
+    });
+
+    it('throws NotFoundException when the concert is not found or not visible', async () => {
+      const qb = createQueryBuilderMock();
+      concertRepository.createQueryBuilder.mockReturnValue(qb);
+      qb.getCount.mockResolvedValue(0);
+      qb.getRawAndEntities.mockResolvedValue({ entities: [], raw: [] });
+
+      await expect(
+        service.findOneForViewer('missing-concert'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
 });

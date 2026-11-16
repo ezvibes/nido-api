@@ -3,8 +3,10 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  IsUrl,
   IsUUID,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
@@ -91,4 +93,18 @@ export class CreateIngestionUploadDto {
   )
   @IsUUID()
   bandId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional ticket purchase URL for the uploaded show.',
+    maxLength: 1000,
+    example: 'https://etix.com/ticket/p/12345',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() ? value.trim() : undefined,
+  )
+  @ValidateIf((_object, value) => value !== undefined && value !== null)
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @MaxLength(1000)
+  ticketUrl?: string;
 }

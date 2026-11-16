@@ -186,17 +186,20 @@ export class ConcertController {
   }
 
   @Get(':id')
-  @UseGuards(FirebaseAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get one concert by id' })
+  @UseGuards(OptionalFirebaseAuthGuard)
+  @ApiOperation({
+    summary: 'Get one concert by id for public discovery or its owner',
+  })
   @ApiParam({ name: 'id', description: 'Concert id', example: 'concert-uuid' })
   @ApiOkResponse({ type: ConcertResponseDto })
   async getConcert(
-    @CurrentUser() user: DecodedIdToken,
+    @CurrentUser() user: DecodedIdToken | undefined,
     @Param('id') id: string,
   ) {
-    const owner = await this.ensureOwner(user);
-    return this.concertService.findOneForOwner(id, owner);
+    const currentUser = user
+      ? await this.userService.findExistingFromToken(user)
+      : null;
+    return this.concertService.findOneForViewer(id, currentUser ?? undefined);
   }
 
   @Patch(':id')

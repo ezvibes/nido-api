@@ -34,6 +34,14 @@ vi.mock('../composables/useApi', () => api);
 
 enableAutoUnmount(afterEach);
 
+const defaultStubs = {
+  IngestionUploadPanel: true,
+  'router-link': {
+    props: ['to'],
+    template: '<a :href="to"><slot /></a>',
+  },
+};
+
 describe('ConcertsPage', () => {
   beforeEach(() => {
     auth.user!.value = null;
@@ -54,9 +62,7 @@ describe('ConcertsPage', () => {
 
     const wrapper = mount(ConcertsPage, {
       global: {
-        stubs: {
-          IngestionUploadPanel: true,
-        },
+        stubs: defaultStubs,
       },
     });
     await flushPromises();
@@ -87,9 +93,7 @@ describe('ConcertsPage', () => {
 
     const wrapper = mount(ConcertsPage, {
       global: {
-        stubs: {
-          IngestionUploadPanel: true,
-        },
+        stubs: defaultStubs,
       },
     });
     await flushPromises();
@@ -136,9 +140,7 @@ describe('ConcertsPage', () => {
 
     const wrapper = mount(ConcertsPage, {
       global: {
-        stubs: {
-          IngestionUploadPanel: true,
-        },
+        stubs: defaultStubs,
       },
     });
     await flushPromises();
@@ -165,7 +167,7 @@ describe('ConcertsPage', () => {
       pageSize: 100,
     });
     const wrapper = mount(ConcertsPage, {
-      global: { stubs: { IngestionUploadPanel: true } },
+      global: { stubs: defaultStubs },
     });
     await flushPromises();
 

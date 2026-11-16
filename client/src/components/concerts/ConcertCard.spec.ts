@@ -3,13 +3,23 @@ import { describe, expect, it } from 'vitest';
 import type { ConcertListItem } from '../../types/concerts';
 import ConcertCard from './ConcertCard.vue';
 
+const routerStubs = {
+  RouterLink: {
+    props: ['to'],
+    template: '<a :href="to"><slot /></a>',
+  },
+};
+
+function mountCard(concert: ConcertListItem) {
+  return mount(ConcertCard, {
+    props: { concert },
+    global: { stubs: routerStubs },
+  });
+}
+
 describe('ConcertCard', () => {
   it('leads with the date and artist without repeating a redundant event title', () => {
-    const wrapper = mount(ConcertCard, {
-      props: {
-        concert: buildConcert(),
-      },
-    });
+    const wrapper = mountCard(buildConcert());
 
     const bodyText = wrapper.get('.concert-card__body').text();
     expect(wrapper.get('.concert-card__body').element.firstElementChild).toBe(
@@ -26,33 +36,31 @@ describe('ConcertCard', () => {
   });
 
   it('keeps a distinct event title beneath the prominent artist lineup', () => {
-    const wrapper = mount(ConcertCard, {
-      props: {
-        concert: buildConcert({
-          title: 'Downtown Summer Jam',
-          lineup: [
-            {
-              performanceRole: 'headliner',
-              performanceOrder: 0,
-              band: {
-                id: 'band-1',
-                name: 'The Floozies',
-                slug: 'the-floozies',
-              },
+    const wrapper = mountCard(
+      buildConcert({
+        title: 'Downtown Summer Jam',
+        lineup: [
+          {
+            performanceRole: 'headliner',
+            performanceOrder: 0,
+            band: {
+              id: 'band-1',
+              name: 'The Floozies',
+              slug: 'the-floozies',
             },
-            {
-              performanceRole: 'support',
-              performanceOrder: 1,
-              band: {
-                id: 'band-2',
-                name: 'Night Drive',
-                slug: 'night-drive',
-              },
+          },
+          {
+            performanceRole: 'support',
+            performanceOrder: 1,
+            band: {
+              id: 'band-2',
+              name: 'Night Drive',
+              slug: 'night-drive',
             },
-          ],
-        }),
-      },
-    });
+          },
+        ],
+      }),
+    );
 
     expect(wrapper.get('.concert-card__artist').text()).toBe(
       'The Floozies · Night Drive',
@@ -63,27 +71,24 @@ describe('ConcertCard', () => {
   });
 
   it('omits description from the concert card view', () => {
-    const wrapper = mount(ConcertCard, {
-      props: {
-        concert: buildConcert({
-          description: 'Special outdoor headline performance with full laser production.',
-        }),
-      },
-    });
+    const wrapper = mountCard(
+      buildConcert({
+        description:
+          'Special outdoor headline performance with full laser production.',
+      }),
+    );
 
     expect(wrapper.find('.concert-card__description').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('Special outdoor headline performance');
   });
 
   it('renders a genre-aware fallback visual when posterUrl is null', () => {
-    const wrapper = mount(ConcertCard, {
-      props: {
-        concert: buildConcert({
-          posterUrl: null,
-          genre: 'Electronic',
-        }),
-      },
-    });
+    const wrapper = mountCard(
+      buildConcert({
+        posterUrl: null,
+        genre: 'Electronic',
+      }),
+    );
 
     expect(wrapper.find('.concert-card__poster img').exists()).toBe(false);
     const fallback = wrapper.get('.concert-card__fallback');
@@ -93,13 +98,11 @@ describe('ConcertCard', () => {
   });
 
   it('switches to fallback visual if poster image fails to load', async () => {
-    const wrapper = mount(ConcertCard, {
-      props: {
-        concert: buildConcert({
-          posterUrl: 'https://example.com/broken-poster.jpg',
-        }),
-      },
-    });
+    const wrapper = mountCard(
+      buildConcert({
+        posterUrl: 'https://example.com/broken-poster.jpg',
+      }),
+    );
 
     expect(wrapper.find('.concert-card__poster img').exists()).toBe(true);
 
@@ -107,6 +110,42 @@ describe('ConcertCard', () => {
 
     expect(wrapper.find('.concert-card__poster img').exists()).toBe(false);
     expect(wrapper.find('.concert-card__fallback').exists()).toBe(true);
+  });
+
+  it('renders an external Get Tickets link when ticketUrl is a valid http(s) URL', () => {
+    const wrapper = mountCard(
+      buildConcert({
+        ticketUrl: 'https://etix.com/ticket/p/12345',
+      }),
+    );
+
+    const link = wrapper.get('a.concert-card__tickets');
+    expect(link.text()).toBe('Get Tickets');
+    expect(link.attributes('href')).toBe('https://etix.com/ticket/p/12345');
+    expect(link.attributes('target')).toBe('_blank');
+    expect(link.attributes('rel')).toBe('noopener noreferrer');
+  });
+
+  it('keeps Tickets disabled for unsafe or missing ticketUrl', () => {
+    const wrapper = mountCard(
+      buildConcert({
+        ticketUrl: 'javascript:alert(1)',
+      }),
+    );
+
+    expect(wrapper.find('a.concert-card__tickets').exists()).toBe(false);
+    expect(wrapper.get('button.concert-card__tickets').attributes('disabled')).toBeDefined();
+  });
+
+  it('links the artist heading and View Details button to the concert detail page', () => {
+    const wrapper = mountCard(buildConcert({ id: 'concert-42' }));
+
+    const artistLink = wrapper.get('.concert-card__artist-link');
+    expect(artistLink.attributes('href')).toBe('/concerts/concert-42');
+
+    const detailsLink = wrapper.get('.concert-card__details-link');
+    expect(detailsLink.text()).toBe('View Details');
+    expect(detailsLink.attributes('href')).toBe('/concerts/concert-42');
   });
 });
 

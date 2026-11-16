@@ -1,5 +1,16 @@
-import { IsString, IsOptional, IsArray, IsIn, IsNumber, IsObject, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsIn,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUrl,
+  MaxLength,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class PublishCandidateDto {
@@ -50,6 +61,19 @@ export class PublishCandidateDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Direct ticket purchase URL, or null/empty to clear.',
+    maxLength: 1000,
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() || null : value,
+  )
+  @ValidateIf((_object, value) => value !== null && value !== undefined)
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @MaxLength(1000)
+  ticketUrl?: string | null;
 
   @ApiProperty()
   @IsNumber()

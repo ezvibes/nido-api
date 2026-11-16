@@ -44,6 +44,11 @@ const routes = [
     component: ConcertsPage,
   },
   {
+    path: '/concerts/:id',
+    name: 'ConcertDetail',
+    component: () => import('./pages/ConcertDetailPage.vue'),
+  },
+  {
     path: '/events',
     redirect: '/concerts',
   },

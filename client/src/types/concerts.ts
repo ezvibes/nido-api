@@ -4,6 +4,9 @@ export interface ConcertVenue {
   address?: string | null;
   city?: string;
   region?: string;
+  postalCode?: string | null;
+  capacity?: number | null;
+  verificationState?: string | null;
 }
 
 export interface ConcertBand {
@@ -38,6 +41,7 @@ export interface ConcertApiItem {
   lineup: ConcertLineupEntry[];
   sets: ConcertSet[];
   description?: string | null;
+  ticketUrl?: string | null;
   catalogStatus?: 'active' | 'hidden' | 'archived';
   isFeatured?: boolean;
   editorialLockedAt?: string | null;

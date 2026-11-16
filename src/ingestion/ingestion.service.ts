@@ -286,6 +286,7 @@ export class IngestionService {
         concertDate: validConcertDate,
         venueId,
         bandId,
+        ticketUrl: dto.ticketUrl ?? null,
         source: normalizedSource,
         reviewStatus: 'submitted',
         uploadedByUid: uid,
@@ -308,6 +309,7 @@ export class IngestionService {
       concertDate: validConcertDate?.toISOString(),
       venueId,
       bandId,
+      ticketUrl: concertUpload.ticketUrl ?? null,
       source: normalizedSource,
       uploadedByUserId,
       uploadedAt,
@@ -436,6 +438,7 @@ export class IngestionService {
     const qb = this.concertUploadRepository
       .createQueryBuilder('upload')
       .leftJoinAndSelect('upload.uploadedByUser', 'uploadedByUser')
+      .leftJoinAndSelect('uploadedByUser.claimedVenue', 'uploaderClaimedVenue')
       .leftJoinAndSelect('upload.reviewedByUser', 'reviewedByUser')
       .leftJoinAndSelect('upload.venue', 'venue')
       .leftJoinAndSelect('upload.band', 'band')
@@ -468,7 +471,9 @@ export class IngestionService {
     const upload = await this.concertUploadRepository.findOne({
       where: { id: uploadId },
       relations: {
-        uploadedByUser: true,
+        uploadedByUser: {
+          claimedVenue: true,
+        },
         reviewedByUser: true,
         venue: true,
         band: true,
@@ -515,7 +520,9 @@ export class IngestionService {
         return uploadRepository.findOneOrFail({
           where: { id: saved.id },
           relations: {
-            uploadedByUser: true,
+            uploadedByUser: {
+              claimedVenue: true,
+            },
             reviewedByUser: true,
             venue: true,
             band: true,
@@ -548,10 +555,15 @@ export class IngestionService {
       venueName: upload.venue?.name ?? undefined,
       bandId: upload.bandId ?? undefined,
       bandName: upload.band?.name ?? undefined,
+      ticketUrl: upload.ticketUrl ?? null,
       source: upload.source,
       uploadedByUid: upload.uploadedByUid,
       uploadedByUserId: upload.uploadedByUserId,
       uploadedByUserEmail: upload.uploadedByUser?.email,
+      uploaderClaimedVenueId: upload.uploadedByUser?.claimedVenueId ?? null,
+      uploaderClaimedVenueName:
+        upload.uploadedByUser?.claimedVenue?.name ?? null,
+      uploaderVenueClaimStatus: upload.uploadedByUser?.venueClaimStatus ?? null,
       createdAt: upload.createdAt.toISOString(),
       reviewStatus: this.normalizeReviewStatus(upload.reviewStatus),
       reviewNotes: upload.reviewNotes ?? undefined,
@@ -620,6 +632,7 @@ export class IngestionService {
     });
     const description =
       dto.concertDescription?.trim() || dto.notes?.trim() || null;
+    const ticketUrl = dto.concertTicketUrl?.trim() || upload.ticketUrl || null;
 
     if (existingConcert) {
       const updateResult = await concertRepository
@@ -633,6 +646,7 @@ export class IngestionService {
           endsAt: null,
           venueId: resolvedVenue.id,
           description,
+          ticketUrl,
           isAdminApproved: true,
           adminApprovedAt: new Date(),
           adminApprovedByUserId: reviewedByUserId,
@@ -671,6 +685,7 @@ export class IngestionService {
       venue: resolvedVenue,
       lineup,
       description,
+      ticketUrl,
       isAdminApproved: true,
       adminApprovedAt: new Date(),
       adminApprovedByUserId: reviewedByUserId,

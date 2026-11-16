@@ -67,6 +67,10 @@ export class IngestionController {
           type: 'string',
           example: '87c28620-0a38-4187-89c8-c83a0246e828',
         },
+        ticketUrl: {
+          type: 'string',
+          example: 'https://etix.com/ticket/p/12345',
+        },
         source: {
           type: 'string',
           enum: ['flyer_upload', 'manual_upload', 'partner_upload'],
@@ -129,7 +133,8 @@ export class IngestionController {
   @UseGuards(FirebaseAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'List recent poster submissions and statuses for the signed-in contributor',
+    summary:
+      'List recent poster submissions and statuses for the signed-in contributor',
     description:
       'Returns the contributor’s own poster submissions, extraction progress, and published concert links.',
   })
