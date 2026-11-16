@@ -470,11 +470,18 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
 - **Priority Venue Roster:** ${EZ_VIBES_CORE_VENUES.join(', ')}.
 - **Priority Festival Roster:** ${EZ_VIBES_CORE_FESTIVALS.join(', ')}.
 - **Language Discipline:** Natural scene vocabulary ("in the pocket", "heaters", "heads", "bring a friend"). Strictly avoid corporate superlatives ("a night you won't forget", "must-see sensation"), fake firsthand attendance, or forced hype.
-- **Structural Rules:**
-  - 5 Quick Hits emojis: 👑 EZ Vibes Update, 🐸 Featured Show, 💫 Featured Festival, ✅ Top Picks, 🤝 Partnership Opportunities.
-  - Top Picks layout: [**Band Name**](Ticket URL) [(FREE!) if applicable] \\n **Venue Name** – City, State \\n *The Vibe:* One punchy sentence.
-  - Partner with EZ Vibes: Highlight the 40%+ open rate.
-  - Sign-off: "Find a show and bring a friend,\\nEvan and Camille from EZ Vibes".`;
+- **Structural Rules (10-Section Canonical Flow):**
+  - 1. Header Banner & Date Range
+  - 2. Quick Hits (6 emoji bullets: 👑 EZ Vibes Update, 🐸 Featured Show, 💫 Featured Festival, 🚨 Recently Announced, ✅ Top Picks, 🤝 Partnership Opportunities)
+  - 3. The EZ Vibes Update (personal recap & community photos)
+  - 4. Featured Show Breakdown (high-contrast ticket button)
+  - 5. Featured Festival Spotlight (ticket/info button)
+  - 6. Recently Announced (tour dates or runs recently dropped in NC)
+  - 7. Top Picks Schedule (chronological layout: [**Band Name, Support Act 1, Support Act 2**](Ticket URL) [(FREE!) if applicable] \\n **Venue Name** – City, State \\n *The Vibe:* One punchy sentence. Always use COMMAS between headliners and support acts, never "w/" or "with".)
+  - 8. Weekly Community Poll: Ask readers which show/festival they are hitting this week.
+  - 9. Partner with EZ Vibes: Highlight the 40%+ open rate.
+  - 10. Join the Street Team: 5 referrals = sticker, 10 = hat, 20 = pair of free tickets to The Pour House or Bowstring (with {{ referral_program }}).
+  - 11. Sign-off & Social Links: "Find a show and bring a friend,\\nEvan and Camille from EZ Vibes".`;
   }
 
   public convertMarkdownToHtml(markdown: string): string {
@@ -514,7 +521,26 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
     };
     const startFmt = start.toLocaleDateString('en-US', options);
     const endFmt = end.toLocaleDateString('en-US', options);
-    const label = customLabel || `${startFmt} - ${endFmt}`;
+
+    let label = customLabel;
+    if (
+      label &&
+      /^\d{4}-\d{2}-\d{2}\s*[-–—]\s*\d{4}-\d{2}-\d{2}$/.test(label.trim())
+    ) {
+      const parts = label.trim().split(/\s*[-–—]\s*/);
+      const s = new Date(parts[0] + 'T00:00:00');
+      const e = new Date(parts[1] + 'T23:59:59');
+      const sMonth = s.toLocaleDateString('en-US', { month: 'short' });
+      const eMonth = e.toLocaleDateString('en-US', { month: 'short' });
+      label =
+        sMonth === eMonth && s.getFullYear() === e.getFullYear()
+          ? `${sMonth} ${s.getDate()} – ${e.getDate()}, ${s.getFullYear()}`
+          : `${sMonth} ${s.getDate()} – ${eMonth} ${e.getDate()}, ${e.getFullYear()}`;
+    }
+
+    if (!label) {
+      label = `${startFmt} - ${endFmt}`;
+    }
 
     return { start, end, label };
   }
