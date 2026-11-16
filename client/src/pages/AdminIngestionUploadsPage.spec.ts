@@ -56,8 +56,14 @@ describe('AdminIngestionUploadsPage', () => {
     api.rejectAdminCandidate.mockReset();
     api.fetchVenues.mockReset();
 
-    api.fetchAdminIngestionCandidates.mockResolvedValue({ total: 0, items: [] });
-    api.fetchAdminIngestionCandidate.mockResolvedValue({ candidate: {}, probableDuplicates: [] });
+    api.fetchAdminIngestionCandidates.mockResolvedValue({
+      total: 0,
+      items: [],
+    });
+    api.fetchAdminIngestionCandidate.mockResolvedValue({
+      candidate: {},
+      probableDuplicates: [],
+    });
     api.fetchVenues.mockResolvedValue([]);
 
     auth.user!.value = {
@@ -209,7 +215,43 @@ describe('AdminIngestionUploadsPage', () => {
 
     expect(wrapper.text()).toContain('Doctor S with The Vibe Trio');
     expect(wrapper.text()).toContain('The Pour House');
-    expect(wrapper.get('.btn-publish-primary').text()).toContain('Approve & Publish Show');
+    expect(wrapper.get('.btn-publish-primary').text()).toContain(
+      'Approve & Publish Show',
+    );
+  });
+
+  it('renders Venue Partner provenance badge on candidate card and review header when uploader has a claimed venue', async () => {
+    const cand = buildCandidate();
+    cand.upload = {
+      ...cand.upload,
+      id: 'upload-partner-1',
+      originalFilename: 'bowstring-poster.jpg',
+      createdAt: '2026-11-01T12:00:00.000Z',
+      posterUrl: '/ingestion/uploads/upload-partner-1/image',
+      uploaderClaimedVenueId: 'bowstring-raleigh',
+      uploaderClaimedVenueName: 'Bowstring Brewyard',
+      uploaderVenueClaimStatus: 'pending',
+    } as any;
+    api.fetchAdminIngestionCandidates.mockResolvedValue({
+      total: 1,
+      items: [cand],
+    });
+    api.fetchAdminIngestionCandidate.mockResolvedValue({
+      candidate: cand,
+      probableDuplicates: [],
+    });
+
+    const wrapper = mount(AdminIngestionUploadsPage);
+    await flushPromises();
+
+    const partnerBadges = wrapper.findAll('.queue-badge--partner');
+    expect(partnerBadges).toHaveLength(2);
+    expect(partnerBadges[0]?.text()).toContain(
+      'Venue Partner: Bowstring Brewyard',
+    );
+    expect(partnerBadges[1]?.text()).toContain(
+      'Venue Partner: Bowstring Brewyard',
+    );
   });
 
   it('publishes show with duration tracking in <= 3 clicks', async () => {
@@ -222,7 +264,9 @@ describe('AdminIngestionUploadsPage', () => {
       candidate: cand,
       probableDuplicates: [],
     });
-    api.publishAdminCandidate.mockResolvedValue({ publishedConcertId: 'concert-100' });
+    api.publishAdminCandidate.mockResolvedValue({
+      publishedConcertId: 'concert-100',
+    });
 
     const wrapper = mount(AdminIngestionUploadsPage);
     await flushPromises();

@@ -436,6 +436,7 @@ export class IngestionService {
     const qb = this.concertUploadRepository
       .createQueryBuilder('upload')
       .leftJoinAndSelect('upload.uploadedByUser', 'uploadedByUser')
+      .leftJoinAndSelect('uploadedByUser.claimedVenue', 'uploaderClaimedVenue')
       .leftJoinAndSelect('upload.reviewedByUser', 'reviewedByUser')
       .leftJoinAndSelect('upload.venue', 'venue')
       .leftJoinAndSelect('upload.band', 'band')
@@ -468,7 +469,9 @@ export class IngestionService {
     const upload = await this.concertUploadRepository.findOne({
       where: { id: uploadId },
       relations: {
-        uploadedByUser: true,
+        uploadedByUser: {
+          claimedVenue: true,
+        },
         reviewedByUser: true,
         venue: true,
         band: true,
@@ -515,7 +518,9 @@ export class IngestionService {
         return uploadRepository.findOneOrFail({
           where: { id: saved.id },
           relations: {
-            uploadedByUser: true,
+            uploadedByUser: {
+              claimedVenue: true,
+            },
             reviewedByUser: true,
             venue: true,
             band: true,
@@ -552,6 +557,10 @@ export class IngestionService {
       uploadedByUid: upload.uploadedByUid,
       uploadedByUserId: upload.uploadedByUserId,
       uploadedByUserEmail: upload.uploadedByUser?.email,
+      uploaderClaimedVenueId: upload.uploadedByUser?.claimedVenueId ?? null,
+      uploaderClaimedVenueName:
+        upload.uploadedByUser?.claimedVenue?.name ?? null,
+      uploaderVenueClaimStatus: upload.uploadedByUser?.venueClaimStatus ?? null,
       createdAt: upload.createdAt.toISOString(),
       reviewStatus: this.normalizeReviewStatus(upload.reviewStatus),
       reviewNotes: upload.reviewNotes ?? undefined,

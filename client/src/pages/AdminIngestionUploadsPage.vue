@@ -3,9 +3,12 @@
     <!-- Top Tab Navigation -->
     <header class="admin-workspace-nav">
       <div class="admin-workspace-nav__brand">
-        <h2 class="admin-workspace-nav__title">Poster &amp; Show Publishing Queue</h2>
+        <h2 class="admin-workspace-nav__title">
+          Poster &amp; Show Publishing Queue
+        </h2>
         <p class="admin-workspace-nav__subtitle">
-          Human-in-the-loop review for concert posters, event graphics, and extracted show listings.
+          Human-in-the-loop review for concert posters, event graphics, and
+          extracted show listings.
         </p>
       </div>
 
@@ -14,21 +17,33 @@
           type="button"
           role="tab"
           :aria-selected="activeTab === 'queue'"
-          :class="['admin-tab-btn', { 'admin-tab-btn--active': activeTab === 'queue' }]"
+          :class="[
+            'admin-tab-btn',
+            { 'admin-tab-btn--active': activeTab === 'queue' },
+          ]"
           @click="activeTab = 'queue'"
         >
           <span>Show Review Queue</span>
-          <span v-if="pendingCandidatesCount > 0" class="admin-tab-badge">{{ pendingCandidatesCount }}</span>
+          <span v-if="pendingCandidatesCount > 0" class="admin-tab-badge">{{
+            pendingCandidatesCount
+          }}</span>
         </button>
         <button
           type="button"
           role="tab"
           :aria-selected="activeTab === 'uploads'"
-          :class="['admin-tab-btn', { 'admin-tab-btn--active': activeTab === 'uploads' }]"
+          :class="[
+            'admin-tab-btn',
+            { 'admin-tab-btn--active': activeTab === 'uploads' },
+          ]"
           @click="activeTab = 'uploads'"
         >
           <span>All Poster Uploads</span>
-          <span v-if="total > 0" class="admin-tab-badge admin-tab-badge--neutral">{{ total }}</span>
+          <span
+            v-if="total > 0"
+            class="admin-tab-badge admin-tab-badge--neutral"
+            >{{ total }}</span
+          >
         </button>
       </div>
     </header>
@@ -39,15 +54,25 @@
       <div class="stats-bar">
         <div class="stats-card">
           <div class="stats-card__label">Needs Review</div>
-          <div class="stats-card__value stats-card__value--white">{{ pendingCandidatesCount }} Shows</div>
+          <div class="stats-card__value stats-card__value--white">
+            {{ pendingCandidatesCount }} Shows
+          </div>
         </div>
         <div class="stats-card">
-          <div class="stats-card__label stats-card__label--warning">Possible Duplicates</div>
-          <div class="stats-card__value stats-card__value--warning">{{ duplicateCandidatesCount }} Shows</div>
+          <div class="stats-card__label stats-card__label--warning">
+            Possible Duplicates
+          </div>
+          <div class="stats-card__value stats-card__value--warning">
+            {{ duplicateCandidatesCount }} Shows
+          </div>
         </div>
         <div class="stats-card">
-          <div class="stats-card__label stats-card__label--success">Approved Today</div>
-          <div class="stats-card__value stats-card__value--success">{{ approvedTodayCount }} Shows</div>
+          <div class="stats-card__label stats-card__label--success">
+            Approved Today
+          </div>
+          <div class="stats-card__value stats-card__value--success">
+            {{ approvedTodayCount }} Shows
+          </div>
         </div>
       </div>
 
@@ -64,14 +89,27 @@
             </select>
           </label>
         </div>
-        <button type="button" class="admin-uploads__refresh" :disabled="candidatesLoading" @click="loadCandidates">
+        <button
+          type="button"
+          class="admin-uploads__refresh"
+          :disabled="candidatesLoading"
+          @click="loadCandidates"
+        >
           {{ candidatesLoading ? 'Refreshing…' : 'Refresh Queue' }}
         </button>
       </div>
 
       <!-- Loading / Empty states -->
-      <p v-if="candidatesError" class="admin-uploads__message admin-uploads__message--error">{{ candidatesError }}</p>
-      <div v-else-if="!candidatesLoading && candidates.length === 0" class="empty-queue-card">
+      <p
+        v-if="candidatesError"
+        class="admin-uploads__message admin-uploads__message--error"
+      >
+        {{ candidatesError }}
+      </p>
+      <div
+        v-else-if="!candidatesLoading && candidates.length === 0"
+        class="empty-queue-card"
+      >
         <div class="empty-queue-card__icon">🎉</div>
         <h3>All caught up!</h3>
         <p>No show listings currently require human review in this queue.</p>
@@ -90,7 +128,12 @@
             <div
               v-for="cand in candidates"
               :key="cand.id"
-              :class="['queue-item-card', { 'queue-item-card--active': selectedCandidate?.id === cand.id }]"
+              :class="[
+                'queue-item-card',
+                {
+                  'queue-item-card--active': selectedCandidate?.id === cand.id,
+                },
+              ]"
               @click="selectCandidate(cand)"
             >
               <div class="queue-item-card__thumb">
@@ -99,7 +142,7 @@
                   :src="resolvePosterUrl(cand.upload.posterUrl)"
                   alt="Poster preview"
                   loading="lazy"
-                  @error="(e: any) => e.target.style.display = 'none'"
+                  @error="(e: any) => (e.target.style.display = 'none')"
                 />
                 <div v-else class="queue-item-card__thumb-placeholder">📄</div>
               </div>
@@ -108,12 +151,33 @@
                   <span :class="['queue-badge', getCandidateBadgeClass(cand)]">
                     {{ getCandidateBadgeLabel(cand) }}
                   </span>
-                  <span class="queue-item-card__time">{{ formatTimeAgo(cand.createdAt) }}</span>
+                  <span
+                    v-if="cand.upload?.uploaderClaimedVenueName"
+                    class="queue-badge queue-badge--partner"
+                  >
+                    Venue Partner: {{ cand.upload.uploaderClaimedVenueName }}
+                  </span>
+                  <span class="queue-item-card__time">{{
+                    formatTimeAgo(cand.createdAt)
+                  }}</span>
                 </div>
-                <h4 class="queue-item-card__title">{{ cand.provenance?.title?.rawValue || 'Untitled Show' }}</h4>
-                <p class="queue-item-card__venue">{{ cand.provenance?.venue?.rawValue || cand.provenance?.venueExtracted?.rawValue || 'Venue TBD' }}</p>
+                <h4 class="queue-item-card__title">
+                  {{ cand.provenance?.title?.rawValue || 'Untitled Show' }}
+                </h4>
+                <p class="queue-item-card__venue">
+                  {{
+                    cand.provenance?.venue?.rawValue ||
+                    cand.provenance?.venueExtracted?.rawValue ||
+                    'Venue TBD'
+                  }}
+                </p>
                 <div class="queue-item-card__date">
-                  {{ formatCandidateDate(cand.provenance?.date?.rawValue, cand.provenance?.time?.rawValue) }}
+                  {{
+                    formatCandidateDate(
+                      cand.provenance?.date?.rawValue,
+                      cand.provenance?.time?.rawValue,
+                    )
+                  }}
                 </div>
               </div>
             </div>
@@ -126,15 +190,36 @@
           <div class="review-detail-header">
             <div>
               <div class="review-detail-header__meta">
-                <span :class="['queue-badge', getCandidateBadgeClass(selectedCandidate)]">
+                <span
+                  :class="[
+                    'queue-badge',
+                    getCandidateBadgeClass(selectedCandidate),
+                  ]"
+                >
                   {{ getCandidateBadgeLabel(selectedCandidate) }}
                 </span>
+                <span
+                  v-if="selectedCandidate.upload?.uploaderClaimedVenueName"
+                  class="queue-badge queue-badge--partner"
+                >
+                  Venue Partner:
+                  {{ selectedCandidate.upload.uploaderClaimedVenueName }}
+                </span>
                 <span class="review-detail-header__uploader">
-                  Submitted by <strong>{{ selectedCandidate.upload?.uploadedByUserEmail || selectedCandidate.upload?.uploadedByUid || 'Anonymous' }}</strong>
-                  <span v-if="selectedCandidate.upload?.originalFilename"> · {{ selectedCandidate.upload.originalFilename }}</span>
+                  Submitted by
+                  <strong>{{
+                    selectedCandidate.upload?.uploadedByUserEmail ||
+                    selectedCandidate.upload?.uploadedByUid ||
+                    'Anonymous'
+                  }}</strong>
+                  <span v-if="selectedCandidate.upload?.originalFilename">
+                    · {{ selectedCandidate.upload.originalFilename }}</span
+                  >
                 </span>
               </div>
-              <h3 class="review-detail-header__title">{{ showForm.title || 'Untitled Show' }}</h3>
+              <h3 class="review-detail-header__title">
+                {{ showForm.title || 'Untitled Show' }}
+              </h3>
             </div>
           </div>
 
@@ -160,11 +245,18 @@
                   class="poster-visual-img"
                   alt="Original concert poster"
                 />
-                <div v-else class="poster-visual-placeholder">No visual asset available</div>
+                <div v-else class="poster-visual-placeholder">
+                  No visual asset available
+                </div>
               </div>
               <div class="poster-visual-footer">
-                <span v-if="selectedCandidate.upload?.originalFilename">{{ selectedCandidate.upload.originalFilename }}</span>
-                <span v-if="selectedCandidate.upload?.city">({{ selectedCandidate.upload.city }}, {{ selectedCandidate.upload.state }})</span>
+                <span v-if="selectedCandidate.upload?.originalFilename">{{
+                  selectedCandidate.upload.originalFilename
+                }}</span>
+                <span v-if="selectedCandidate.upload?.city"
+                  >({{ selectedCandidate.upload.city }},
+                  {{ selectedCandidate.upload.state }})</span
+                >
               </div>
             </div>
 
@@ -174,7 +266,9 @@
               <div :class="['plain-alert', getPlainAlertClass()]">
                 <span class="plain-alert__icon">{{ getPlainAlertIcon() }}</span>
                 <div class="plain-alert__content">
-                  <div class="plain-alert__title">{{ getPlainAlertTitle() }}</div>
+                  <div class="plain-alert__title">
+                    {{ getPlainAlertTitle() }}
+                  </div>
                   <div class="plain-alert__desc">{{ getPlainAlertDesc() }}</div>
                 </div>
               </div>
@@ -195,9 +289,16 @@
                 <label>Venue</label>
                 <div class="venue-select-wrapper">
                   <select v-model="showForm.venueId" class="show-editor-select">
-                    <option value="">— Select Catalog Venue or Keep Extracted —</option>
-                    <option v-for="venue in venues" :key="venue.id" :value="venue.id">
-                      {{ venue.name }} ({{ venue.city }}, {{ venue.region || venue.citySlug }})
+                    <option value="">
+                      — Select Catalog Venue or Keep Extracted —
+                    </option>
+                    <option
+                      v-for="venue in venues"
+                      :key="venue.id"
+                      :value="venue.id"
+                    >
+                      {{ venue.name }} ({{ venue.city }},
+                      {{ venue.region || venue.citySlug }})
                     </option>
                   </select>
                 </div>
@@ -235,7 +336,9 @@
                 <label>Genre</label>
                 <select v-model="showForm.genre" class="show-editor-select">
                   <option value="">— Select Genre —</option>
-                  <option v-for="g in genres" :key="g" :value="g">{{ g }}</option>
+                  <option v-for="g in genres" :key="g" :value="g">
+                    {{ g }}
+                  </option>
                 </select>
               </div>
 
@@ -246,10 +349,22 @@
                   <span
                     v-for="(band, idx) in showForm.bandNames"
                     :key="idx"
-                    :class="['lineup-tag', { 'lineup-tag--headliner': idx === 0 }]"
+                    :class="[
+                      'lineup-tag',
+                      { 'lineup-tag--headliner': idx === 0 },
+                    ]"
                   >
-                    <span>{{ idx === 0 ? '⭐ ' : '' }}{{ band }}{{ idx === 0 ? ' (Headliner)' : ' (Support)' }}</span>
-                    <button type="button" class="lineup-tag__remove" @click="removeBand(idx)">×</button>
+                    <span
+                      >{{ idx === 0 ? '⭐ ' : '' }}{{ band
+                      }}{{ idx === 0 ? ' (Headliner)' : ' (Support)' }}</span
+                    >
+                    <button
+                      type="button"
+                      class="lineup-tag__remove"
+                      @click="removeBand(idx)"
+                    >
+                      ×
+                    </button>
                   </span>
                   <div class="lineup-add-group">
                     <input
@@ -259,7 +374,13 @@
                       class="lineup-add-input"
                       @keydown.enter.prevent="addBand"
                     />
-                    <button type="button" class="lineup-add-btn" @click="addBand">+ Add</button>
+                    <button
+                      type="button"
+                      class="lineup-add-btn"
+                      @click="addBand"
+                    >
+                      + Add
+                    </button>
                   </div>
                 </div>
               </div>
@@ -270,32 +391,61 @@
                   <span>▶ Technical Provenance &amp; Raw OCR (Inspect)</span>
                 </summary>
                 <div class="tech-provenance-box">
-                  <div v-if="selectedCandidate.provenance?.modelName"><strong>Model:</strong> {{ selectedCandidate.provenance.modelName }}</div>
+                  <div v-if="selectedCandidate.provenance?.modelName">
+                    <strong>Model:</strong>
+                    {{ selectedCandidate.provenance.modelName }}
+                  </div>
                   <div v-if="selectedCandidate.provenance?.title?.confidence">
-                    <strong>Title Confidence:</strong> {{ (selectedCandidate.provenance.title.confidence * 100).toFixed(0) }}%
+                    <strong>Title Confidence:</strong>
+                    {{
+                      (
+                        selectedCandidate.provenance.title.confidence * 100
+                      ).toFixed(0)
+                    }}%
                   </div>
                   <div v-if="selectedCandidate.provenance?.date?.confidence">
-                    <strong>Date Confidence:</strong> {{ (selectedCandidate.provenance.date.confidence * 100).toFixed(0) }}%
+                    <strong>Date Confidence:</strong>
+                    {{
+                      (
+                        selectedCandidate.provenance.date.confidence * 100
+                      ).toFixed(0)
+                    }}%
                   </div>
                   <div v-if="selectedCandidate.provenance?.doorsTime?.rawValue">
-                    <strong>Doors Time:</strong> {{ selectedCandidate.provenance.doorsTime.rawValue }}
+                    <strong>Doors Time:</strong>
+                    {{ selectedCandidate.provenance.doorsTime.rawValue }}
                   </div>
                   <div v-if="selectedCandidate.provenance?.isFestival">
                     <strong>Event Type:</strong> Festival / Multi-act series
                   </div>
                   <div v-if="selectedCandidate.provenance?.genreList?.length">
-                    <strong>Genres:</strong> {{ selectedCandidate.provenance.genreList.join(', ') }}
+                    <strong>Genres:</strong>
+                    {{ selectedCandidate.provenance.genreList.join(', ') }}
                   </div>
                   <div v-if="selectedCandidate.provenance?.ticketPrice">
-                    <strong>Ticket Price:</strong> {{ selectedCandidate.provenance.ticketPrice }}
+                    <strong>Ticket Price:</strong>
+                    {{ selectedCandidate.provenance.ticketPrice }}
                   </div>
                   <div v-if="selectedCandidate.provenance?.ageRestriction">
-                    <strong>Age Restriction:</strong> {{ selectedCandidate.provenance.ageRestriction }}
+                    <strong>Age Restriction:</strong>
+                    {{ selectedCandidate.provenance.ageRestriction }}
                   </div>
-                  <div v-if="selectedCandidate.provenance?.promotersAndSponsors?.length">
-                    <strong>Promoters &amp; Sponsors:</strong> {{ selectedCandidate.provenance.promotersAndSponsors.join(', ') }}
+                  <div
+                    v-if="
+                      selectedCandidate.provenance?.promotersAndSponsors?.length
+                    "
+                  >
+                    <strong>Promoters &amp; Sponsors:</strong>
+                    {{
+                      selectedCandidate.provenance.promotersAndSponsors.join(
+                        ', ',
+                      )
+                    }}
                   </div>
-                  <div v-if="selectedCandidate.provenance?.rawOcrText" class="tech-provenance-raw">
+                  <div
+                    v-if="selectedCandidate.provenance?.rawOcrText"
+                    class="tech-provenance-raw"
+                  >
                     <strong>Raw OCR Text:</strong>
                     <pre>{{ selectedCandidate.provenance.rawOcrText }}</pre>
                   </div>
@@ -330,10 +480,14 @@
               <button
                 type="button"
                 class="btn-publish-primary"
-                :disabled="actionInProgress || !showForm.title || !showForm.date"
+                :disabled="
+                  actionInProgress || !showForm.title || !showForm.date
+                "
                 @click="publishShow"
               >
-                <span>{{ actionInProgress ? 'Publishing…' : 'Approve & Publish Show' }}</span>
+                <span>{{
+                  actionInProgress ? 'Publishing…' : 'Approve & Publish Show'
+                }}</span>
                 <span>→</span>
               </button>
             </div>
@@ -348,7 +502,8 @@
         <div>
           <h3 class="admin-uploads__title">All Poster Uploads</h3>
           <p class="admin-uploads__subtitle">
-            Review uploaded image assets and raw file records. <span v-if="total">({{ total }} total)</span>
+            Review uploaded image assets and raw file records.
+            <span v-if="total">({{ total }} total)</span>
           </p>
         </div>
         <div class="admin-uploads__controls">
@@ -362,14 +517,27 @@
               <option value="past">Past</option>
             </select>
           </label>
-          <button type="button" class="admin-uploads__refresh" :disabled="loading" @click="load">
+          <button
+            type="button"
+            class="admin-uploads__refresh"
+            :disabled="loading"
+            @click="load"
+          >
             {{ loading ? 'Loading…' : 'Refresh' }}
           </button>
         </div>
       </header>
 
-      <p v-if="error" class="admin-uploads__message admin-uploads__message--error">{{ error }}</p>
-      <p v-else-if="!loading && uploads.length === 0" class="admin-uploads__message">
+      <p
+        v-if="error"
+        class="admin-uploads__message admin-uploads__message--error"
+      >
+        {{ error }}
+      </p>
+      <p
+        v-else-if="!loading && uploads.length === 0"
+        class="admin-uploads__message"
+      >
         No uploads found.
       </p>
 
@@ -389,17 +557,32 @@
             class="admin-uploads__row"
             @click="openPreview(upload)"
           >
-            <span class="admin-uploads__cell admin-uploads__cell--mono">{{ formatDate(upload.createdAt) }}</span>
+            <span class="admin-uploads__cell admin-uploads__cell--mono">{{
+              formatDate(upload.createdAt)
+            }}</span>
             <span class="admin-uploads__cell">
-              <span class="admin-uploads__filename" :title="upload.originalFilename">{{ upload.originalFilename }}</span>
-              <span class="admin-uploads__filesize">{{ formatBytes(upload.size) }}</span>
+              <span
+                class="admin-uploads__filename"
+                :title="upload.originalFilename"
+                >{{ upload.originalFilename }}</span
+              >
+              <span class="admin-uploads__filesize">{{
+                formatBytes(upload.size)
+              }}</span>
             </span>
-            <span class="admin-uploads__cell">{{ formatLocation(upload.city, upload.state) }}</span>
-            <span class="admin-uploads__cell admin-uploads__cell--muted admin-uploads__cell--truncate">
+            <span class="admin-uploads__cell">{{
+              formatLocation(upload.city, upload.state)
+            }}</span>
+            <span
+              class="admin-uploads__cell admin-uploads__cell--muted admin-uploads__cell--truncate"
+            >
               {{ upload.uploadedByUserEmail ?? upload.uploadedByUid }}
             </span>
             <span class="admin-uploads__cell">
-              <span class="status-chip" :class="`status-chip--${upload.reviewStatus}`">
+              <span
+                class="status-chip"
+                :class="`status-chip--${upload.reviewStatus}`"
+              >
                 {{ formatStatus(upload.reviewStatus) }}
               </span>
             </span>
@@ -409,14 +592,27 @@
     </div>
 
     <!-- SIDE-BY-SIDE DUPLICATE CONFLICT MODAL / DRAWER -->
-    <div v-if="isDuplicateModalOpen" class="duplicate-modal-backdrop" role="dialog" aria-modal="true">
+    <div
+      v-if="isDuplicateModalOpen"
+      class="duplicate-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+    >
       <div class="duplicate-modal-card">
         <header class="duplicate-modal-header">
           <div>
-            <span class="queue-badge queue-badge--warning">Possible Duplicate Conflict</span>
+            <span class="queue-badge queue-badge--warning"
+              >Possible Duplicate Conflict</span
+            >
             <h3>Concert exists in catalog for matching date and venue</h3>
           </div>
-          <button type="button" class="duplicate-modal-close" @click="isDuplicateModalOpen = false">×</button>
+          <button
+            type="button"
+            class="duplicate-modal-close"
+            @click="isDuplicateModalOpen = false"
+          >
+            ×
+          </button>
         </header>
 
         <div class="duplicate-modal-content">
@@ -425,34 +621,67 @@
             <!-- Left: Existing Canonical Concert in DB -->
             <div class="duplicate-column duplicate-column--existing">
               <div class="duplicate-column__header">
-                <span class="duplicate-column__tag duplicate-column__tag--blue">Existing in Catalog</span>
-                <span class="duplicate-column__id">ID: {{ activeDuplicateConcert?.id }}</span>
+                <span class="duplicate-column__tag duplicate-column__tag--blue"
+                  >Existing in Catalog</span
+                >
+                <span class="duplicate-column__id"
+                  >ID: {{ activeDuplicateConcert?.id }}</span
+                >
               </div>
-              <h4 class="duplicate-column__title">{{ activeDuplicateConcert?.title }}</h4>
+              <h4 class="duplicate-column__title">
+                {{ activeDuplicateConcert?.title }}
+              </h4>
               <p class="duplicate-column__venue">
-                {{ activeDuplicateConcert?.venue?.name || 'Venue not recorded' }} · {{ activeDuplicateConcert?.venue?.city }}
+                {{
+                  activeDuplicateConcert?.venue?.name || 'Venue not recorded'
+                }}
+                · {{ activeDuplicateConcert?.venue?.city }}
               </p>
               <div class="duplicate-column__time">
-                {{ activeDuplicateConcert?.startsAt ? formatDate(activeDuplicateConcert.startsAt) : 'Date TBD' }}
+                {{
+                  activeDuplicateConcert?.startsAt
+                    ? formatDate(activeDuplicateConcert.startsAt)
+                    : 'Date TBD'
+                }}
               </div>
               <div class="duplicate-column__lineup">
                 Lineup:
-                <span v-for="(l, i) in activeDuplicateConcert?.lineup || []" :key="i">
-                  {{ l.band?.name }}{{ Number(i) < (activeDuplicateConcert?.lineup?.length || 0) - 1 ? ', ' : '' }}
+                <span
+                  v-for="(l, i) in activeDuplicateConcert?.lineup || []"
+                  :key="i"
+                >
+                  {{ l.band?.name
+                  }}{{
+                    Number(i) <
+                    (activeDuplicateConcert?.lineup?.length || 0) - 1
+                      ? ', '
+                      : ''
+                  }}
                 </span>
-                <span v-if="!activeDuplicateConcert?.lineup?.length">No band entries recorded</span>
+                <span v-if="!activeDuplicateConcert?.lineup?.length"
+                  >No band entries recorded</span
+                >
               </div>
             </div>
 
             <!-- Right: New Poster Upload Extracted Show -->
             <div class="duplicate-column duplicate-column--extracted">
               <div class="duplicate-column__header">
-                <span class="duplicate-column__tag duplicate-column__tag--amber">Extracted from New Poster</span>
-                <span class="duplicate-column__id">Uploaded {{ formatTimeAgo(selectedCandidate?.createdAt || '') }}</span>
+                <span class="duplicate-column__tag duplicate-column__tag--amber"
+                  >Extracted from New Poster</span
+                >
+                <span class="duplicate-column__id"
+                  >Uploaded
+                  {{ formatTimeAgo(selectedCandidate?.createdAt || '') }}</span
+                >
               </div>
               <h4 class="duplicate-column__title">{{ showForm.title }}</h4>
-              <p class="duplicate-column__venue">{{ showForm.venueName || 'Extracted Venue' }}</p>
-              <div class="duplicate-column__time">{{ showForm.date }} · {{ showForm.time }}</div>
+              <p class="duplicate-column__venue">
+                {{ showForm.venueName || 'Extracted Venue' }}
+              </p>
+              <div class="duplicate-column__time">
+                {{ showForm.date }} · {{ showForm.time }}
+              </div>
               <div class="duplicate-column__lineup">
                 Lineup: {{ showForm.bandNames.join(', ') || 'None specified' }}
               </div>
@@ -470,8 +699,12 @@
               :disabled="duplicateActionLoading"
               @click="submitDuplicateDecision('link')"
             >
-              <div class="duplicate-action-card__title">🔗 Link Poster Graphic</div>
-              <div class="duplicate-action-card__desc">Attach this high-res graphic to existing concert in catalog.</div>
+              <div class="duplicate-action-card__title">
+                🔗 Link Poster Graphic
+              </div>
+              <div class="duplicate-action-card__desc">
+                Attach this high-res graphic to existing concert in catalog.
+              </div>
             </button>
 
             <button
@@ -480,8 +713,12 @@
               :disabled="duplicateActionLoading"
               @click="submitDuplicateDecision('merge')"
             >
-              <div class="duplicate-action-card__title">🔀 Merge &amp; Update</div>
-              <div class="duplicate-action-card__desc">Update lineup, times, and attach new poster.</div>
+              <div class="duplicate-action-card__title">
+                🔀 Merge &amp; Update
+              </div>
+              <div class="duplicate-action-card__desc">
+                Update lineup, times, and attach new poster.
+              </div>
             </button>
 
             <button
@@ -491,7 +728,9 @@
               @click="submitDuplicateDecision('publish_separately')"
             >
               <div class="duplicate-action-card__title">➕ Separate Show</div>
-              <div class="duplicate-action-card__desc">Distinct concert or stage; create separate listing.</div>
+              <div class="duplicate-action-card__desc">
+                Distinct concert or stage; create separate listing.
+              </div>
             </button>
 
             <button
@@ -501,7 +740,9 @@
               @click="submitDuplicateDecision('reject')"
             >
               <div class="duplicate-action-card__title">🚫 Reject Upload</div>
-              <div class="duplicate-action-card__desc">Redundant duplicate upload; discard asset.</div>
+              <div class="duplicate-action-card__desc">
+                Redundant duplicate upload; discard asset.
+              </div>
             </button>
           </div>
         </div>
@@ -509,11 +750,22 @@
     </div>
 
     <!-- REJECTION REASON MODAL -->
-    <div v-if="isRejectModalOpen" class="duplicate-modal-backdrop" role="dialog" aria-modal="true">
+    <div
+      v-if="isRejectModalOpen"
+      class="duplicate-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+    >
       <div class="reject-modal-card">
         <header class="duplicate-modal-header">
           <h3>Reject Poster / Show Listing</h3>
-          <button type="button" class="duplicate-modal-close" @click="isRejectModalOpen = false">×</button>
+          <button
+            type="button"
+            class="duplicate-modal-close"
+            @click="isRejectModalOpen = false"
+          >
+            ×
+          </button>
         </header>
         <div class="reject-modal-body">
           <label>Reason for rejection:</label>
@@ -526,7 +778,13 @@
           />
         </div>
         <footer class="reject-modal-footer">
-          <button type="button" class="btn-cancel" @click="isRejectModalOpen = false">Cancel</button>
+          <button
+            type="button"
+            class="btn-cancel"
+            @click="isRejectModalOpen = false"
+          >
+            Cancel
+          </button>
           <button
             type="button"
             class="btn-confirm-reject"
@@ -540,8 +798,13 @@
     </div>
 
     <!-- SUCCESS / NOTIFICATION TOAST -->
-    <div v-if="toastMessage" :class="['admin-toast', `admin-toast--${toastMessage.type}`]">
-      <span class="admin-toast__icon">{{ toastMessage.type === 'success' ? '✓' : '⚠️' }}</span>
+    <div
+      v-if="toastMessage"
+      :class="['admin-toast', `admin-toast--${toastMessage.type}`]"
+    >
+      <span class="admin-toast__icon">{{
+        toastMessage.type === 'success' ? '✓' : '⚠️'
+      }}</span>
       <div class="admin-toast__body">
         <div class="admin-toast__title">{{ toastMessage.title }}</div>
         <div class="admin-toast__subtitle">{{ toastMessage.subtitle }}</div>
@@ -549,13 +812,32 @@
     </div>
 
     <!-- FULLSCREEN POSTER MODAL -->
-    <div v-if="fullscreenPosterOpen" class="fullscreen-poster-backdrop" @click="fullscreenPosterOpen = false">
-      <img :src="resolvePosterUrl(selectedCandidate?.upload?.posterUrl)" class="fullscreen-poster-img" alt="Zoomed poster preview" />
-      <button type="button" class="fullscreen-poster-close" @click="fullscreenPosterOpen = false">Close</button>
+    <div
+      v-if="fullscreenPosterOpen"
+      class="fullscreen-poster-backdrop"
+      @click="fullscreenPosterOpen = false"
+    >
+      <img
+        :src="resolvePosterUrl(selectedCandidate?.upload?.posterUrl)"
+        class="fullscreen-poster-img"
+        alt="Zoomed poster preview"
+      />
+      <button
+        type="button"
+        class="fullscreen-poster-close"
+        @click="fullscreenPosterOpen = false"
+      >
+        Close
+      </button>
     </div>
 
     <!-- PREVIEW MODAL FOR ALL UPLOADS (LEGACY) -->
-    <div v-if="previewOpen" class="admin-uploads__modal" role="dialog" aria-modal="true">
+    <div
+      v-if="previewOpen"
+      class="admin-uploads__modal"
+      role="dialog"
+      aria-modal="true"
+    >
       <div class="admin-uploads__modal-backdrop" @click="closePreview"></div>
       <div class="admin-uploads__modal-card">
         <header class="admin-uploads__modal-header">
@@ -563,40 +845,74 @@
             <h3>{{ previewUpload?.originalFilename }}</h3>
             <p class="admin-uploads__modal-subtitle">
               {{ formatLocation(previewUpload?.city, previewUpload?.state) }} ·
-              {{ previewUpload?.uploadedByUserEmail ?? previewUpload?.uploadedByUid }}
+              {{
+                previewUpload?.uploadedByUserEmail ??
+                previewUpload?.uploadedByUid
+              }}
             </p>
           </div>
-          <button type="button" class="admin-uploads__modal-close" @click="closePreview">Close</button>
+          <button
+            type="button"
+            class="admin-uploads__modal-close"
+            @click="closePreview"
+          >
+            Close
+          </button>
         </header>
 
         <div class="admin-uploads__modal-body">
           <div class="admin-uploads__preview">
-            <div v-if="previewLoading" class="admin-uploads__preview-loading">Loading image…</div>
-            <div v-else-if="previewError" class="admin-uploads__preview-error">{{ previewError }}</div>
-            <img v-else :src="previewUrl" class="admin-uploads__preview-image" alt="Uploaded poster preview" />
+            <div v-if="previewLoading" class="admin-uploads__preview-loading">
+              Loading image…
+            </div>
+            <div v-else-if="previewError" class="admin-uploads__preview-error">
+              {{ previewError }}
+            </div>
+            <img
+              v-else
+              :src="previewUrl"
+              class="admin-uploads__preview-image"
+              alt="Uploaded poster preview"
+            />
           </div>
 
           <div class="admin-uploads__review">
             <div class="admin-uploads__details">
               <div class="admin-uploads__detail">
                 <span class="admin-uploads__detail-label">Uploaded</span>
-                <strong>{{ previewUpload ? formatDate(previewUpload.createdAt) : '—' }}</strong>
+                <strong>{{
+                  previewUpload ? formatDate(previewUpload.createdAt) : '—'
+                }}</strong>
               </div>
               <div class="admin-uploads__detail">
                 <span class="admin-uploads__detail-label">Uploader</span>
-                <strong>{{ previewUpload?.uploadedByUserEmail ?? previewUpload?.uploadedByUid ?? '—' }}</strong>
+                <strong>{{
+                  previewUpload?.uploadedByUserEmail ??
+                  previewUpload?.uploadedByUid ??
+                  '—'
+                }}</strong>
               </div>
               <div class="admin-uploads__detail">
                 <span class="admin-uploads__detail-label">Location</span>
-                <strong>{{ previewUpload ? formatLocation(previewUpload.city, previewUpload.state) : '—' }}</strong>
+                <strong>{{
+                  previewUpload
+                    ? formatLocation(previewUpload.city, previewUpload.state)
+                    : '—'
+                }}</strong>
               </div>
               <div class="admin-uploads__detail">
                 <span class="admin-uploads__detail-label">Date hint</span>
-                <strong>{{ previewUpload?.concertDate ? formatDateHint(previewUpload.concertDate) : '—' }}</strong>
+                <strong>{{
+                  previewUpload?.concertDate
+                    ? formatDateHint(previewUpload.concertDate)
+                    : '—'
+                }}</strong>
               </div>
               <div class="admin-uploads__detail">
                 <span class="admin-uploads__detail-label">Venue hint</span>
-                <strong>{{ previewUpload?.venueName ?? previewUpload?.venueId ?? '—' }}</strong>
+                <strong>{{
+                  previewUpload?.venueName ?? previewUpload?.venueId ?? '—'
+                }}</strong>
               </div>
               <div class="admin-uploads__detail">
                 <span class="admin-uploads__detail-label">Genre hint</span>
@@ -604,18 +920,25 @@
               </div>
               <div class="admin-uploads__detail">
                 <span class="admin-uploads__detail-label">Band hint</span>
-                <strong>{{ previewUpload?.bandName ?? previewUpload?.bandId ?? '—' }}</strong>
+                <strong>{{
+                  previewUpload?.bandName ?? previewUpload?.bandId ?? '—'
+                }}</strong>
               </div>
               <div class="admin-uploads__detail">
                 <span class="admin-uploads__detail-label">File size</span>
-                <strong>{{ previewUpload ? formatBytes(previewUpload.size) : '—' }}</strong>
+                <strong>{{
+                  previewUpload ? formatBytes(previewUpload.size) : '—'
+                }}</strong>
               </div>
             </div>
 
             <div class="admin-uploads__decision-panel">
               <div class="admin-uploads__decision-header">
                 <span class="admin-uploads__detail-label">Review decision</span>
-                <span class="status-chip" :class="`status-chip--${reviewStatusDraft}`">
+                <span
+                  class="status-chip"
+                  :class="`status-chip--${reviewStatusDraft}`"
+                >
                   {{ formatStatus(reviewStatusDraft) }}
                 </span>
               </div>
@@ -647,11 +970,20 @@
               </div>
             </div>
 
-            <div v-if="reviewStatusDraft === 'approved'" class="admin-uploads__publish-panel">
+            <div
+              v-if="reviewStatusDraft === 'approved'"
+              class="admin-uploads__publish-panel"
+            >
               <div class="admin-uploads__publish-grid">
-                <label class="admin-uploads__control admin-uploads__control--stack">
+                <label
+                  class="admin-uploads__control admin-uploads__control--stack"
+                >
                   <span>Concert title</span>
-                  <input v-model="concertTitleDraft" type="text" placeholder="Doctor S at The Pour House" />
+                  <input
+                    v-model="concertTitleDraft"
+                    type="text"
+                    placeholder="Doctor S at The Pour House"
+                  />
                 </label>
                 <GenreCombobox
                   v-model="concertGenreDraft"
@@ -662,30 +994,58 @@
                   allow-custom
                   :max-visible-options="25"
                 />
-                <label class="admin-uploads__control admin-uploads__control--stack">
+                <label
+                  class="admin-uploads__control admin-uploads__control--stack"
+                >
                   <span>Date</span>
                   <input v-model="concertDateDraft" type="date" />
                 </label>
-                <label class="admin-uploads__control admin-uploads__control--stack">
+                <label
+                  class="admin-uploads__control admin-uploads__control--stack"
+                >
                   <span>Time</span>
                   <input v-model="concertTimeDraft" type="time" />
                 </label>
-                <label class="admin-uploads__control admin-uploads__control--stack">
+                <label
+                  class="admin-uploads__control admin-uploads__control--stack"
+                >
                   <span>Venue</span>
-                  <input v-model="concertVenueNameDraft" type="text" placeholder="Venue TBD" />
+                  <input
+                    v-model="concertVenueNameDraft"
+                    type="text"
+                    placeholder="Venue TBD"
+                  />
                 </label>
-                <label class="admin-uploads__control admin-uploads__control--stack">
+                <label
+                  class="admin-uploads__control admin-uploads__control--stack"
+                >
                   <span>Band / lineup</span>
-                  <input v-model="concertBandNameDraft" type="text" placeholder="Band or lineup" />
+                  <input
+                    v-model="concertBandNameDraft"
+                    type="text"
+                    placeholder="Band or lineup"
+                  />
                 </label>
               </div>
-              <label class="admin-uploads__control admin-uploads__control--stack">
+              <label
+                class="admin-uploads__control admin-uploads__control--stack"
+              >
                 <span>Public description</span>
-                <textarea v-model="concertDescriptionDraft" rows="3" placeholder="Short public note for the concert card"></textarea>
+                <textarea
+                  v-model="concertDescriptionDraft"
+                  rows="3"
+                  placeholder="Short public note for the concert card"
+                ></textarea>
               </label>
             </div>
 
-            <p v-if="reviewMessage" :class="['admin-uploads__review-message', `admin-uploads__review-message--${reviewMessageType}`]">
+            <p
+              v-if="reviewMessage"
+              :class="[
+                'admin-uploads__review-message',
+                `admin-uploads__review-message--${reviewMessageType}`,
+              ]"
+            >
               {{ reviewMessage }}
             </p>
 
@@ -698,7 +1058,13 @@
               >
                 {{ saveButtonLabel }}
               </button>
-              <button type="button" class="admin-uploads__secondary" @click="closePreview">Cancel</button>
+              <button
+                type="button"
+                class="admin-uploads__secondary"
+                @click="closePreview"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>
@@ -745,7 +1111,9 @@ const candidatesError = ref('');
 const candidateStatusFilter = ref<string>('pending');
 const selectedCandidate = ref<AdminIngestionCandidateListItem | null>(null);
 const probableDuplicates = ref<any[]>([]);
-const activeDuplicateConcert = computed(() => probableDuplicates.value[0] || null);
+const activeDuplicateConcert = computed(
+  () => probableDuplicates.value[0] || null,
+);
 const isDuplicateModalOpen = ref(false);
 const duplicateActionLoading = ref(false);
 const isRejectModalOpen = ref(false);
@@ -758,7 +1126,6 @@ const approvedTodayCount = ref(0);
 let reviewStartTime = Date.now();
 let timerInterval: any = null;
 const liveTimerSeconds = ref(0);
-
 
 const startTimer = () => {
   reviewStartTime = Date.now();
@@ -790,9 +1157,17 @@ const genres = ref<string[]>([]);
 const genresLoading = ref(true);
 
 // TOAST NOTIFICATION
-const toastMessage = ref<{ title: string; subtitle: string; type: 'success' | 'error' } | null>(null);
+const toastMessage = ref<{
+  title: string;
+  subtitle: string;
+  type: 'success' | 'error';
+} | null>(null);
 let toastTimeout: any = null;
-const showToast = (title: string, subtitle: string, type: 'success' | 'error' = 'success') => {
+const showToast = (
+  title: string,
+  subtitle: string,
+  type: 'success' | 'error' = 'success',
+) => {
   toastMessage.value = { title, subtitle, type };
   if (toastTimeout) clearTimeout(toastTimeout);
   toastTimeout = setTimeout(() => {
@@ -801,14 +1176,13 @@ const showToast = (title: string, subtitle: string, type: 'success' | 'error' = 
 };
 
 // QUEUE METRICS COMPUTED
-const pendingCandidatesCount = computed(() =>
-  candidates.value.filter((c) => c.status === 'pending').length,
+const pendingCandidatesCount = computed(
+  () => candidates.value.filter((c) => c.status === 'pending').length,
 );
 
 const duplicateCandidatesCount = computed(() =>
   probableDuplicates.value.length > 0 ? 1 : 0,
 );
-
 
 // TOKEN HELPER
 const getToken = async () => {
@@ -834,7 +1208,10 @@ const loadCandidates = async () => {
     candidates.value = res.items;
     candidateTotal.value = res.total;
     if (candidates.value.length > 0) {
-      if (!selectedCandidate.value || !candidates.value.some((c) => c.id === selectedCandidate.value?.id)) {
+      if (
+        !selectedCandidate.value ||
+        !candidates.value.some((c) => c.id === selectedCandidate.value?.id)
+      ) {
         const first = candidates.value[0];
         if (first) {
           await selectCandidate(first);
@@ -844,7 +1221,8 @@ const loadCandidates = async () => {
       selectedCandidate.value = null;
     }
   } catch (err: any) {
-    candidatesError.value = err?.message ?? 'Failed to load show publishing queue.';
+    candidatesError.value =
+      err?.message ?? 'Failed to load show publishing queue.';
   } finally {
     candidatesLoading.value = false;
   }
@@ -857,33 +1235,49 @@ const selectCandidate = async (candidate: AdminIngestionCandidateListItem) => {
 
   // Prefill form from provenance
   const prov = candidate.provenance || {};
-  showForm.value.title = prov.title?.rawValue || candidate.upload?.originalFilename?.replace(/\.[^.]+$/, '') || '';
+  showForm.value.title =
+    prov.title?.rawValue ||
+    candidate.upload?.originalFilename?.replace(/\.[^.]+$/, '') ||
+    '';
   showForm.value.date =
     prov.date?.rawValue ||
     candidate.upload?.concertDate?.slice(0, 10) ||
     new Date().toISOString().slice(0, 10);
   showForm.value.time = (prov.time?.rawValue || '19:00').slice(0, 5);
   showForm.value.venueId = candidate.suggestedVenueId || '';
-  showForm.value.venueName = prov.venue?.rawValue || prov.venueExtracted?.rawValue || '';
+  showForm.value.venueName =
+    prov.venue?.rawValue || prov.venueExtracted?.rawValue || '';
   const extractedGenre =
     prov.primaryGenre?.rawValue ||
     (Array.isArray(prov.genres)
       ? prov.genres[0]?.rawValue
       : (prov.genres as any)?.rawValue);
   showForm.value.genre =
-    extractedGenre ||
-    candidate.upload?.genre ||
-    genres.value[0] ||
-    'Rock';
+    extractedGenre || candidate.upload?.genre || genres.value[0] || 'Rock';
 
   if (Array.isArray(prov.bands) && prov.bands.length > 0) {
-    showForm.value.bandNames = prov.bands.map((b: any) => typeof b === 'string' ? b : b.rawValue || '').filter(Boolean);
-  } else if (Array.isArray(prov.performerLineup?.normalizedValue) && prov.performerLineup.normalizedValue.length > 0) {
-    showForm.value.bandNames = prov.performerLineup.normalizedValue
-      .map((b: any) => (typeof b === 'string' ? b.trim() : String(b?.name || b?.rawValue || '').trim()))
+    showForm.value.bandNames = prov.bands
+      .map((b: any) => (typeof b === 'string' ? b : b.rawValue || ''))
       .filter(Boolean);
-  } else if (typeof prov.performerLineup?.rawValue === 'string' && prov.performerLineup.rawValue.trim()) {
-    showForm.value.bandNames = prov.performerLineup.rawValue.split(',').map((b: string) => b.trim()).filter(Boolean);
+  } else if (
+    Array.isArray(prov.performerLineup?.normalizedValue) &&
+    prov.performerLineup.normalizedValue.length > 0
+  ) {
+    showForm.value.bandNames = prov.performerLineup.normalizedValue
+      .map((b: any) =>
+        typeof b === 'string'
+          ? b.trim()
+          : String(b?.name || b?.rawValue || '').trim(),
+      )
+      .filter(Boolean);
+  } else if (
+    typeof prov.performerLineup?.rawValue === 'string' &&
+    prov.performerLineup.rawValue.trim()
+  ) {
+    showForm.value.bandNames = prov.performerLineup.rawValue
+      .split(',')
+      .map((b: string) => b.trim())
+      .filter(Boolean);
   } else if (showForm.value.title) {
     showForm.value.bandNames = [showForm.value.title];
   } else {
@@ -945,7 +1339,11 @@ const publishShow = async () => {
     window.dispatchEvent(new CustomEvent('concerts:changed'));
     await loadCandidates();
   } catch (err: any) {
-    showToast('Publication Failed', err?.message ?? 'Could not publish show', 'error');
+    showToast(
+      'Publication Failed',
+      err?.message ?? 'Could not publish show',
+      'error',
+    );
   } finally {
     actionInProgress.value = false;
   }
@@ -956,7 +1354,9 @@ const openDuplicateModal = () => {
   isDuplicateModalOpen.value = true;
 };
 
-const submitDuplicateDecision = async (decision: DuplicateDecisionPayload['decision']) => {
+const submitDuplicateDecision = async (
+  decision: DuplicateDecisionPayload['decision'],
+) => {
   if (!selectedCandidate.value) return;
   duplicateActionLoading.value = true;
   try {
@@ -982,11 +1382,19 @@ const submitDuplicateDecision = async (decision: DuplicateDecisionPayload['decis
 
     isDuplicateModalOpen.value = false;
     approvedTodayCount.value++;
-    showToast('Duplicate Resolved', `Action '${decision}' executed. Advancing queue…`, 'success');
+    showToast(
+      'Duplicate Resolved',
+      `Action '${decision}' executed. Advancing queue…`,
+      'success',
+    );
     window.dispatchEvent(new CustomEvent('concerts:changed'));
     await loadCandidates();
   } catch (err: any) {
-    showToast('Action Failed', err?.message ?? 'Failed to execute duplicate decision', 'error');
+    showToast(
+      'Action Failed',
+      err?.message ?? 'Failed to execute duplicate decision',
+      'error',
+    );
   } finally {
     duplicateActionLoading.value = false;
   }
@@ -1002,12 +1410,24 @@ const confirmRejectCandidate = async () => {
   actionInProgress.value = true;
   try {
     const token = await getToken();
-    await rejectAdminCandidate(token, selectedCandidate.value.id, rejectReasonInput.value);
+    await rejectAdminCandidate(
+      token,
+      selectedCandidate.value.id,
+      rejectReasonInput.value,
+    );
     isRejectModalOpen.value = false;
-    showToast('Poster Rejected', 'Show removed from publishing queue.', 'success');
+    showToast(
+      'Poster Rejected',
+      'Show removed from publishing queue.',
+      'success',
+    );
     await loadCandidates();
   } catch (err: any) {
-    showToast('Rejection Failed', err?.message ?? 'Could not reject show', 'error');
+    showToast(
+      'Rejection Failed',
+      err?.message ?? 'Could not reject show',
+      'error',
+    );
   } finally {
     actionInProgress.value = false;
   }
@@ -1023,18 +1443,21 @@ const getDateWarning = () =>
 
 const getPlainAlertClass = () => {
   if (probableDuplicates.value.length > 0) return 'plain-alert--warning';
-  if (getDateWarning() || !showForm.value.date || !showForm.value.venueId) return 'plain-alert--info';
+  if (getDateWarning() || !showForm.value.date || !showForm.value.venueId)
+    return 'plain-alert--info';
   return 'plain-alert--success';
 };
 
 const getPlainAlertIcon = () => {
   if (probableDuplicates.value.length > 0) return '🔍';
-  if (getDateWarning() || !showForm.value.date || !showForm.value.venueId) return '⚠️';
+  if (getDateWarning() || !showForm.value.date || !showForm.value.venueId)
+    return '⚠️';
   return '✓';
 };
 
 const getPlainAlertTitle = () => {
-  if (probableDuplicates.value.length > 0) return 'Possible duplicate concert found in database';
+  if (probableDuplicates.value.length > 0)
+    return 'Possible duplicate concert found in database';
   if (getDateWarning()) return 'Check this date against the poster';
   if (!showForm.value.date) return 'Please verify concert date';
   if (!showForm.value.venueId) return 'Venue not linked to catalog';
@@ -1061,14 +1484,22 @@ const getPlainAlertDesc = () => {
 const getCandidateBadgeClass = (cand: AdminIngestionCandidateListItem) => {
   if (cand.status === 'published') return 'queue-badge--success';
   if (cand.status === 'rejected') return 'queue-badge--danger';
-  if (probableDuplicates.value.length > 0 && selectedCandidate.value?.id === cand.id) return 'queue-badge--warning';
+  if (
+    probableDuplicates.value.length > 0 &&
+    selectedCandidate.value?.id === cand.id
+  )
+    return 'queue-badge--warning';
   return 'queue-badge--primary';
 };
 
 const getCandidateBadgeLabel = (cand: AdminIngestionCandidateListItem) => {
   if (cand.status === 'published') return 'Published';
   if (cand.status === 'rejected') return 'Rejected';
-  if (probableDuplicates.value.length > 0 && selectedCandidate.value?.id === cand.id) return 'Possible Duplicate';
+  if (
+    probableDuplicates.value.length > 0 &&
+    selectedCandidate.value?.id === cand.id
+  )
+    return 'Possible Duplicate';
   if (cand.candidateIndex > 0) return `Show ${cand.candidateIndex + 1}`;
   return 'Ready to Publish';
 };
@@ -1124,7 +1555,8 @@ const load = async () => {
   loading.value = true;
   try {
     const token = await getToken();
-    const reviewStatus = statusFilter.value === 'all' ? undefined : statusFilter.value;
+    const reviewStatus =
+      statusFilter.value === 'all' ? undefined : statusFilter.value;
     const result = await fetchAdminIngestionUploads(token, {
       limit,
       offset: offset.value,
@@ -1226,7 +1658,9 @@ const openPreview = async (upload: AdminConcertUploadListItem) => {
   reviewNotesDraft.value = upload.reviewNotes ?? '';
   concertTitleDraft.value = defaultTitleFromFilename(upload.originalFilename);
   concertGenreDraft.value = upload.genre?.trim() || '';
-  concertDateDraft.value = upload.concertDate ? upload.concertDate.slice(0, 10) : '';
+  concertDateDraft.value = upload.concertDate
+    ? upload.concertDate.slice(0, 10)
+    : '';
   concertTimeDraft.value = '19:00';
   concertVenueNameDraft.value = upload.venueName ?? '';
   concertBandNameDraft.value = upload.bandName ?? concertTitleDraft.value;
@@ -1253,7 +1687,9 @@ const closePreview = () => {
 };
 
 const patchLocalUpload = (updated: AdminConcertUploadListItem) => {
-  uploads.value = uploads.value.map((item) => (item.id === updated.id ? updated : item));
+  uploads.value = uploads.value.map((item) =>
+    item.id === updated.id ? updated : item,
+  );
   if (previewUpload.value?.id === updated.id) {
     previewUpload.value = updated;
     reviewStatusDraft.value = updated.reviewStatus;
@@ -1270,7 +1706,9 @@ const buildConcertStartsAt = () => {
   if (!concertDateDraft.value || !concertTimeDraft.value) {
     return undefined;
   }
-  return new Date(`${concertDateDraft.value}T${concertTimeDraft.value}`).toISOString();
+  return new Date(
+    `${concertDateDraft.value}T${concertTimeDraft.value}`,
+  ).toISOString();
 };
 
 const isSaveDisabled = computed(
@@ -1278,7 +1716,9 @@ const isSaveDisabled = computed(
     !previewUpload.value ||
     savingId.value === previewUpload.value.id ||
     (reviewStatusDraft.value === 'approved' &&
-      (!concertTitleDraft.value.trim() || !concertDateDraft.value || !concertTimeDraft.value)),
+      (!concertTitleDraft.value.trim() ||
+        !concertDateDraft.value ||
+        !concertTimeDraft.value)),
 );
 
 const saveButtonLabel = computed(() => {
@@ -1478,7 +1918,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border, #e2e8f0);
   border-radius: 14px;
   padding: 1rem 1.15rem;
-  box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,0.05));
+  box-shadow: var(--shadow, 0 1px 3px rgba(0, 0, 0, 0.05));
 }
 
 .stats-card__label {
@@ -1716,13 +2156,18 @@ onBeforeUnmount(() => {
   color: #991b1b;
 }
 
+.queue-badge--partner {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
 /* RIGHT: INTERACTIVE REVIEW WORKSPACE */
 .review-detail-column {
   background: var(--surface, #ffffff);
   border: 1px solid var(--border, #e2e8f0);
   border-radius: 18px;
   padding: 1.5rem;
-  box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,0.05));
+  box-shadow: var(--shadow, 0 1px 3px rgba(0, 0, 0, 0.05));
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -2246,7 +2691,7 @@ onBeforeUnmount(() => {
 
 .duplicate-action-card:hover:not(:disabled) {
   border-color: #3b82f6;
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
 }
 
 .duplicate-action-card__title {
@@ -2354,7 +2799,7 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 1.5rem;
   right: 1.5rem;
-  background: rgba(0,0,0,0.7);
+  background: rgba(0, 0, 0, 0.7);
   color: #ffffff;
   border: 1px solid #ffffff;
   border-radius: 8px;
@@ -2475,7 +2920,10 @@ onBeforeUnmount(() => {
 .admin-uploads__table-header,
 .admin-uploads__row {
   display: grid;
-  grid-template-columns: minmax(170px, 1.15fr) minmax(220px, 1.45fr) minmax(140px, 0.95fr) minmax(190px, 1.1fr) 120px;
+  grid-template-columns: minmax(170px, 1.15fr) minmax(220px, 1.45fr) minmax(
+      140px,
+      0.95fr
+    ) minmax(190px, 1.1fr) 120px;
   gap: 0.875rem;
   align-items: center;
   padding: 0.9rem 1.25rem;
