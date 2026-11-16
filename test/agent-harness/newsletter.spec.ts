@@ -264,13 +264,19 @@ describe('Offline newsletter fixture replay', () => {
             status: 'draft',
           });
           expect(transport.drafts).toHaveLength(1);
+          const expectedHtml = service.convertMarkdownToHtml(
+            fixture.modelResponse!,
+          );
           expect(transport.drafts[0]).toEqual({
             title: `EZ Vibes Top Picks: ${preview.dateRangeLabel}`,
             status: 'draft',
+            body_content: expectedHtml,
+            post_template_id:
+              'post_template_8ab6a846-90c0-4a8a-8445-713dc8174a18',
             blocks: [
               {
                 type: 'html',
-                html: service.convertMarkdownToHtml(fixture.modelResponse!),
+                html: expectedHtml,
               },
             ],
           });
