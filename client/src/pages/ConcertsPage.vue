@@ -36,7 +36,7 @@
 
     <ConcertFiltersBar
       :search-text="searchText"
-      :city="cityFilter"
+      :city="city"
       :date-range="dateRange"
       :sort="sort"
       :source="source"
@@ -134,11 +134,16 @@ const hasLoadedPersistedConcerts = ref(false);
 const isLoadingConcerts = ref(false);
 const concertsLoadError = ref('');
 let latestConcertsRequest = 0;
-const { searchText, dateRange, sort, source, filteredConcerts, clearFilters } =
-  useConcertFilters(persistedConcerts);
-
-const cityFilter = ref('');
-const regionFilter = ref('');
+const {
+  searchText,
+  city,
+  region,
+  dateRange,
+  sort,
+  source,
+  filteredConcerts,
+  clearFilters,
+} = useConcertFilters(persistedConcerts);
 
 function applyInitialUrlFilters() {
   if (typeof window === 'undefined') return;
@@ -147,12 +152,13 @@ function applyInitialUrlFilters() {
   const urlRegion = params.get('region')?.trim() || '';
   const urlQ = params.get('q')?.trim() || '';
   const urlSort = params.get('sort')?.trim() || '';
+  const urlDateRange = params.get('dateRange')?.trim() || '';
 
   if (urlCity) {
-    cityFilter.value = urlCity;
+    city.value = urlCity;
   }
   if (urlRegion) {
-    regionFilter.value = urlRegion;
+    region.value = urlRegion;
   }
   if (urlQ) {
     searchText.value = urlQ;
@@ -164,6 +170,13 @@ function applyInitialUrlFilters() {
   ) {
     sort.value = urlSort;
   }
+  if (
+    urlDateRange === '7' ||
+    urlDateRange === '30' ||
+    urlDateRange === 'all'
+  ) {
+    dateRange.value = urlDateRange;
+  }
 }
 
 applyInitialUrlFilters();
@@ -171,17 +184,20 @@ applyInitialUrlFilters();
 function syncFiltersToUrl() {
   if (typeof window === 'undefined' || !window.history?.replaceState) return;
   const params = new URLSearchParams();
-  if (cityFilter.value.trim()) {
-    params.set('city', cityFilter.value.trim());
+  if (city.value.trim()) {
+    params.set('city', city.value.trim());
   }
-  if (regionFilter.value.trim()) {
-    params.set('region', regionFilter.value.trim());
+  if (region.value.trim()) {
+    params.set('region', region.value.trim());
   }
   if (searchText.value.trim()) {
     params.set('q', searchText.value.trim());
   }
   if (sort.value && sort.value !== 'soonest') {
     params.set('sort', sort.value);
+  }
+  if (dateRange.value && dateRange.value !== '30') {
+    params.set('dateRange', dateRange.value);
   }
   const query = params.toString();
   const nextUrl = query
@@ -191,17 +207,13 @@ function syncFiltersToUrl() {
 }
 
 const handleCityChange = (nextCity: string) => {
-  cityFilter.value = nextCity;
+  city.value = nextCity;
   syncFiltersToUrl();
   void loadPersistedConcerts();
 };
 
 const handleResetFilters = () => {
-  const hadServerLocationFilter = Boolean(
-    cityFilter.value || regionFilter.value,
-  );
-  cityFilter.value = '';
-  regionFilter.value = '';
+  const hadServerLocationFilter = Boolean(city.value || region.value);
   clearFilters();
   syncFiltersToUrl();
   if (hadServerLocationFilter) {
@@ -276,10 +288,8 @@ const loadPersistedConcerts = async () => {
       sort: sort.value,
       startsAfter: new Date().toISOString(),
       pageSize: 100,
-      ...(cityFilter.value.trim() ? { city: cityFilter.value.trim() } : {}),
-      ...(regionFilter.value.trim()
-        ? { region: regionFilter.value.trim() }
-        : {}),
+      ...(city.value.trim() ? { city: city.value.trim() } : {}),
+      ...(region.value.trim() ? { region: region.value.trim() } : {}),
     });
 
     if (requestId !== latestConcertsRequest) {
@@ -366,7 +376,7 @@ watch(
   { immediate: true },
 );
 
-watch([searchText, sort, cityFilter, regionFilter], () => {
+watch([searchText, sort, dateRange, city, region], () => {
   syncFiltersToUrl();
 });
 

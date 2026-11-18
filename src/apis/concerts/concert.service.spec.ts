@@ -911,12 +911,21 @@ describe('ConcertService', () => {
       qb.getRawAndEntities.mockResolvedValue({ entities: [], raw: [] });
 
       await service.findAll({
+        q: 'bluegrass',
         city: ' Chapel Hill ',
         region: ' North Carolina ',
         page: 1,
         pageSize: 20,
       });
 
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('concert.genre ILIKE :q'),
+        { q: '%bluegrass%' },
+      );
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('venue.city ILIKE :q'),
+        { q: '%bluegrass%' },
+      );
       expect(qb.andWhere).toHaveBeenCalledWith(
         '(venue.citySlug = :citySlug OR venue.city ILIKE :cityName)',
         {

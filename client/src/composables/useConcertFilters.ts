@@ -5,10 +5,20 @@ export type DateRangeOption = '7' | '30' | 'all';
 export type SortOption = 'soonest' | 'featured' | 'trending_week';
 export type SourceOption = 'all' | 'synced';
 
+function normalizeLocationToken(val?: string | null): string {
+  return (val || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 export function useConcertFilters(
   concerts: ConcertListItem[] | Ref<ConcertListItem[]>,
 ) {
   const searchText = ref('');
+  const city = ref('');
+  const region = ref('');
   const dateRange = ref<DateRangeOption>('30');
   const sort = ref<SortOption>('soonest');
   const source = ref<SourceOption>('all');
@@ -31,6 +41,22 @@ export function useConcertFilters(
     if (source.value === 'synced') {
       result = result.filter(
         (concert) => concert.syncSource?.source === 'google_calendar',
+      );
+    }
+
+    const activeCityToken = normalizeLocationToken(city.value);
+    if (activeCityToken) {
+      result = result.filter(
+        (concert) =>
+          normalizeLocationToken(concert.venue?.city) === activeCityToken,
+      );
+    }
+
+    const activeRegionToken = normalizeLocationToken(region.value);
+    if (activeRegionToken) {
+      result = result.filter(
+        (concert) =>
+          normalizeLocationToken(concert.venue?.region) === activeRegionToken,
       );
     }
 
@@ -97,6 +123,8 @@ export function useConcertFilters(
 
   const clearFilters = () => {
     searchText.value = '';
+    city.value = '';
+    region.value = '';
     dateRange.value = '30';
     sort.value = 'soonest';
     source.value = 'all';
@@ -104,6 +132,8 @@ export function useConcertFilters(
 
   return {
     searchText,
+    city,
+    region,
     dateRange,
     sort,
     source,

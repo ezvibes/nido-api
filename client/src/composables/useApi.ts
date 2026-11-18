@@ -98,6 +98,7 @@ export async function fetchConcerts(
   params?: {
     sort?: 'soonest' | 'featured' | 'trending_week';
     startsAfter?: string;
+    startsBefore?: string;
     pageSize?: number;
     city?: string;
     region?: string;

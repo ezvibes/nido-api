@@ -39,6 +39,45 @@ describe('useConcertFilters', () => {
       'top-pick',
     ]);
   });
+
+  it('filters concerts by normalized city and region and resets them on clearFilters', async () => {
+    const concerts = ref([
+      {
+        ...buildConcert('raleigh-show', 'Sylvan Esso'),
+        venue: {
+          id: 'v-1',
+          name: 'Lincoln Theatre',
+          city: 'Raleigh',
+          region: 'NC',
+        },
+      },
+      {
+        ...buildConcert('durham-show', 'Mountain Goats'),
+        venue: {
+          id: 'v-2',
+          name: 'Motorco Music Hall',
+          city: 'Durham',
+          region: 'NC',
+        },
+      },
+    ]);
+
+    const { city, region, filteredConcerts, clearFilters } =
+      useConcertFilters(concerts);
+
+    city.value = 'durham';
+    region.value = 'nc';
+    await nextTick();
+
+    expect(filteredConcerts.value.map((c) => c.id)).toEqual(['durham-show']);
+
+    clearFilters();
+    await nextTick();
+
+    expect(city.value).toBe('');
+    expect(region.value).toBe('');
+    expect(filteredConcerts.value).toHaveLength(2);
+  });
 });
 
 function buildConcert(id: string, bandName: string): ConcertListItem {

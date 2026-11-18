@@ -235,6 +235,32 @@ describe('ConcertsPage', () => {
     );
     expect(window.location.search).toContain('city=Durham');
   });
+
+  it('initializes dateRange from URL query (?dateRange=7) and clears URL query on Reset filters', async () => {
+    window.history.replaceState({}, '', '/concerts?city=Durham&dateRange=7');
+    api.fetchConcerts.mockResolvedValue({
+      data: [buildConcert()],
+      total: 1,
+      page: 1,
+      pageSize: 100,
+    });
+
+    const wrapper = mount(ConcertsPage, {
+      global: { stubs: { IngestionUploadPanel: true } },
+    });
+    await flushPromises();
+
+    expect(window.location.search).toContain('city=Durham');
+    expect(window.location.search).toContain('dateRange=7');
+
+    const resetBtn = wrapper
+      .findAll('button')
+      .find((btn) => btn.text().includes('Reset filters'));
+    await resetBtn!.trigger('click');
+    await flushPromises();
+
+    expect(window.location.search).toBe('');
+  });
 });
 
 function buildConcert(overrides: Partial<ConcertApiItem> = {}): ConcertApiItem {

@@ -247,8 +247,11 @@ export class ConcertService {
       qb.andWhere(
         `(
           concert.title ILIKE :q
+          OR concert.genre ILIKE :q
           OR concert.description ILIKE :q
           OR venue.name ILIKE :q
+          OR venue.city ILIKE :q
+          OR venue.region ILIKE :q
           OR band.name ILIKE :q
         )`,
         {
