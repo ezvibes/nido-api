@@ -18,10 +18,15 @@
         </button>
       </div>
     </div>
+
+    <div class="home-newsletter">
+      <NewsletterSignupBanner utm-source="nido_home" />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import NewsletterSignupBanner from '../components/newsletter/NewsletterSignupBanner.vue';
 import { useAuth } from '../composables/useAuth';
 
 const { user, signInWithGoogle } = useAuth();
@@ -32,6 +37,11 @@ const { user, signInWithGoogle } = useAuth();
   text-align: center;
   max-width: 600px;
   margin: 0 auto;
+}
+
+.home-newsletter {
+  max-width: 760px;
+  margin: 3rem auto 0;
 }
 
 .headline {

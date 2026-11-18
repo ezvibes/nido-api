@@ -2,6 +2,7 @@ import {
   Injectable,
   Logger,
   InternalServerErrorException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
@@ -57,6 +58,12 @@ export interface BeehiivPostDetails {
     };
   };
   stats?: BeehiivPostStats;
+}
+
+export interface BeehiivSubscriptionResponse {
+  subscribed: boolean;
+  status: string;
+  subscriptionId: string;
 }
 
 @Injectable()
@@ -305,6 +312,92 @@ export class BeehiivService {
       );
       throw new InternalServerErrorException(
         `Beehiiv getPostStats failed: ${err.message}`,
+      );
+    }
+  }
+
+  /**
+   * Subscribes a public listener email to the Beehiiv publication, failing closed with ServiceUnavailableException when credentials are not configured.
+   */
+  async subscribeEmail(payload: {
+    email: string;
+    utmSource?: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+  }): Promise<BeehiivSubscriptionResponse> {
+    const normalizedEmail = payload.email.trim().toLowerCase();
+    const apiKey = this.configService.get<string>('BEEHIIV_API_KEY')?.trim();
+    const publicationId = this.configService
+      .get<string>('BEEHIIV_PUBLICATION_ID')
+      ?.trim();
+
+    if (!apiKey || !publicationId) {
+      this.logger.warn(
+        'Beehiiv subscription rejected because BEEHIIV_API_KEY or BEEHIIV_PUBLICATION_ID is not configured.',
+      );
+      throw new ServiceUnavailableException(
+        'Newsletter subscription service is not configured.',
+      );
+    }
+
+    const endpoint = `https://api.beehiiv.com/v2/publications/${publicationId}/subscriptions`;
+    const body = {
+      email: normalizedEmail,
+      reactivate_existing: true,
+      send_welcome_email: true,
+      utm_source: payload.utmSource?.trim() || 'nido_web',
+      utm_medium: payload.utmMedium?.trim() || 'organic',
+      utm_campaign: payload.utmCampaign?.trim() || 'weekly_top_picks',
+    };
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        this.logger.error(
+          `Beehiiv subscription API returned error status ${response.status}: ${errorText}`,
+        );
+        throw new InternalServerErrorException(
+          `Unable to complete newsletter subscription (${response.status}).`,
+        );
+      }
+
+      const payloadData = (await response.json()) as {
+        data?: { id?: string; status?: string };
+      };
+      const subscriptionId = payloadData?.data?.id?.trim();
+      if (!subscriptionId) {
+        this.logger.error(
+          'Beehiiv subscription response did not include a confirmed data.id.',
+        );
+        throw new InternalServerErrorException(
+          'Beehiiv did not return a confirmed subscription ID.',
+        );
+      }
+
+      return {
+        subscribed: true,
+        status: payloadData.data?.status || 'active',
+        subscriptionId,
+      };
+    } catch (err) {
+      if (err instanceof InternalServerErrorException) {
+        throw err;
+      }
+      this.logger.error(
+        `Failed to subscribe email on Beehiiv: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Unable to complete newsletter subscription right now.',
       );
     }
   }

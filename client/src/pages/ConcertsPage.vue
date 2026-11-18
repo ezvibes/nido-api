@@ -36,10 +36,12 @@
 
     <ConcertFiltersBar
       :search-text="searchText"
+      :city="cityFilter"
       :date-range="dateRange"
       :sort="sort"
       :source="source"
       @update:search-text="searchText = $event"
+      @update:city="handleCityChange"
       @update:date-range="dateRange = $event"
       @update:sort="sort = $event"
       @update:source="source = $event"
@@ -54,7 +56,7 @@
           {{ isLoadingConcerts ? 'Loading upcoming concerts…' : sortSummary }}
         </p>
       </div>
-      <button class="button-secondary" type="button" @click="clearFilters">
+      <button class="button-secondary" type="button" @click="handleResetFilters">
         Reset filters
       </button>
     </section>
@@ -87,6 +89,8 @@
         <p>Try a different city, band, venue, or date range.</p>
       </template>
     </section>
+
+    <NewsletterSignupBanner utm-source="nido_concerts_feed" />
   </section>
 </template>
 
@@ -95,6 +99,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ConcertCard from '../components/concerts/ConcertCard.vue';
 import ConcertFiltersBar from '../components/concerts/ConcertFiltersBar.vue';
 import IngestionUploadPanel from '../components/ingestion/IngestionUploadPanel.vue';
+import NewsletterSignupBanner from '../components/newsletter/NewsletterSignupBanner.vue';
 import { useConcertFilters } from '../composables/useConcertFilters';
 import {
   fetchConcerts,
@@ -131,6 +136,78 @@ const concertsLoadError = ref('');
 let latestConcertsRequest = 0;
 const { searchText, dateRange, sort, source, filteredConcerts, clearFilters } =
   useConcertFilters(persistedConcerts);
+
+const cityFilter = ref('');
+const regionFilter = ref('');
+
+function applyInitialUrlFilters() {
+  if (typeof window === 'undefined') return;
+  const params = new URLSearchParams(window.location.search);
+  const urlCity = params.get('city')?.trim() || '';
+  const urlRegion = params.get('region')?.trim() || '';
+  const urlQ = params.get('q')?.trim() || '';
+  const urlSort = params.get('sort')?.trim() || '';
+
+  if (urlCity) {
+    cityFilter.value = urlCity;
+  }
+  if (urlRegion) {
+    regionFilter.value = urlRegion;
+  }
+  if (urlQ) {
+    searchText.value = urlQ;
+  }
+  if (
+    urlSort === 'soonest' ||
+    urlSort === 'featured' ||
+    urlSort === 'trending_week'
+  ) {
+    sort.value = urlSort;
+  }
+}
+
+applyInitialUrlFilters();
+
+function syncFiltersToUrl() {
+  if (typeof window === 'undefined' || !window.history?.replaceState) return;
+  const params = new URLSearchParams();
+  if (cityFilter.value.trim()) {
+    params.set('city', cityFilter.value.trim());
+  }
+  if (regionFilter.value.trim()) {
+    params.set('region', regionFilter.value.trim());
+  }
+  if (searchText.value.trim()) {
+    params.set('q', searchText.value.trim());
+  }
+  if (sort.value && sort.value !== 'soonest') {
+    params.set('sort', sort.value);
+  }
+  const query = params.toString();
+  const nextUrl = query
+    ? `${window.location.pathname}?${query}`
+    : window.location.pathname;
+  window.history.replaceState(window.history.state, '', nextUrl);
+}
+
+const handleCityChange = (nextCity: string) => {
+  cityFilter.value = nextCity;
+  syncFiltersToUrl();
+  void loadPersistedConcerts();
+};
+
+const handleResetFilters = () => {
+  const hadServerLocationFilter = Boolean(
+    cityFilter.value || regionFilter.value,
+  );
+  cityFilter.value = '';
+  regionFilter.value = '';
+  clearFilters();
+  syncFiltersToUrl();
+  if (hadServerLocationFilter) {
+    void loadPersistedConcerts();
+  }
+};
 
 const pageMessage = ref('');
 const pageMessageType = ref<'success' | 'error'>('success');
@@ -199,6 +276,10 @@ const loadPersistedConcerts = async () => {
       sort: sort.value,
       startsAfter: new Date().toISOString(),
       pageSize: 100,
+      ...(cityFilter.value.trim() ? { city: cityFilter.value.trim() } : {}),
+      ...(regionFilter.value.trim()
+        ? { region: regionFilter.value.trim() }
+        : {}),
     });
 
     if (requestId !== latestConcertsRequest) {
@@ -284,6 +365,10 @@ watch(
   },
   { immediate: true },
 );
+
+watch([searchText, sort, cityFilter, regionFilter], () => {
+  syncFiltersToUrl();
+});
 
 watch(sort, (nextSort) => {
   if (

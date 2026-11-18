@@ -5,6 +5,7 @@ import {
   buildConcertStructuredData,
   buildGoogleCalendarTemplateUrl,
   buildGoogleMapsVenueUrl,
+  buildOutboundTicketUrl,
   computeArtistInitials,
   extractOrderedArtistNames,
   formatFullVenueAddress,
@@ -15,13 +16,25 @@ import {
 import type { ConcertApiItem } from '../types/concerts';
 
 describe('concert-presentation utilities', () => {
-  it('sanitizes ticket URLs to http/https only', () => {
+  it('sanitizes ticket URLs to http/https only and appends non-destructive UTM attribution', () => {
     expect(sanitizeTicketUrl('https://etix.com/ticket/p/123')).toBe(
       'https://etix.com/ticket/p/123',
     );
     expect(sanitizeTicketUrl('javascript:alert(1)')).toBeNull();
     expect(sanitizeTicketUrl('not-a-url')).toBeNull();
     expect(sanitizeTicketUrl(null)).toBeNull();
+
+    expect(buildOutboundTicketUrl('https://etix.com/ticket/p/123')).toBe(
+      'https://etix.com/ticket/p/123?utm_source=nido&utm_medium=referral&utm_campaign=concert_discovery',
+    );
+    expect(
+      buildOutboundTicketUrl(
+        'https://etix.com/ticket/p/123?utm_source=partner',
+      ),
+    ).toBe(
+      'https://etix.com/ticket/p/123?utm_source=partner&utm_medium=referral&utm_campaign=concert_discovery',
+    );
+    expect(buildOutboundTicketUrl('javascript:alert(1)')).toBeNull();
   });
 
   it('resolves genre theme variants deterministically', () => {

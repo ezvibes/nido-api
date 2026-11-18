@@ -26,6 +26,29 @@ export function sanitizeTicketUrl(rawUrl?: string | null): string | null {
   return null;
 }
 
+export function buildOutboundTicketUrl(
+  rawUrl?: string | null,
+  campaign = 'concert_discovery',
+): string | null {
+  const safe = sanitizeTicketUrl(rawUrl);
+  if (!safe) return null;
+  try {
+    const parsed = new URL(safe);
+    if (!parsed.searchParams.has('utm_source')) {
+      parsed.searchParams.set('utm_source', 'nido');
+    }
+    if (!parsed.searchParams.has('utm_medium')) {
+      parsed.searchParams.set('utm_medium', 'referral');
+    }
+    if (!parsed.searchParams.has('utm_campaign')) {
+      parsed.searchParams.set('utm_campaign', campaign);
+    }
+    return parsed.toString();
+  } catch {
+    return safe;
+  }
+}
+
 export function resolveGenreThemeVariant(
   genre?: string | null,
 ): GenreThemeVariant {

@@ -121,7 +121,9 @@ describe('ConcertCard', () => {
 
     const link = wrapper.get('a.concert-card__tickets');
     expect(link.text()).toBe('Get Tickets');
-    expect(link.attributes('href')).toBe('https://etix.com/ticket/p/12345');
+    expect(link.attributes('href')).toBe(
+      'https://etix.com/ticket/p/12345?utm_source=nido&utm_medium=referral&utm_campaign=concert_discovery',
+    );
     expect(link.attributes('target')).toBe('_blank');
     expect(link.attributes('rel')).toBe('noopener noreferrer');
   });

@@ -1,6 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  InternalServerErrorException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BeehiivService } from './beehiiv.service';
+import { NewsletterController } from './newsletter.controller';
 
 const mockFetch = jest.fn();
 (global as any).fetch = mockFetch;
@@ -191,6 +199,115 @@ describe('BeehiivService', () => {
       expect(result.id).toBe('post_123');
       expect(result.total_clicks).toBe(120);
       expect(result.links).toHaveLength(1);
+    });
+  });
+
+  describe('subscribeEmail', () => {
+    it('subscribes email to Beehiiv v2 subscriptions endpoint when credentials are configured', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: { id: 'sub_123', status: 'active' } }),
+      });
+
+      const result = await service.subscribeEmail({
+        email: ' Fan@Example.com ',
+        utmSource: 'nido_concert_detail',
+        utmCampaign: 'weekly_top_picks',
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.beehiiv.com/v2/publications/pub_12345/subscriptions',
+        expect.objectContaining({
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer test-beehiiv-key',
+          },
+        }),
+      );
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body).toEqual({
+        email: 'fan@example.com',
+        reactivate_existing: true,
+        send_welcome_email: true,
+        utm_source: 'nido_concert_detail',
+        utm_medium: 'organic',
+        utm_campaign: 'weekly_top_picks',
+      });
+      expect(result).toEqual({
+        subscribed: true,
+        status: 'active',
+        subscriptionId: 'sub_123',
+      });
+    });
+
+    it('rejects with InternalServerErrorException if Beehiiv 200 response is missing a confirmed subscription ID', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: {} }),
+      });
+
+      await expect(
+        service.subscribeEmail({
+          email: 'fan@example.com',
+        }),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
+
+    it('rejects with ServiceUnavailableException when Beehiiv credentials are missing so unpersisted signups are never confirmed', async () => {
+      mockConfigService.get.mockReturnValue(null);
+
+      await expect(
+        service.subscribeEmail({
+          email: 'local@example.com',
+        }),
+      ).rejects.toThrow(ServiceUnavailableException);
+
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('NewsletterController.subscribe abuse protection', () => {
+    it('rejects honeypot bot submissions and rate-limits repeated attempts from the same IP', async () => {
+      const mockSubscribe = jest.fn().mockResolvedValue({
+        subscribed: true,
+        status: 'active',
+        subscriptionId: 'sub_123',
+      });
+      const controller = new NewsletterController(
+        {} as any,
+        { subscribeEmail: mockSubscribe } as any,
+        {} as any,
+        {} as any,
+        {} as any,
+      );
+
+      await expect(
+        controller.subscribe(
+          { email: 'bot@example.com', website: 'https://spam.invalid' },
+          { ip: '203.0.113.10' } as any,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockSubscribe).not.toHaveBeenCalled();
+
+      for (let i = 0; i < 5; i += 1) {
+        await controller.subscribe(
+          { email: `fan${i}@example.com` },
+          { ip: '203.0.113.55' } as any,
+        );
+      }
+      expect(mockSubscribe).toHaveBeenCalledTimes(5);
+
+      await expect(
+        controller.subscribe(
+          { email: 'fan6@example.com' },
+          { ip: '203.0.113.55' } as any,
+        ),
+      ).rejects.toMatchObject({
+        status: HttpStatus.TOO_MANY_REQUESTS,
+      });
+
+      controller.resetSubscribeRateLimits();
     });
   });
 });

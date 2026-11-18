@@ -44,6 +44,7 @@ const defaultStubs = {
 
 describe('ConcertsPage', () => {
   beforeEach(() => {
+    window.history.replaceState({}, '', '/concerts');
     auth.user!.value = null;
     api.fetchConcerts.mockReset();
     api.fetchUserConcerts.mockReset();
@@ -182,6 +183,57 @@ describe('ConcertsPage', () => {
       expect.objectContaining({ sort: 'featured' }),
     );
     expect(wrapper.text()).toContain('Sorted by featured priority.');
+  });
+
+  it('reads initial ?city= filter from URL query and passes it to fetchConcerts', async () => {
+    window.history.replaceState({}, '', '/concerts?city=raleigh&sort=featured');
+    api.fetchConcerts.mockResolvedValue({
+      data: [buildConcert({ isFeatured: true })],
+      total: 1,
+      page: 1,
+      pageSize: 100,
+    });
+
+    mount(ConcertsPage, {
+      global: { stubs: { IngestionUploadPanel: true } },
+    });
+    await flushPromises();
+
+    expect(api.fetchConcerts).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({
+        city: 'raleigh',
+        sort: 'featured',
+        pageSize: 100,
+      }),
+    );
+  });
+
+  it('fetches city-filtered concerts and updates the URL when selecting a city in ConcertFiltersBar', async () => {
+    api.fetchConcerts.mockResolvedValue({
+      data: [buildConcert()],
+      total: 1,
+      page: 1,
+      pageSize: 100,
+    });
+
+    const wrapper = mount(ConcertsPage, {
+      global: { stubs: { IngestionUploadPanel: true } },
+    });
+    await flushPromises();
+
+    const citySelect = wrapper.get('[data-testid="city-filter-select"]');
+    await citySelect.setValue('Durham');
+    await flushPromises();
+
+    expect(api.fetchConcerts).toHaveBeenLastCalledWith(
+      undefined,
+      expect.objectContaining({
+        city: 'Durham',
+        pageSize: 100,
+      }),
+    );
+    expect(window.location.search).toContain('city=Durham');
   });
 });
 

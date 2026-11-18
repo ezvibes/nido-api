@@ -116,8 +116,14 @@ function convertHostingConfig(hosting) {
 
   if (hosting.rewrites) {
     config.rewrites = hosting.rewrites.map((rewrite) => {
+      if (rewrite.run) {
+        return {
+          ...convertPattern(rewrite),
+          run: rewrite.run,
+        };
+      }
       if (!rewrite.destination) {
-        throw new Error('REST deploy script currently supports destination rewrites only.');
+        throw new Error('REST deploy script currently supports destination or Cloud Run rewrites only.');
       }
 
       return {

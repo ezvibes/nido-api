@@ -309,6 +309,8 @@
           </a>
         </section>
       </div>
+
+      <NewsletterSignupBanner utm-source="nido_concert_detail" />
     </article>
 
     <div
@@ -349,6 +351,7 @@ import {
 } from '../composables/useApi';
 import { useAuth } from '../composables/useAuth';
 import { resolvePosterUrl, type ConcertApiItem } from '../types/concerts';
+import NewsletterSignupBanner from '../components/newsletter/NewsletterSignupBanner.vue';
 import { useDocumentMeta } from '../composables/useDocumentMeta';
 import {
   buildConcertIcsContent,
@@ -356,12 +359,12 @@ import {
   buildConcertStructuredData,
   buildGoogleCalendarTemplateUrl,
   buildGoogleMapsVenueUrl,
+  buildOutboundTicketUrl,
   computeArtistInitials,
   extractOrderedArtistNames,
   formatFullVenueAddress,
   resolveDistinctEventTitle,
   resolveGenreThemeVariant,
-  sanitizeTicketUrl,
 } from '../utils/concert-presentation';
 
 const route = useRoute();
@@ -390,7 +393,7 @@ const handleImageError = () => {
 };
 
 const safeTicketUrl = computed(() =>
-  sanitizeTicketUrl(concert.value?.ticketUrl),
+  buildOutboundTicketUrl(concert.value?.ticketUrl),
 );
 
 const sortedLineup = computed(() => {

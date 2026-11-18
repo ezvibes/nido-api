@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
@@ -37,6 +38,24 @@ export class ListConcertsDto {
   @IsOptional()
   @IsString()
   genre?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by venue city name or city slug (e.g. raleigh).',
+    example: 'raleigh',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  city?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by venue state/region name or slug (e.g. nc).',
+    example: 'nc',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  region?: string;
 
   @ApiPropertyOptional({
     description:
