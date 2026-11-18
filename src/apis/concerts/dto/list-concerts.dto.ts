@@ -5,6 +5,7 @@ import {
   IsISO8601,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -56,6 +57,22 @@ export class ListConcertsDto {
   @IsString()
   @MaxLength(120)
   region?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by venue UUID for venue schedule queries.',
+    example: '74c3bcf1-f13e-40d6-bf25-3c27954f5f1e',
+  })
+  @IsOptional()
+  @IsUUID()
+  venueId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by band UUID for artist schedule queries.',
+    example: 'a91f4d62-4e82-47d2-b78c-1f542d4f0a21',
+  })
+  @IsOptional()
+  @IsUUID()
+  bandId?: string;
 
   @ApiPropertyOptional({
     description:

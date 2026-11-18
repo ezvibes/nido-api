@@ -114,9 +114,6 @@ export class ConcertResponseDto {
   })
   adminApprovedAt?: string | null;
 
-  @ApiPropertyOptional({ nullable: true, example: 7 })
-  adminApprovedByUserId?: number | null;
-
   @ApiProperty({ example: '2026-05-28T23:40:28.817Z' })
   createdAt: string;
 
@@ -134,19 +131,18 @@ export class ConcertResponseDto {
 
   @ApiPropertyOptional({
     nullable: true,
+    description:
+      'Sanitized provenance and freshness metadata for synced concerts (internal calendar identifiers are omitted on public endpoints).',
     example: {
       source: 'google_calendar',
-      calendarId: 'ezvibesinc@gmail.com',
-      calendarEventId: '1p6li36jn6s89hj8bnmeg0p04b_20260609T220000Z',
       lastSyncedAt: '2026-06-09T01:32:55.900Z',
-      needsGuidance: false,
     },
   })
   syncSource?: {
     source: 'google_calendar';
-    calendarId: string;
-    calendarEventId: string;
     lastSyncedAt?: string | null;
+    calendarId?: string;
+    calendarEventId?: string;
     needsGuidance?: boolean;
   } | null;
 
@@ -160,6 +156,14 @@ export class ConcertResponseDto {
 }
 
 export class AdminConcertResponseDto extends ConcertResponseDto {
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Internal user ID of the reviewing administrator. Omitted from public discovery responses.',
+    example: 7,
+  })
+  adminApprovedByUserId?: number | null;
+
   @ApiProperty({
     enum: ConcertCatalogStatus,
     description:

@@ -42,11 +42,14 @@ export interface ConcertEngagement {
   trendingWeekUpvotes: number;
 }
 
-export interface ConcertSyncSource {
+export interface PublicConcertSyncSource {
   source: 'google_calendar';
+  lastSyncedAt?: Date | null;
+}
+
+export interface ConcertSyncSource extends PublicConcertSyncSource {
   calendarId: string;
   calendarEventId: string;
-  lastSyncedAt?: Date | null;
   needsGuidance?: boolean;
 }
 
@@ -315,6 +318,20 @@ export class ConcertService {
           regionName,
           altRegionName,
         },
+      );
+    }
+
+    if (query.venueId) {
+      qb.andWhere('concert.venueId = :venueId', { venueId: query.venueId });
+    }
+
+    if (query.bandId) {
+      qb.andWhere(
+        `(
+          EXISTS (SELECT 1 FROM concert_band_lineups filterLineup WHERE filterLineup.concert_id = concert.id AND filterLineup.band_id = :bandId)
+          OR EXISTS (SELECT 1 FROM concert_sets filterSet WHERE filterSet.concert_id = concert.id AND filterSet.band_id = :bandId)
+        )`,
+        { bandId: query.bandId },
       );
     }
 
@@ -1037,24 +1054,36 @@ export class ConcertService {
     posterUrl: string | null = null,
     includeAdminMetadata = true,
   ) {
-    const response = {
-      ...concert,
-      ...engagement,
-      syncSource,
-      posterUrl,
-    };
+    const publicSyncSource: PublicConcertSyncSource | null = syncSource
+      ? {
+          source: syncSource.source,
+          lastSyncedAt: syncSource.lastSyncedAt ?? null,
+        }
+      : null;
 
     if (includeAdminMetadata) {
-      return response;
+      return {
+        ...concert,
+        ...engagement,
+        syncSource,
+        posterUrl,
+      };
     }
 
     const {
       catalogStatus: _catalogStatus,
       editorialLockedAt: _editorialLockedAt,
       version: _version,
-      ...publicResponse
-    } = response;
-    return publicResponse;
+      adminApprovedByUserId: _adminApprovedByUserId,
+      ...publicConcert
+    } = concert;
+
+    return {
+      ...publicConcert,
+      ...engagement,
+      syncSource: publicSyncSource,
+      posterUrl,
+    };
   }
 
   private normalizeRequiredString(value: string) {

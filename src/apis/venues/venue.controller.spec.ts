@@ -1,3 +1,4 @@
+import { HttpException, HttpStatus } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { VenueController } from './venue.controller';
 import { VenueService } from './venue.service';
@@ -39,7 +40,24 @@ describe('VenueController', () => {
   });
 
   afterEach(() => {
+    controller.resetPublicRateLimits();
     jest.clearAllMocks();
+  });
+
+  it('rate-limits excessive public venue discovery reads', async () => {
+    mockVenueService.findAll.mockResolvedValue([]);
+    const req = { headers: { 'x-forwarded-for': '203.0.113.5' } } as never;
+
+    for (let i = 0; i < 120; i += 1) {
+      await controller.findAll({}, req);
+    }
+
+    await expect(controller.findAll({}, req)).rejects.toMatchObject({
+      status: HttpStatus.TOO_MANY_REQUESTS,
+    });
+    expect(() => {
+      throw new HttpException('check', HttpStatus.TOO_MANY_REQUESTS);
+    }).toThrow();
   });
 
   describe('findAll', () => {
