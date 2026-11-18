@@ -102,10 +102,26 @@ import {
   upvoteConcert,
 } from '../composables/useApi';
 import { useAuth } from '../composables/useAuth';
+import { useDocumentMeta } from '../composables/useDocumentMeta';
 import { mapConcertToListItem, type ConcertListItem } from '../types/concerts';
 
 const { user } = useAuth();
 const isDev = import.meta.env.DEV;
+
+useDocumentMeta(() => {
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://nido-api-9ed65.web.app';
+  return {
+    title: 'Upcoming Live Music & Concerts in NC | EZ Vibes',
+    description:
+      'Discover upcoming live concerts, local venues, and touring bands across Raleigh, Durham, Wilmington, and North Carolina on EZ Vibes.',
+    canonicalUrl: `${origin}/concerts`,
+    ogType: 'website',
+    jsonLd: null,
+  };
+});
 
 const persistedConcerts = ref<ConcertListItem[]>([]);
 const upvotingConcertIds = ref(new Set<string>());

@@ -349,8 +349,11 @@ import {
 } from '../composables/useApi';
 import { useAuth } from '../composables/useAuth';
 import { resolvePosterUrl, type ConcertApiItem } from '../types/concerts';
+import { useDocumentMeta } from '../composables/useDocumentMeta';
 import {
   buildConcertIcsContent,
+  buildConcertMetaSummary,
+  buildConcertStructuredData,
   buildGoogleCalendarTemplateUrl,
   buildGoogleMapsVenueUrl,
   computeArtistInitials,
@@ -476,6 +479,43 @@ const googleCalendarUrl = computed(() =>
     ? buildGoogleCalendarTemplateUrl(concert.value)
     : 'https://calendar.google.com/calendar/render',
 );
+
+const canonicalConcertUrl = computed(() => {
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://nido-api-9ed65.web.app';
+  return concert.value?.id
+    ? `${origin}/concerts/${encodeURIComponent(concert.value.id)}`
+    : `${origin}/concerts`;
+});
+
+useDocumentMeta(() => {
+  if (!concert.value) {
+    return {
+      title: error.value
+        ? 'Concert Not Found | EZ Vibes Concerts'
+        : 'EZ Vibes Concerts',
+      canonicalUrl: canonicalConcertUrl.value,
+      jsonLd: null,
+    };
+  }
+
+  const { title, description } = buildConcertMetaSummary(concert.value);
+  const posterImage = hasPoster.value ? resolvedPoster.value : null;
+  return {
+    title,
+    description,
+    canonicalUrl: canonicalConcertUrl.value,
+    ogType: 'event',
+    ogImage: posterImage,
+    jsonLd: buildConcertStructuredData(
+      concert.value,
+      canonicalConcertUrl.value,
+      posterImage,
+    ),
+  };
+});
 
 const handleDownloadIcs = () => {
   if (!concert.value) return;
