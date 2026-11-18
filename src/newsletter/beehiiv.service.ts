@@ -2,6 +2,7 @@ import {
   Injectable,
   Logger,
   InternalServerErrorException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
@@ -61,7 +62,7 @@ export interface BeehiivPostDetails {
 
 export interface BeehiivSubscriptionResponse {
   subscribed: boolean;
-  status: 'active' | 'queued_local';
+  status: 'active';
 }
 
 @Injectable()
@@ -330,13 +331,12 @@ export class BeehiivService {
       ?.trim();
 
     if (!apiKey || !publicationId) {
-      this.logger.log(
-        `Beehiiv credentials not configured; recording local subscription request for ${normalizedEmail}`,
+      this.logger.warn(
+        'Beehiiv subscription rejected because BEEHIIV_API_KEY or BEEHIIV_PUBLICATION_ID is not configured.',
       );
-      return {
-        subscribed: true,
-        status: 'queued_local',
-      };
+      throw new ServiceUnavailableException(
+        'Newsletter subscription service is not configured.',
+      );
     }
 
     const endpoint = `https://api.beehiiv.com/v2/publications/${publicationId}/subscriptions`;

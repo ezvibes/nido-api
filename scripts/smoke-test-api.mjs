@@ -64,6 +64,17 @@ if (concertsEnabled) {
     anonymous: true,
     validate: validateConcertsResponse,
   });
+  checks.push({
+    name: 'public XML sitemap',
+    path: '/sitemap.xml',
+    anonymous: true,
+    validate: async (response) => {
+      const xml = await response.text();
+      if (!xml.includes('<urlset') || !xml.includes('/concerts')) {
+        throw new Error('sitemap.xml response does not contain valid urlset');
+      }
+    },
+  });
 }
 
 if (authenticatedConcertsEnabled) {

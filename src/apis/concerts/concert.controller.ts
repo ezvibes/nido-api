@@ -248,3 +248,19 @@ export class ConcertController {
     await this.concertService.removeForOwner(id, owner);
   }
 }
+
+@Controller()
+@ApiTags('Concerts')
+export class SitemapController {
+  constructor(private readonly concertService: ConcertService) {}
+
+  @Get('sitemap.xml')
+  @Header('Content-Type', 'application/xml; charset=utf-8')
+  @Header('Cache-Control', 'public, max-age=3600')
+  @ApiOperation({
+    summary: 'Root XML sitemap of active, admin-approved concerts',
+  })
+  async getRootSitemap(): Promise<string> {
+    return this.concertService.generatePublicSitemapXml();
+  }
+}

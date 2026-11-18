@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BeehiivService } from './beehiiv.service';
 
@@ -229,15 +230,16 @@ describe('BeehiivService', () => {
       expect(result).toEqual({ subscribed: true, status: 'active' });
     });
 
-    it('gracefully returns queued_local when Beehiiv credentials are missing in local/dev', async () => {
+    it('rejects with ServiceUnavailableException when Beehiiv credentials are missing so unpersisted signups are never confirmed', async () => {
       mockConfigService.get.mockReturnValue(null);
 
-      const result = await service.subscribeEmail({
-        email: 'local@example.com',
-      });
+      await expect(
+        service.subscribeEmail({
+          email: 'local@example.com',
+        }),
+      ).rejects.toThrow(ServiceUnavailableException);
 
       expect(mockFetch).not.toHaveBeenCalled();
-      expect(result).toEqual({ subscribed: true, status: 'queued_local' });
     });
   });
 });

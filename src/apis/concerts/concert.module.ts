@@ -4,7 +4,10 @@ import { Concert } from './entities/concert.entity';
 import { ConcertUpvote } from './entities/concert-upvote.entity';
 import { Genre } from './entities/genre.entity';
 import { ConcertService } from './concert.service';
-import { ConcertController } from './concert.controller';
+import {
+  ConcertController,
+  SitemapController,
+} from './concert.controller';
 import { AdminConcertController } from './admin-concert.controller';
 import { AuthModule } from '../../auth/auth.module';
 import { UserModule } from '../users/user.module';
@@ -26,7 +29,11 @@ import { IngestionModule } from '../../ingestion/ingestion.module';
     UserModule,
     IngestionModule,
   ],
-  controllers: [ConcertController, AdminConcertController],
+  controllers: [
+    ConcertController,
+    SitemapController,
+    AdminConcertController,
+  ],
   providers: [ConcertService],
 })
 export class ConcertModule {}

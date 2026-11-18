@@ -1,5 +1,8 @@
 import type { DecodedIdToken } from 'firebase-admin/auth';
-import { ConcertController } from './concert.controller';
+import {
+  ConcertController,
+  SitemapController,
+} from './concert.controller';
 import { ConcertService } from './concert.service';
 import { UserService } from '../users/user.service';
 import { ListConcertsDto } from './dto/list-concerts.dto';
@@ -147,12 +150,17 @@ describe('ConcertController', () => {
     expect(result).toEqual({ id: 'concert-1', upvotedByMe: true });
   });
 
-  it('returns public sitemap XML from concertService.generatePublicSitemapXml', async () => {
+  it('returns public sitemap XML from concertService.generatePublicSitemapXml on both /concerts/sitemap.xml and /sitemap.xml', async () => {
     concertService.generatePublicSitemapXml.mockResolvedValue('<urlset />');
+    const sitemapController = new SitemapController(
+      concertService as unknown as ConcertService,
+    );
 
     const xml = await controller.getPublicSitemap();
+    const rootXml = await sitemapController.getRootSitemap();
 
-    expect(concertService.generatePublicSitemapXml).toHaveBeenCalledTimes(1);
+    expect(concertService.generatePublicSitemapXml).toHaveBeenCalledTimes(2);
     expect(xml).toBe('<urlset />');
+    expect(rootXml).toBe('<urlset />');
   });
 });
