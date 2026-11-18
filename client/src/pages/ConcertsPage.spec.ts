@@ -208,6 +208,33 @@ describe('ConcertsPage', () => {
       }),
     );
   });
+
+  it('fetches city-filtered concerts and updates the URL when selecting a city in ConcertFiltersBar', async () => {
+    api.fetchConcerts.mockResolvedValue({
+      data: [buildConcert()],
+      total: 1,
+      page: 1,
+      pageSize: 100,
+    });
+
+    const wrapper = mount(ConcertsPage, {
+      global: { stubs: { IngestionUploadPanel: true } },
+    });
+    await flushPromises();
+
+    const citySelect = wrapper.get('[data-testid="city-filter-select"]');
+    await citySelect.setValue('Durham');
+    await flushPromises();
+
+    expect(api.fetchConcerts).toHaveBeenLastCalledWith(
+      undefined,
+      expect.objectContaining({
+        city: 'Durham',
+        pageSize: 100,
+      }),
+    );
+    expect(window.location.search).toContain('city=Durham');
+  });
 });
 
 function buildConcert(overrides: Partial<ConcertApiItem> = {}): ConcertApiItem {

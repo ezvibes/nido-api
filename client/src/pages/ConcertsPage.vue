@@ -36,10 +36,12 @@
 
     <ConcertFiltersBar
       :search-text="searchText"
+      :city="cityFilter"
       :date-range="dateRange"
       :sort="sort"
       :source="source"
       @update:search-text="searchText = $event"
+      @update:city="handleCityChange"
       @update:date-range="dateRange = $event"
       @update:sort="sort = $event"
       @update:source="source = $event"
@@ -187,6 +189,12 @@ function syncFiltersToUrl() {
     : window.location.pathname;
   window.history.replaceState(window.history.state, '', nextUrl);
 }
+
+const handleCityChange = (nextCity: string) => {
+  cityFilter.value = nextCity;
+  syncFiltersToUrl();
+  void loadPersistedConcerts();
+};
 
 const handleResetFilters = () => {
   const hadServerLocationFilter = Boolean(

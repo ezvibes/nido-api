@@ -11,6 +11,25 @@
     </label>
 
     <label class="filters-bar__field">
+      <span class="filters-bar__label">City</span>
+      <select
+        :value="selectedCityOption"
+        aria-label="City"
+        data-testid="city-filter-select"
+        @change="onCityChange"
+      >
+        <option value="">All cities</option>
+        <option
+          v-for="cityOption in cityOptions"
+          :key="cityOption"
+          :value="cityOption"
+        >
+          {{ cityOption }}
+        </option>
+      </select>
+    </label>
+
+    <label class="filters-bar__field">
       <span class="filters-bar__label">Date Range</span>
       <select :value="dateRange" @change="onDateRangeChange">
         <option value="7">Next 7 days</option>
@@ -39,28 +58,79 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import type {
   DateRangeOption,
   SortOption,
   SourceOption,
 } from '../../composables/useConcertFilters';
 
-defineProps<{
-  searchText: string;
-  dateRange: DateRangeOption;
-  sort: SortOption;
-  source: SourceOption;
-}>();
+const CORE_NC_CITIES = [
+  'Raleigh',
+  'Durham',
+  'Chapel Hill',
+  'Carrboro',
+  'Charlotte',
+  'Wilmington',
+  'Asheville',
+  'Boone',
+  'Greensboro',
+  'Winston-Salem',
+] as const;
+
+const props = withDefaults(
+  defineProps<{
+    searchText: string;
+    city?: string;
+    dateRange: DateRangeOption;
+    sort: SortOption;
+    source: SourceOption;
+  }>(),
+  {
+    city: '',
+  },
+);
 
 const emit = defineEmits<{
   (event: 'update:searchText', value: string): void;
+  (event: 'update:city', value: string): void;
   (event: 'update:dateRange', value: DateRangeOption): void;
   (event: 'update:sort', value: SortOption): void;
   (event: 'update:source', value: SourceOption): void;
 }>();
 
+const findMatchingCoreCity = (raw: string) => {
+  const normalized = raw.trim().toLowerCase();
+  if (!normalized) return null;
+  return (
+    CORE_NC_CITIES.find(
+      (c) =>
+        c.toLowerCase() === normalized ||
+        c.toLowerCase().replace(/\s+/g, '-') === normalized,
+    ) ?? null
+  );
+};
+
+const cityOptions = computed(() => {
+  const current = (props.city || '').trim();
+  if (!current || findMatchingCoreCity(current)) {
+    return [...CORE_NC_CITIES];
+  }
+  return [current, ...CORE_NC_CITIES];
+});
+
+const selectedCityOption = computed(() => {
+  const current = (props.city || '').trim();
+  if (!current) return '';
+  return findMatchingCoreCity(current) ?? current;
+});
+
 const onSearchInput = (event: Event) => {
   emit('update:searchText', (event.target as HTMLInputElement).value);
+};
+
+const onCityChange = (event: Event) => {
+  emit('update:city', (event.target as HTMLSelectElement).value);
 };
 
 const onDateRangeChange = (event: Event) => {
@@ -126,7 +196,7 @@ const onSourceChange = (event: Event) => {
 
 @media (min-width: 760px) {
   .filters-bar {
-    grid-template-columns: minmax(0, 1.8fr) repeat(3, minmax(150px, 0.8fr));
+    grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(130px, 0.8fr));
     align-items: end;
   }
 }
