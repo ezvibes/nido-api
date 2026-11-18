@@ -70,15 +70,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useAuth } from '../composables/useAuth';
 
 const email = ref('');
 const password = ref('');
 const isDev = import.meta.env.DEV;
 
-const { signUpWithEmail, signInWithEmail, signInWithGoogle, devLogin } =
-  useAuth();
+const {
+  signUpWithEmail,
+  signInWithEmail,
+  signInWithGoogle,
+  devLogin,
+  captureInviteCodeFromUrl,
+} = useAuth();
+
+onMounted(() => {
+  captureInviteCodeFromUrl?.();
+});
 
 const handleSignUp = () => {
   signUpWithEmail(email.value, password.value);

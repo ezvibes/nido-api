@@ -1,9 +1,10 @@
 import { UserController } from './user.controller';
+import { VenueInviteController } from './venue-invite.controller';
 import { UserService } from './user.service';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { UpdateUserDto } from './dto/update-user.dto';
 
-describe('UserController', () => {
+describe('UserController & VenueInviteController', () => {
   it('updateProfile should call userService.update with uid and payload', async () => {
     const userService = {
       update: jest.fn().mockResolvedValue({
@@ -29,7 +30,7 @@ describe('UserController', () => {
       id: 1,
       uid: 'uid-123',
       email: 'matt@bowstring.com',
-      venueClaimStatus: 'pending',
+      venueClaimStatus: 'verified',
     };
     const userService = {
       syncFromToken: jest.fn().mockResolvedValue(syncedUser),
@@ -47,7 +48,7 @@ describe('UserController', () => {
       id: 1,
       uid: 'uid-123',
       claimedVenueId: 'e6efac75-ab36-46fb-a79d-4c3807a083f0',
-      venueClaimStatus: 'pending',
+      venueClaimStatus: 'verified',
     };
     const userService = {
       updateOnboarding: jest.fn().mockResolvedValue(updatedUser),
@@ -55,11 +56,53 @@ describe('UserController', () => {
 
     const controller = new UserController(userService);
     const currentUser = { uid: 'uid-123' } as DecodedIdToken;
-    const dto = { claimedVenueId: 'e6efac75-ab36-46fb-a79d-4c3807a083f0' };
+    const dto = { inviteCode: 'NIDO-BOWSTRNG' };
 
     await expect(
       controller.updateOnboarding(currentUser, dto),
     ).resolves.toEqual(updatedUser);
     expect(userService.updateOnboarding).toHaveBeenCalledWith('uid-123', dto);
+  });
+
+  it('VenueInviteController lists, creates, and revokes invites via UserService', async () => {
+    const adminUser = { id: 99, uid: 'admin-uid', email: 'admin@example.com' };
+    const invite = {
+      id: 'invite-1',
+      code: 'NIDO-BOWSTRNG',
+      venueId: 'venue-1',
+      status: 'active',
+    };
+    const userService = {
+      syncFromToken: jest.fn().mockResolvedValue(adminUser),
+      listVenueInvites: jest.fn().mockResolvedValue([invite]),
+      createVenueInvite: jest.fn().mockResolvedValue(invite),
+      revokeVenueInvite: jest
+        .fn()
+        .mockResolvedValue({ ...invite, status: 'revoked' }),
+    } as unknown as UserService;
+
+    const controller = new VenueInviteController(userService);
+    const token = {
+      uid: 'admin-uid',
+      email: 'admin@example.com',
+    } as DecodedIdToken;
+
+    await expect(controller.listInvites()).resolves.toEqual([invite]);
+    await expect(
+      controller.createInvite(token, {
+        venueId: 'venue-1',
+        invitedEmail: 'matt@bowstring.com',
+      }),
+    ).resolves.toEqual(invite);
+    expect(userService.createVenueInvite).toHaveBeenCalledWith(
+      { venueId: 'venue-1', invitedEmail: 'matt@bowstring.com' },
+      adminUser,
+    );
+
+    await expect(controller.revokeInvite('invite-1')).resolves.toEqual({
+      ...invite,
+      status: 'revoked',
+    });
+    expect(userService.revokeVenueInvite).toHaveBeenCalledWith('invite-1');
   });
 });

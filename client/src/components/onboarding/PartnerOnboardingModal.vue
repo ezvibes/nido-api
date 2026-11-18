@@ -8,52 +8,37 @@
     <div class="onboarding-modal">
       <p class="onboarding-modal__eyebrow">Welcome to EZ Vibes</p>
       <h2 id="onboarding-title">
-        Are you posting shows for a venue or discovering live music?
+        Are you a Venue Partner or discovering live music?
       </h2>
       <p class="onboarding-modal__subtitle">
-        Claim your venue to pre-fill poster uploads and highlight your partner
-        submissions, or continue as a fan.
+        Enter your Venue Partner invite code to verify your venue and unlock
+        1-click poster publishing, or continue directly as a fan.
       </p>
 
-      <div class="onboarding-modal__search-block">
-        <label for="venue-claim-search">Find your venue</label>
+      <div class="onboarding-modal__invite-block">
+        <label for="venue-partner-invite-code">
+          Venue Partner Invite Code
+        </label>
         <input
-          id="venue-claim-search"
-          v-model="searchQuery"
-          type="search"
-          placeholder="Search venues (e.g. Bowstring)"
+          id="venue-partner-invite-code"
+          v-model="inviteCode"
+          type="text"
+          placeholder="e.g. NIDO-8F3K9A2B"
+          autocomplete="off"
           :disabled="isSubmitting"
+          data-testid="partner-invite-input"
+          @keydown.enter.prevent="handleRedeemInvite"
         />
-
-        <p v-if="isLoadingVenues" class="onboarding-modal__status">
-          Loading venues…
-        </p>
-        <p v-else-if="loadError" class="onboarding-modal__error">
-          {{ loadError }}
-        </p>
-        <ul v-else-if="filteredVenues.length" class="onboarding-modal__list">
-          <li v-for="venue in filteredVenues" :key="venue.id">
-            <button
-              type="button"
-              class="onboarding-modal__venue-option"
-              :class="{
-                'onboarding-modal__venue-option--selected':
-                  selectedVenueId === venue.id,
-              }"
-              :disabled="isSubmitting"
-              @click="selectedVenueId = venue.id"
-            >
-              <strong>{{ venue.name }}</strong>
-              <span>{{ venue.city }}, {{ venue.region }}</span>
-            </button>
-          </li>
-        </ul>
-        <p v-else class="onboarding-modal__status">
-          No matching venues found. Try another search or skip as a fan.
+        <p class="onboarding-modal__hint">
+          Venue claims are invite-only to protect official venue listings.
         </p>
       </div>
 
-      <p v-if="submitError" class="onboarding-modal__error">
+      <p
+        v-if="submitError"
+        class="onboarding-modal__error"
+        data-testid="onboarding-error"
+      >
         {{ submitError }}
       </p>
 
@@ -61,18 +46,20 @@
         <button
           type="button"
           class="btn-claim"
-          :disabled="!selectedVenueId || isSubmitting"
-          @click="handleClaimVenue"
+          :disabled="!inviteCode.trim() || isSubmitting"
+          data-testid="redeem-invite-btn"
+          @click="handleRedeemInvite"
         >
-          {{ isSubmitting ? 'Saving…' : 'Claim Venue & Continue' }}
+          {{ isSubmitting ? 'Verifying…' : 'Redeem Invite & Continue' }}
         </button>
         <button
           type="button"
           class="btn-skip"
           :disabled="isSubmitting"
+          data-testid="skip-fan-btn"
           @click="handleSkipAsFan"
         >
-          I'm discovering live music (Skip)
+          I'm discovering live music (Continue as Fan)
         </button>
       </div>
     </div>
@@ -80,67 +67,55 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { fetchVenues, type VenueListItem } from '../../composables/useApi';
-import { useAuth } from '../../composables/useAuth';
+import { onMounted, ref } from 'vue';
+import {
+  PARTNER_INVITE_STORAGE_KEY,
+  useAuth,
+} from '../../composables/useAuth';
 
-const { completeOnboarding, getIdToken } = useAuth();
+const { completeOnboarding } = useAuth();
 
-const venues = ref<VenueListItem[]>([]);
-const searchQuery = ref('');
-const selectedVenueId = ref<string | null>(null);
-const isLoadingVenues = ref(false);
-const loadError = ref('');
+const inviteCode = ref('');
 const isSubmitting = ref(false);
 const submitError = ref('');
 
-const filteredVenues = computed(() => {
-  const query = searchQuery.value.trim().toLowerCase();
-  const list = query
-    ? venues.value.filter(
-        (venue) =>
-          venue.name.toLowerCase().includes(query) ||
-          venue.city.toLowerCase().includes(query),
-      )
-    : venues.value;
-  return list.slice(0, 8);
-});
-
-const loadVenues = async () => {
-  isLoadingVenues.value = true;
-  loadError.value = '';
+const clearStoredInviteCode = () => {
   try {
-    const token = await getIdToken();
-    venues.value = await fetchVenues(token);
-  } catch (error) {
-    console.error('Failed to load venues for onboarding:', error);
-    loadError.value = 'Unable to load venues right now. You can still skip and continue.';
-  } finally {
-    isLoadingVenues.value = false;
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.removeItem(PARTNER_INVITE_STORAGE_KEY);
+    }
+  } catch {
+    // Ignore storage errors
   }
 };
 
-const handleClaimVenue = async () => {
-  if (!selectedVenueId.value) {
+const handleRedeemInvite = async () => {
+  const code = inviteCode.value.trim().toUpperCase();
+  if (!code || isSubmitting.value) {
     return;
   }
   isSubmitting.value = true;
   submitError.value = '';
   try {
-    await completeOnboarding({ claimedVenueId: selectedVenueId.value });
-  } catch (error) {
-    console.error('Failed to claim venue:', error);
-    submitError.value = 'Could not save your venue claim. Please try again.';
+    await completeOnboarding({ inviteCode: code });
+    clearStoredInviteCode();
+  } catch (error: any) {
+    console.error('Failed to redeem venue partner invite:', error);
+    submitError.value =
+      error?.response?.data?.message ||
+      'Invalid or expired venue partner invite code. Please check your code or continue as a fan.';
   } finally {
     isSubmitting.value = false;
   }
 };
 
 const handleSkipAsFan = async () => {
+  if (isSubmitting.value) return;
   isSubmitting.value = true;
   submitError.value = '';
   try {
     await completeOnboarding({ skipAsFan: true });
+    clearStoredInviteCode();
   } catch (error) {
     console.error('Failed to complete onboarding:', error);
     submitError.value = 'Could not complete onboarding. Please try again.';
@@ -150,7 +125,16 @@ const handleSkipAsFan = async () => {
 };
 
 onMounted(() => {
-  void loadVenues();
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const stored = window.sessionStorage.getItem(PARTNER_INVITE_STORAGE_KEY);
+      if (stored) {
+        inviteCode.value = stored.trim().toUpperCase();
+      }
+    }
+  } catch {
+    // Ignore sessionStorage read errors
+  }
 });
 </script>
 
@@ -168,7 +152,7 @@ onMounted(() => {
 
 .onboarding-modal {
   width: 100%;
-  max-width: 520px;
+  max-width: 500px;
   background: var(--card-bg, #ffffff);
   border: 1px solid var(--border, #e2e8f0);
   border-radius: 1rem;
@@ -197,66 +181,36 @@ onMounted(() => {
   line-height: 1.5;
 }
 
-.onboarding-modal__search-block label {
+.onboarding-modal__invite-block label {
   display: block;
   font-weight: 600;
   margin-bottom: 0.4rem;
   font-size: 0.9rem;
 }
 
-.onboarding-modal__search-block input {
+.onboarding-modal__invite-block input {
   width: 100%;
-  padding: 0.7rem 0.9rem;
+  padding: 0.75rem 0.9rem;
   border: 1px solid var(--border, #cbd5e1);
   border-radius: 0.5rem;
-  font-size: 0.95rem;
+  font-size: 1rem;
+  font-family: monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   box-sizing: border-box;
 }
 
-.onboarding-modal__list {
-  list-style: none;
-  margin: 0.75rem 0 0;
-  padding: 0;
-  max-height: 220px;
-  overflow-y: auto;
-  display: grid;
-  gap: 0.45rem;
-}
-
-.onboarding-modal__venue-option {
-  width: 100%;
-  text-align: left;
-  padding: 0.65rem 0.85rem;
-  border-radius: 0.5rem;
-  border: 1px solid var(--border, #e2e8f0);
-  background: var(--background, #f8fafc);
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.onboarding-modal__venue-option--selected {
-  border-color: var(--primary, #2563eb);
-  background: rgba(37, 99, 235, 0.08);
-}
-
-.onboarding-modal__venue-option span {
+.onboarding-modal__hint {
+  margin: 0.45rem 0 0;
   color: var(--text-light, #64748b);
-  font-size: 0.85rem;
-}
-
-.onboarding-modal__status {
-  margin: 0.75rem 0 0;
-  color: var(--text-light, #64748b);
-  font-size: 0.9rem;
+  font-size: 0.82rem;
 }
 
 .onboarding-modal__error {
   margin: 0.75rem 0 0;
   color: #b91c1c;
   font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .onboarding-modal__actions {
