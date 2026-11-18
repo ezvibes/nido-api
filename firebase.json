@@ -11,6 +11,13 @@
         }
       },
       {
+        "source": "/sitemap-index.xml",
+        "run": {
+          "serviceId": "nido-api",
+          "region": "us-east1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

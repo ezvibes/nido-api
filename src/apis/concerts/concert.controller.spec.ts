@@ -13,6 +13,7 @@ describe('ConcertController', () => {
     findAllForOwner: jest.fn(),
     findOneForViewer: jest.fn(),
     generatePublicSitemapXml: jest.fn(),
+    generatePublicSitemapIndexXml: jest.fn(),
     createForOwner: jest.fn(),
     upvote: jest.fn(),
     removeUpvote: jest.fn(),
@@ -150,17 +151,36 @@ describe('ConcertController', () => {
     expect(result).toEqual({ id: 'concert-1', upvotedByMe: true });
   });
 
-  it('returns public sitemap XML from concertService.generatePublicSitemapXml on both /concerts/sitemap.xml and /sitemap.xml', async () => {
+  it('returns public sitemap XML and sitemap index XML with optional page query on both /concerts/sitemap*.xml and /sitemap*.xml', async () => {
     concertService.generatePublicSitemapXml.mockResolvedValue('<urlset />');
+    concertService.generatePublicSitemapIndexXml.mockResolvedValue(
+      '<sitemapindex />',
+    );
     const sitemapController = new SitemapController(
       concertService as unknown as ConcertService,
     );
 
-    const xml = await controller.getPublicSitemap();
+    const xml = await controller.getPublicSitemap('2');
     const rootXml = await sitemapController.getRootSitemap();
+    const indexXml = await controller.getPublicSitemapIndex();
+    const rootIndexXml = await sitemapController.getRootSitemapIndex();
 
-    expect(concertService.generatePublicSitemapXml).toHaveBeenCalledTimes(2);
+    expect(concertService.generatePublicSitemapXml).toHaveBeenNthCalledWith(
+      1,
+      undefined,
+      { page: 2 },
+    );
+    expect(concertService.generatePublicSitemapXml).toHaveBeenNthCalledWith(
+      2,
+      undefined,
+      { page: 1 },
+    );
+    expect(concertService.generatePublicSitemapIndexXml).toHaveBeenCalledTimes(
+      2,
+    );
     expect(xml).toBe('<urlset />');
     expect(rootXml).toBe('<urlset />');
+    expect(indexXml).toBe('<sitemapindex />');
+    expect(rootIndexXml).toBe('<sitemapindex />');
   });
 });

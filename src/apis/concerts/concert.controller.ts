@@ -196,8 +196,23 @@ export class ConcertController {
   @ApiOperation({
     summary: 'Public XML sitemap of active, admin-approved concerts',
   })
-  async getPublicSitemap(): Promise<string> {
-    return this.concertService.generatePublicSitemapXml();
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  async getPublicSitemap(@Query('page') page?: string): Promise<string> {
+    const parsedPage = page ? Number.parseInt(page, 10) : 1;
+    return this.concertService.generatePublicSitemapXml(undefined, {
+      page: Number.isNaN(parsedPage) ? 1 : parsedPage,
+    });
+  }
+
+  @Get('sitemap-index.xml')
+  @Header('Content-Type', 'application/xml; charset=utf-8')
+  @Header('Cache-Control', 'public, max-age=3600')
+  @ApiOperation({
+    summary:
+      'Public XML sitemap index partitioning active, admin-approved concerts across 1,000-URL pages',
+  })
+  async getPublicSitemapIndex(): Promise<string> {
+    return this.concertService.generatePublicSitemapIndexXml();
   }
 
   @Get(':id')
@@ -260,7 +275,22 @@ export class SitemapController {
   @ApiOperation({
     summary: 'Root XML sitemap of active, admin-approved concerts',
   })
-  async getRootSitemap(): Promise<string> {
-    return this.concertService.generatePublicSitemapXml();
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  async getRootSitemap(@Query('page') page?: string): Promise<string> {
+    const parsedPage = page ? Number.parseInt(page, 10) : 1;
+    return this.concertService.generatePublicSitemapXml(undefined, {
+      page: Number.isNaN(parsedPage) ? 1 : parsedPage,
+    });
+  }
+
+  @Get('sitemap-index.xml')
+  @Header('Content-Type', 'application/xml; charset=utf-8')
+  @Header('Cache-Control', 'public, max-age=3600')
+  @ApiOperation({
+    summary:
+      'Root XML sitemap index partitioning active, admin-approved concerts across 1,000-URL pages',
+  })
+  async getRootSitemapIndex(): Promise<string> {
+    return this.concertService.generatePublicSitemapIndexXml();
   }
 }
