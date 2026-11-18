@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Allow: /concerts
+Disallow: /admin/
+Disallow: /my-concerts
+Disallow: /my-submissions
+Disallow: /profile
+Disallow: /settings
+Disallow: /concert-sync
+
+Sitemap: https://nido-api-9ed65.web.app/sitemap.xml

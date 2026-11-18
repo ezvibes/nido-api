@@ -234,6 +234,36 @@ describe('ConcertDetailPage', () => {
     );
     expect(wrapper.text()).toContain('Concert not found');
   });
+
+  it('updates document title, canonical link, and injects schema.org/MusicEvent JSON-LD on mount and cleans up on unmount', async () => {
+    api.fetchConcertById.mockResolvedValue(buildConcert());
+
+    const wrapper = mount(ConcertDetailPage, {
+      global: { stubs: routerStubs },
+    });
+    await flushPromises();
+
+    expect(document.title).toBe(
+      'Sylvan Esso · Night Drive at Lincoln Theatre | EZ Vibes Concerts',
+    );
+
+    const canonical = document.head.querySelector<HTMLLinkElement>(
+      'link[rel="canonical"]',
+    );
+    expect(canonical?.getAttribute('href')).toContain('/concerts/concert-101');
+
+    const jsonLdEl = document.getElementById('nido-event-jsonld');
+    expect(jsonLdEl).not.toBeNull();
+    expect(jsonLdEl?.getAttribute('type')).toBe('application/ld+json');
+    const parsed = JSON.parse(jsonLdEl?.textContent || '{}');
+    expect(parsed['@type']).toBe('MusicEvent');
+    expect(parsed.name).toBe('Raleigh Electronic Night');
+    expect(parsed.location?.name).toBe('Lincoln Theatre');
+
+    wrapper.unmount();
+    expect(document.getElementById('nido-event-jsonld')).toBeNull();
+    expect(document.title).toBe('EZ Vibes Concerts');
+  });
 });
 
 function buildConcert(

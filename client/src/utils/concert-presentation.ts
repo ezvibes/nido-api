@@ -218,3 +218,125 @@ export function buildConcertIcsContent(
   lines.push('END:VEVENT', 'END:VCALENDAR');
   return lines.join('\r\n');
 }
+
+export function buildConcertMetaSummary(concert: ConcertApiItem): {
+  title: string;
+  description: string;
+} {
+  const artistNames = extractOrderedArtistNames(concert.lineup);
+  const artistHeadline =
+    artistNames.length > 0 ? artistNames.join(' · ') : concert.title;
+  const venueName = concert.venue?.name?.trim();
+  const cityState = [concert.venue?.city, concert.venue?.region]
+    .filter(Boolean)
+    .join(', ');
+
+  const titleCore = venueName
+    ? `${artistHeadline} at ${venueName}`
+    : artistHeadline;
+  const title = `${titleCore} | EZ Vibes Concerts`;
+
+  const startDate = new Date(concert.startsAt);
+  const dateLabel = Number.isNaN(startDate.getTime())
+    ? ''
+    : new Intl.DateTimeFormat('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(startDate);
+
+  const locationSummary = [venueName, cityState].filter(Boolean).join(' in ');
+  const summaryParts = [
+    `${artistHeadline} live${locationSummary ? ` at ${locationSummary}` : ''}${dateLabel ? ` on ${dateLabel}` : ''}.`,
+    concert.description?.trim() ||
+      'View set times, venue directions, calendar export, and ticket links on EZ Vibes.',
+  ];
+
+  return {
+    title,
+    description: summaryParts.join(' ').slice(0, 300),
+  };
+}
+
+export function buildConcertStructuredData(
+  concert: ConcertApiItem,
+  canonicalUrl: string,
+  resolvedPosterUrl?: string | null,
+): Record<string, unknown> | null {
+  if (
+    concert.isAdminApproved === false ||
+    concert.catalogStatus === 'hidden' ||
+    concert.catalogStatus === 'archived'
+  ) {
+    return null;
+  }
+
+  const startDate = new Date(concert.startsAt);
+  if (Number.isNaN(startDate.getTime())) {
+    return null;
+  }
+
+  const endDate = concert.endsAt ? new Date(concert.endsAt) : null;
+  const artistNames = extractOrderedArtistNames(concert.lineup);
+  const safeTicket = sanitizeTicketUrl(concert.ticketUrl);
+
+  const payload: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'MusicEvent',
+    name: concert.title,
+    startDate: startDate.toISOString(),
+    ...(endDate && !Number.isNaN(endDate.getTime())
+      ? { endDate: endDate.toISOString() }
+      : {}),
+    eventStatus: 'https://schema.org/EventScheduled',
+    eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+    url: canonicalUrl,
+  };
+
+  if (concert.description?.trim()) {
+    payload.description = concert.description.trim();
+  }
+
+  if (resolvedPosterUrl) {
+    payload.image = [resolvedPosterUrl];
+  }
+
+  if (concert.venue?.name) {
+    payload.location = {
+      '@type': 'Place',
+      name: concert.venue.name,
+      address: {
+        '@type': 'PostalAddress',
+        ...(concert.venue.address
+          ? { streetAddress: concert.venue.address }
+          : {}),
+        ...(concert.venue.city ? { addressLocality: concert.venue.city } : {}),
+        ...(concert.venue.region
+          ? { addressRegion: concert.venue.region }
+          : {}),
+        ...(concert.venue.postalCode
+          ? { postalCode: concert.venue.postalCode }
+          : {}),
+        addressCountry: 'US',
+      },
+    };
+  }
+
+  if (artistNames.length > 0) {
+    payload.performer = artistNames.map((name) => ({
+      '@type': 'MusicGroup',
+      name,
+    }));
+  }
+
+  if (safeTicket) {
+    payload.offers = {
+      '@type': 'Offer',
+      url: safeTicket,
+      availability: 'https://schema.org/InStock',
+    };
+  }
+
+  return payload;
+}

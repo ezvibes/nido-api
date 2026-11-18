@@ -4,8 +4,8 @@
 - Human owner: Nido maintainer
 - Coordinator: Frankfurt (documented role, not a running service)
 - Specialists and implementation owner(s): RDU for full-stack implementation and QA; Innsbruck for public contract boundaries; Firenze for newsletter conversion alignment; Bologna for living documentation.
-- Linked issues/ADRs: [#207](https://github.com/ezvibes/nido-api/issues/207), [#204](https://github.com/ezvibes/nido-api/issues/204), [#209](https://github.com/ezvibes/nido-api/issues/209), [#46](https://github.com/ezvibes/nido-api/issues/46), [Discovery and indexing audit](../nido-002-1-discovery-and-indexing-audit.md).
-- Last evidence review: 2026-11-18, commit `323f91c` (local source inspection for `NIDO-002.1`; no live Search Console or deployed crawler verification claimed here).
+- Linked issues/ADRs: [#207](https://github.com/ezvibes/nido-api/issues/207), [#204](https://github.com/ezvibes/nido-api/issues/204), [#209](https://github.com/ezvibes/nido-api/issues/209), [#214](https://github.com/ezvibes/nido-api/issues/214), [#46](https://github.com/ezvibes/nido-api/issues/46), [Discovery and indexing audit](../nido-002-1-discovery-and-indexing-audit.md).
+- Last evidence review: 2026-11-18, branch `feat/nido-002-2a-structured-event-meta-robots` off `bdf2aa9` (`NIDO-002.1` merged in #213; `NIDO-002.2a` implemented in #214).
 
 ## Outcome and demonstration
 
@@ -35,8 +35,8 @@
 ## Delivery slices
 
 1. **Slice 0 — Shareable Concert Detail Page ([#204](https://github.com/ezvibes/nido-api/issues/204)):** Public `GET /concerts/:id` endpoint and `/concerts/:id` Vue route with calendar export, Google Maps directions, and social share button. *(Implemented on `main` at `323f91c`.)*
-2. **Slice 1 — Discovery & Indexing Audit (`NIDO-002.1`, [#209](https://github.com/ezvibes/nido-api/issues/209)):** Baseline audit of routing, HTML/meta rendering, structured data, sitemap/robots, analytics, conversion CTAs, and public/private boundaries, plus ranked gap analysis and `NIDO-002.2` implementation plan. *(In progress in [nido-002-1-discovery-and-indexing-audit.md](../nido-002-1-discovery-and-indexing-audit.md).)*
-3. **Slice 2 — Client Head Metadata, `schema.org/Event` JSON-LD & `robots.txt` (`NIDO-002.2a`):** Dynamic `document.title`, `<meta name="description">`, `<link rel="canonical">`, `og:*` tags, and `application/ld+json` `MusicEvent` structured data on `ConcertDetailPage.vue` and `ConcertsPage.vue`, plus static `client/public/robots.txt`.
+2. **Slice 1 — Discovery & Indexing Audit (`NIDO-002.1`, [#209](https://github.com/ezvibes/nido-api/issues/209)):** Baseline audit of routing, HTML/meta rendering, structured data, sitemap/robots, analytics, conversion CTAs, and public/private boundaries, plus ranked gap analysis and `NIDO-002.2` implementation plan. *(Merged on `main` in `bdf2aa9`, PR #213.)*
+3. **Slice 2 — Client Head Metadata, `schema.org/Event` JSON-LD & `robots.txt` (`NIDO-002.2a`, [#214](https://github.com/ezvibes/nido-api/issues/214)):** Dynamic `document.title`, `<meta name="description">`, `<link rel="canonical">`, `og:*` tags, and `application/ld+json` `MusicEvent` structured data on `ConcertDetailPage.vue` and `ConcertsPage.vue`, plus static `client/public/robots.txt`. *(Implemented in #214.)*
 4. **Slice 3 — Dynamic Approved-Catalog Sitemap & Link-Preview Metadata (`NIDO-002.2b`):** Backend `GET /sitemap.xml` serving only `active` + `isAdminApproved` concert URLs, plus lightweight edge/API OpenGraph HTML responder for non-JS social scrapers if prioritized.
 5. **Slice 4 — Public Newsletter Signup CTA & Attribution (`NIDO-002.2c`):** Public Beehiiv newsletter subscription CTA on `HomePage.vue`, `ConcertsPage.vue`, and `ConcertDetailPage.vue` with UTM attribution on outbound ticket and calendar links.
 6. **Slice 5 — Server-Side City & Region Discovery Filters ([#46](https://github.com/ezvibes/nido-api/issues/46)):** Add `citySlug` and `regionSlug` query filters to `ListConcertsDto` and `ConcertService.findWithQuery` to enable shareable city landing URLs (e.g. `/concerts?city=raleigh`).
@@ -46,8 +46,8 @@
 | Criterion | Evidence required | State/link |
 | --- | --- | --- |
 | Shareable `/concerts/:id` detail route and public `GET /concerts/:id` contract | Unit tests in `concert.service.spec.ts`, `concert.controller.spec.ts`, `ConcertDetailPage.spec.ts` | Implemented on `main` (`323f91c`, [#204](https://github.com/ezvibes/nido-api/issues/204)) |
-| Baseline discovery and indexing audit (`NIDO-002.1`) | Capability matrix, top 5 ranked problems, and `NIDO-002.2` slice sequence | [Audit report](../nido-002-1-discovery-and-indexing-audit.md) ([#209](https://github.com/ezvibes/nido-api/issues/209)) |
-| Search & social metadata (`title`, `og:*`, `schema.org/Event` JSON-LD, `robots.txt`, `sitemap.xml`) | Automated unit tests + live dev HTML/Rich Results inspection | Pending (`NIDO-002.2`) |
+| Baseline discovery and indexing audit (`NIDO-002.1`) | Capability matrix, top 5 ranked problems, and `NIDO-002.2` slice sequence | Merged on `main` (`bdf2aa9`, PR #213, [Audit report](../nido-002-1-discovery-and-indexing-audit.md)) |
+| Search & social metadata (`title`, `og:*`, `schema.org/Event` JSON-LD, `robots.txt`, `sitemap.xml`) | Automated unit tests + live dev HTML/Rich Results inspection | Partial: `NIDO-002.2a` (`title`, `og:*`, `MusicEvent` JSON-LD, `robots.txt`) implemented in [#214](https://github.com/ezvibes/nido-api/issues/214); `sitemap.xml` pending `NIDO-002.2b` |
 | Public newsletter signup & poster submission conversion paths | Browser verification on `/`, `/concerts`, and `/concerts/:id` | Partial (partner sign-in CTA exists; public newsletter CTA pending `NIDO-002.2`) |
 
 ## Handoff
