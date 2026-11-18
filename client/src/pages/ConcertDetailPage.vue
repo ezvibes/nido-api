@@ -159,6 +159,7 @@
               rel="noopener noreferrer"
               class="concert-detail__btn concert-detail__btn--primary"
               data-testid="ticket-link"
+              @click="handleTicketClick"
             >
               Get Tickets ↗
             </a>
@@ -187,6 +188,7 @@
               rel="noopener noreferrer"
               class="concert-detail__btn"
               data-testid="google-calendar-link"
+              @click="handleGoogleCalendarClick"
             >
               + Google Calendar
             </a>
@@ -353,6 +355,7 @@ import { useAuth } from '../composables/useAuth';
 import { resolvePosterUrl, type ConcertApiItem } from '../types/concerts';
 import NewsletterSignupBanner from '../components/newsletter/NewsletterSignupBanner.vue';
 import { useDocumentMeta } from '../composables/useDocumentMeta';
+import { trackDiscoveryEvent } from '../utils/analytics';
 import {
   buildConcertIcsContent,
   buildConcertMetaSummary,
@@ -520,8 +523,29 @@ useDocumentMeta(() => {
   };
 });
 
+const handleTicketClick = () => {
+  if (!concert.value) return;
+  void trackDiscoveryEvent('concert_ticket_click', {
+    source_surface: 'concert_detail',
+    concert_id: concert.value.id,
+    concert_city: concert.value.venue?.city || undefined,
+  });
+};
+
+const handleGoogleCalendarClick = () => {
+  if (!concert.value) return;
+  void trackDiscoveryEvent('concert_calendar_export', {
+    export_type: 'google_calendar',
+    concert_id: concert.value.id,
+  });
+};
+
 const handleDownloadIcs = () => {
   if (!concert.value) return;
+  void trackDiscoveryEvent('concert_calendar_export', {
+    export_type: 'ics',
+    concert_id: concert.value.id,
+  });
   const ics = buildConcertIcsContent(concert.value);
   const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -551,6 +575,10 @@ const handleShare = async () => {
   if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
     try {
       await navigator.share(shareData);
+      void trackDiscoveryEvent('concert_share', {
+        concert_id: concert.value.id,
+        share_method: 'native',
+      });
       return;
     } catch {
       // Fall back to clipboard if user cancels or share fails
@@ -559,6 +587,10 @@ const handleShare = async () => {
 
   if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(shareUrl);
+    void trackDiscoveryEvent('concert_share', {
+      concert_id: concert.value.id,
+      share_method: 'clipboard',
+    });
     shareConfirmed.value = true;
     window.setTimeout(() => {
       shareConfirmed.value = false;

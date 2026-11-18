@@ -113,6 +113,7 @@
           target="_blank"
           rel="noopener noreferrer"
           class="concert-card__tickets concert-card__tickets--active"
+          @click="handleTicketClick"
         >
           Get Tickets
         </a>
@@ -133,6 +134,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import type { ConcertListItem } from '../../types/concerts';
+import { trackDiscoveryEvent } from '../../utils/analytics';
 import {
   buildOutboundTicketUrl,
   computeArtistInitials,
@@ -156,6 +158,14 @@ const imageError = ref(false);
 const safeTicketUrl = computed(() =>
   buildOutboundTicketUrl(props.concert.ticketUrl),
 );
+
+const handleTicketClick = () => {
+  void trackDiscoveryEvent('concert_ticket_click', {
+    source_surface: 'concerts_feed',
+    concert_id: props.concert.id,
+    concert_city: props.concert.venue?.city || undefined,
+  });
+};
 
 watch(
   () => props.concert.posterUrl,

@@ -4,6 +4,7 @@ import { getAuth } from 'firebase/auth';
 import ConcertsPage from './pages/ConcertsPage.vue';
 import ConcertSyncPage from './pages/ConcertSyncPage.vue';
 import { routeLoading } from './stores/routeLoading';
+import { captureSessionAttribution, trackPageView } from './utils/analytics';
 import HomePage from './views/HomePage.vue';
 import LoginPage from './views/LoginPage.vue';
 import ProfilePage from './views/ProfilePage.vue';
@@ -109,6 +110,7 @@ const router = createRouter({
 });
 
 router.beforeEach((to, _from, next) => {
+  captureSessionAttribution();
   routeLoading.value = true;
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
   const requiresAdmin = to.matched.some(
@@ -142,8 +144,12 @@ router.beforeEach((to, _from, next) => {
   next();
 });
 
-router.afterEach(() => {
+router.afterEach((to) => {
   routeLoading.value = false;
+  void trackPageView(
+    to.fullPath,
+    typeof to.name === 'string' ? to.name : undefined,
+  );
 });
 
 router.onError(() => {
