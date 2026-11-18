@@ -14,6 +14,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   Param,
   Patch,
@@ -58,6 +59,8 @@ export class ConcertController {
   })
   @ApiQuery({ name: 'q', required: false, example: 'doctor s' })
   @ApiQuery({ name: 'genre', required: false, example: 'Electronic' })
+  @ApiQuery({ name: 'city', required: false, example: 'raleigh' })
+  @ApiQuery({ name: 'region', required: false, example: 'nc' })
   @ApiQuery({
     name: 'startsAfter',
     required: false,
@@ -97,6 +100,8 @@ export class ConcertController {
   })
   @ApiQuery({ name: 'q', required: false, example: 'doctor s' })
   @ApiQuery({ name: 'genre', required: false, example: 'Electronic' })
+  @ApiQuery({ name: 'city', required: false, example: 'raleigh' })
+  @ApiQuery({ name: 'region', required: false, example: 'nc' })
   @ApiQuery({
     name: 'startsAfter',
     required: false,
@@ -183,6 +188,16 @@ export class ConcertController {
       genres: options.map((genre) => genre.name),
       options,
     };
+  }
+
+  @Get('sitemap.xml')
+  @Header('Content-Type', 'application/xml; charset=utf-8')
+  @Header('Cache-Control', 'public, max-age=3600')
+  @ApiOperation({
+    summary: 'Public XML sitemap of active, admin-approved concerts',
+  })
+  async getPublicSitemap(): Promise<string> {
+    return this.concertService.generatePublicSitemapXml();
   }
 
   @Get(':id')

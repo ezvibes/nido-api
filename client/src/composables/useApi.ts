@@ -99,6 +99,10 @@ export async function fetchConcerts(
     sort?: 'soonest' | 'featured' | 'trending_week';
     startsAfter?: string;
     pageSize?: number;
+    city?: string;
+    region?: string;
+    q?: string;
+    genre?: string;
   },
 ): Promise<ConcertApiResponse> {
   try {
@@ -1160,6 +1164,19 @@ export async function pushBeehiivDraft(
       },
     },
   );
+  return response.data;
+}
+
+export async function subscribeToNewsletter(payload: {
+  email: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+}): Promise<{ subscribed: boolean; status: string }> {
+  const response = await apiClient.post<{
+    subscribed: boolean;
+    status: string;
+  }>('/api/newsletter/subscribe', payload);
   return response.data;
 }
 

@@ -44,6 +44,7 @@ const defaultStubs = {
 
 describe('ConcertsPage', () => {
   beforeEach(() => {
+    window.history.replaceState({}, '', '/concerts');
     auth.user!.value = null;
     api.fetchConcerts.mockReset();
     api.fetchUserConcerts.mockReset();
@@ -182,6 +183,30 @@ describe('ConcertsPage', () => {
       expect.objectContaining({ sort: 'featured' }),
     );
     expect(wrapper.text()).toContain('Sorted by featured priority.');
+  });
+
+  it('reads initial ?city= filter from URL query and passes it to fetchConcerts', async () => {
+    window.history.replaceState({}, '', '/concerts?city=raleigh&sort=featured');
+    api.fetchConcerts.mockResolvedValue({
+      data: [buildConcert({ isFeatured: true })],
+      total: 1,
+      page: 1,
+      pageSize: 100,
+    });
+
+    mount(ConcertsPage, {
+      global: { stubs: { IngestionUploadPanel: true } },
+    });
+    await flushPromises();
+
+    expect(api.fetchConcerts).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({
+        city: 'raleigh',
+        sort: 'featured',
+        pageSize: 100,
+      }),
+    );
   });
 });
 

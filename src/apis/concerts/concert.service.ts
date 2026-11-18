@@ -120,6 +120,54 @@ export class ConcertService {
     }));
   }
 
+  async generatePublicSitemapXml(
+    baseUrl = this.configService.get<string>('PUBLIC_WEB_ORIGIN') ||
+      'https://nido-api-9ed65.web.app',
+  ): Promise<string> {
+    const normalizedBase = baseUrl.replace(/\/+$/, '');
+    const concerts = await this.concertRepository
+      .createQueryBuilder('concert')
+      .select(['concert.id', 'concert.updatedAt', 'concert.startsAt'])
+      .where('concert.catalogStatus = :activeCatalogStatus', {
+        activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
+      })
+      .andWhere('concert.isAdminApproved = :isAdminApproved', {
+        isAdminApproved: true,
+      })
+      .orderBy('concert.startsAt', 'DESC')
+      .take(1000)
+      .getMany();
+
+    const escapeXml = (val: string) =>
+      val
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+
+    const urls = [
+      `  <url>\n    <loc>${escapeXml(`${normalizedBase}/`)}</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>`,
+      `  <url>\n    <loc>${escapeXml(`${normalizedBase}/concerts`)}</loc>\n    <changefreq>hourly</changefreq>\n    <priority>0.9</priority>\n  </url>`,
+      ...concerts.map((concert) => {
+        const lastModSource = concert.updatedAt || concert.startsAt;
+        const lastMod =
+          lastModSource instanceof Date
+            ? lastModSource.toISOString()
+            : new Date(lastModSource).toISOString();
+        const loc = `${normalizedBase}/concerts/${encodeURIComponent(concert.id)}`;
+        return `  <url>\n    <loc>${escapeXml(loc)}</loc>\n    <lastmod>${lastMod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>`;
+      }),
+    ];
+
+    return [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      ...urls,
+      '</urlset>',
+    ].join('\n');
+  }
+
   private async findWithQuery(
     qb: ReturnType<Repository<Concert>['createQueryBuilder']>,
     query: ListConcertsDto,
@@ -151,6 +199,36 @@ export class ConcertService {
 
     if (query.genre) {
       qb.andWhere('concert.genre = :genre', { genre: query.genre });
+    }
+
+    if (query.city?.trim()) {
+      const cityName = query.city.trim();
+      const citySlug = cityName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+      qb.andWhere(
+        '(venue.citySlug = :citySlug OR venue.city ILIKE :cityName)',
+        {
+          citySlug,
+          cityName,
+        },
+      );
+    }
+
+    if (query.region?.trim()) {
+      const regionName = query.region.trim();
+      const regionSlug = regionName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+      qb.andWhere(
+        '(venue.regionSlug = :regionSlug OR venue.region ILIKE :regionName)',
+        {
+          regionSlug,
+          regionName,
+        },
+      );
     }
 
     if (query.startsAfter) {

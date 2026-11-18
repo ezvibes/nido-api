@@ -59,6 +59,11 @@ export interface BeehiivPostDetails {
   stats?: BeehiivPostStats;
 }
 
+export interface BeehiivSubscriptionResponse {
+  subscribed: boolean;
+  status: 'active' | 'queued_local';
+}
+
 @Injectable()
 export class BeehiivService {
   private readonly logger = new Logger(BeehiivService.name);
@@ -305,6 +310,79 @@ export class BeehiivService {
       );
       throw new InternalServerErrorException(
         `Beehiiv getPostStats failed: ${err.message}`,
+      );
+    }
+  }
+
+  /**
+   * Subscribes a public listener email to the Beehiiv publication, or queues locally when credentials are not configured.
+   */
+  async subscribeEmail(payload: {
+    email: string;
+    utmSource?: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+  }): Promise<BeehiivSubscriptionResponse> {
+    const normalizedEmail = payload.email.trim().toLowerCase();
+    const apiKey = this.configService.get<string>('BEEHIIV_API_KEY')?.trim();
+    const publicationId = this.configService
+      .get<string>('BEEHIIV_PUBLICATION_ID')
+      ?.trim();
+
+    if (!apiKey || !publicationId) {
+      this.logger.log(
+        `Beehiiv credentials not configured; recording local subscription request for ${normalizedEmail}`,
+      );
+      return {
+        subscribed: true,
+        status: 'queued_local',
+      };
+    }
+
+    const endpoint = `https://api.beehiiv.com/v2/publications/${publicationId}/subscriptions`;
+    const body = {
+      email: normalizedEmail,
+      reactivate_existing: true,
+      send_welcome_email: true,
+      utm_source: payload.utmSource?.trim() || 'nido_web',
+      utm_medium: payload.utmMedium?.trim() || 'organic',
+      utm_campaign: payload.utmCampaign?.trim() || 'weekly_top_picks',
+    };
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        this.logger.error(
+          `Beehiiv subscription API returned error status ${response.status}: ${errorText}`,
+        );
+        throw new InternalServerErrorException(
+          `Unable to complete newsletter subscription (${response.status}).`,
+        );
+      }
+
+      return {
+        subscribed: true,
+        status: 'active',
+      };
+    } catch (err) {
+      if (err instanceof InternalServerErrorException) {
+        throw err;
+      }
+      this.logger.error(
+        `Failed to subscribe email on Beehiiv: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Unable to complete newsletter subscription right now.',
       );
     }
   }

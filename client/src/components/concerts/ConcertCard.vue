@@ -134,11 +134,11 @@
 import { computed, ref, watch } from 'vue';
 import type { ConcertListItem } from '../../types/concerts';
 import {
+  buildOutboundTicketUrl,
   computeArtistInitials,
   extractOrderedArtistNames,
   resolveDistinctEventTitle,
   resolveGenreThemeVariant,
-  sanitizeTicketUrl,
 } from '../../utils/concert-presentation';
 
 const props = defineProps<{
@@ -154,7 +154,7 @@ defineEmits<{
 const imageError = ref(false);
 
 const safeTicketUrl = computed(() =>
-  sanitizeTicketUrl(props.concert.ticketUrl),
+  buildOutboundTicketUrl(props.concert.ticketUrl),
 );
 
 watch(

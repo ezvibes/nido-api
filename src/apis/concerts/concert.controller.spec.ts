@@ -9,6 +9,7 @@ describe('ConcertController', () => {
     findAll: jest.fn(),
     findAllForOwner: jest.fn(),
     findOneForViewer: jest.fn(),
+    generatePublicSitemapXml: jest.fn(),
     createForOwner: jest.fn(),
     upvote: jest.fn(),
     removeUpvote: jest.fn(),
@@ -144,5 +145,14 @@ describe('ConcertController', () => {
       currentUser,
     );
     expect(result).toEqual({ id: 'concert-1', upvotedByMe: true });
+  });
+
+  it('returns public sitemap XML from concertService.generatePublicSitemapXml', async () => {
+    concertService.generatePublicSitemapXml.mockResolvedValue('<urlset />');
+
+    const xml = await controller.getPublicSitemap();
+
+    expect(concertService.generatePublicSitemapXml).toHaveBeenCalledTimes(1);
+    expect(xml).toBe('<urlset />');
   });
 });

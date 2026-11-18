@@ -193,4 +193,51 @@ describe('BeehiivService', () => {
       expect(result.links).toHaveLength(1);
     });
   });
+
+  describe('subscribeEmail', () => {
+    it('subscribes email to Beehiiv v2 subscriptions endpoint when credentials are configured', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: { id: 'sub_123', status: 'active' } }),
+      });
+
+      const result = await service.subscribeEmail({
+        email: ' Fan@Example.com ',
+        utmSource: 'nido_concert_detail',
+        utmCampaign: 'weekly_top_picks',
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.beehiiv.com/v2/publications/pub_12345/subscriptions',
+        expect.objectContaining({
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer test-beehiiv-key',
+          },
+        }),
+      );
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body).toEqual({
+        email: 'fan@example.com',
+        reactivate_existing: true,
+        send_welcome_email: true,
+        utm_source: 'nido_concert_detail',
+        utm_medium: 'organic',
+        utm_campaign: 'weekly_top_picks',
+      });
+      expect(result).toEqual({ subscribed: true, status: 'active' });
+    });
+
+    it('gracefully returns queued_local when Beehiiv credentials are missing in local/dev', async () => {
+      mockConfigService.get.mockReturnValue(null);
+
+      const result = await service.subscribeEmail({
+        email: 'local@example.com',
+      });
+
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(result).toEqual({ subscribed: true, status: 'queued_local' });
+    });
+  });
 });

@@ -26,9 +26,10 @@ import { PushBeehiivDraftDto } from './dto/push-beehiiv-draft.dto';
 import { AuditDistributionDto } from './dto/audit-distribution.dto';
 import { HarvestLineupDto } from './dto/harvest-lineup.dto';
 import { NewsletterFeedbackDiffDto } from './dto/newsletter-feedback-diff.dto';
+import { SubscribeNewsletterDto } from './dto/subscribe-newsletter.dto';
 import { SchedulerOrAdminGuard } from '../auth/guards/scheduler-or-admin.guard';
 
-@Controller('api/newsletter')
+@Controller(['api/newsletter', 'newsletter'])
 @ApiTags('Newsletter')
 export class NewsletterController {
   constructor(
@@ -181,5 +182,18 @@ export class NewsletterController {
   async getPostFeedbackStats(@Param('postId') postId: string) {
     const stats = await this.beehiivService.getPostStats(postId);
     return this.feedbackService.calculateEngagementAffinities(stats);
+  }
+
+  @Post('subscribe')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Publicly subscribe an email address to the EZ Vibes Weekly Top Picks newsletter',
+  })
+  @ApiOkResponse({
+    description: 'Subscription confirmation status.',
+  })
+  async subscribe(@Body() dto: SubscribeNewsletterDto) {
+    return this.beehiivService.subscribeEmail(dto);
   }
 }

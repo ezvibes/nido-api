@@ -103,7 +103,7 @@ describe('ConcertDetailPage', () => {
     // Ticket link
     const ticketLink = wrapper.get('[data-testid="ticket-link"]');
     expect(ticketLink.attributes('href')).toBe(
-      'https://etix.com/ticket/p/99999',
+      'https://etix.com/ticket/p/99999?utm_source=nido&utm_medium=referral&utm_campaign=concert_discovery',
     );
 
     // Google Calendar link

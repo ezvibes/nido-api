@@ -45,6 +45,7 @@ const createQueryBuilderMock = () => {
   qb.getRawOne = jest.fn();
   qb.getRawMany = jest.fn();
   qb.getOne = jest.fn();
+  qb.getMany = jest.fn();
   qb.execute = jest.fn();
   return qb;
 };
@@ -899,6 +900,71 @@ describe('ConcertService', () => {
       await expect(
         service.findOneForViewer('missing-concert'),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('city/region filtering and public sitemap generation', () => {
+    it('filters concerts by normalized citySlug/cityName and regionSlug/regionName', async () => {
+      const qb = createQueryBuilderMock();
+      concertRepository.createQueryBuilder.mockReturnValue(qb);
+      qb.getCount.mockResolvedValue(0);
+      qb.getRawAndEntities.mockResolvedValue({ entities: [], raw: [] });
+
+      await service.findAll({
+        city: ' Chapel Hill ',
+        region: ' North Carolina ',
+        page: 1,
+        pageSize: 20,
+      });
+
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        '(venue.citySlug = :citySlug OR venue.city ILIKE :cityName)',
+        {
+          citySlug: 'chapel-hill',
+          cityName: 'Chapel Hill',
+        },
+      );
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        '(venue.regionSlug = :regionSlug OR venue.region ILIKE :regionName)',
+        {
+          regionSlug: 'north-carolina',
+          regionName: 'North Carolina',
+        },
+      );
+    });
+
+    it('generates XML sitemap containing only active, admin-approved concerts', async () => {
+      const qb = createQueryBuilderMock();
+      concertRepository.createQueryBuilder.mockReturnValue(qb);
+      qb.getMany.mockResolvedValue([
+        {
+          id: 'concert-abc',
+          startsAt: new Date('2026-09-18T23:30:00.000Z'),
+          updatedAt: new Date('2026-09-01T12:00:00.000Z'),
+        },
+      ]);
+
+      const xml = await service.generatePublicSitemapXml(
+        'https://nido-api-9ed65.web.app/',
+      );
+
+      expect(qb.where).toHaveBeenCalledWith(
+        'concert.catalogStatus = :activeCatalogStatus',
+        { activeCatalogStatus: ConcertCatalogStatus.ACTIVE },
+      );
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'concert.isAdminApproved = :isAdminApproved',
+        { isAdminApproved: true },
+      );
+      expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
+      expect(xml).toContain('<loc>https://nido-api-9ed65.web.app/</loc>');
+      expect(xml).toContain(
+        '<loc>https://nido-api-9ed65.web.app/concerts</loc>',
+      );
+      expect(xml).toContain(
+        '<loc>https://nido-api-9ed65.web.app/concerts/concert-abc</loc>',
+      );
+      expect(xml).toContain('<lastmod>2026-09-01T12:00:00.000Z</lastmod>');
     });
   });
 });
