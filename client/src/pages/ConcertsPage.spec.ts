@@ -235,6 +235,148 @@ describe('ConcertsPage', () => {
     );
     expect(window.location.search).toContain('city=Durham');
   });
+
+  it('initializes dateRange from URL query (?dateRange=7) and clears URL query on Reset filters', async () => {
+    window.history.replaceState({}, '', '/concerts?city=Durham&dateRange=7');
+    api.fetchConcerts.mockResolvedValue({
+      data: [buildConcert()],
+      total: 1,
+      page: 1,
+      pageSize: 100,
+    });
+
+    const wrapper = mount(ConcertsPage, {
+      global: { stubs: { IngestionUploadPanel: true } },
+    });
+    await flushPromises();
+
+    expect(window.location.search).toContain('city=Durham');
+    expect(window.location.search).toContain('dateRange=7');
+
+    const resetBtn = wrapper
+      .findAll('button')
+      .find((btn) => btn.text().includes('Reset filters'));
+    await resetBtn!.trigger('click');
+    await flushPromises();
+
+    expect(window.location.search).toBe('');
+  });
+
+  it('initializes ?region=nc, passes region to fetchConcerts, and renders full-name North Carolina venues', async () => {
+    window.history.replaceState({}, '', '/concerts?region=nc');
+    api.fetchConcerts.mockResolvedValue({
+      data: [
+        buildConcert({
+          venue: {
+            id: 'venue-1',
+            name: 'Lincoln Theatre',
+            city: 'Raleigh',
+            region: 'North Carolina',
+            regionSlug: 'nc',
+          },
+        }),
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 100,
+    });
+
+    const wrapper = mount(ConcertsPage, {
+      global: { stubs: defaultStubs },
+    });
+    await flushPromises();
+
+    expect(api.fetchConcerts).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({
+        region: 'nc',
+        pageSize: 100,
+      }),
+    );
+    expect(wrapper.text()).toContain('The Floozies');
+    expect(wrapper.text()).toContain('Lincoln Theatre');
+  });
+
+  it('passes q and startsBefore from URL filters and refetches without startsBefore when switching dateRange to all', async () => {
+    window.history.replaceState({}, '', '/concerts?q=Flume&dateRange=7');
+    api.fetchConcerts.mockResolvedValue({
+      data: [],
+      total: 0,
+      page: 1,
+      pageSize: 100,
+    });
+
+    const wrapper = mount(ConcertsPage, {
+      global: { stubs: defaultStubs },
+    });
+    await flushPromises();
+
+    expect(api.fetchConcerts).toHaveBeenCalledTimes(1);
+    expect(api.fetchConcerts).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({
+        q: 'Flume',
+        startsBefore: expect.any(String),
+        pageSize: 100,
+      }),
+    );
+
+    const dateRangeField = wrapper
+      .findAll('.filters-bar__field')
+      .find((field) => field.text().includes('Date Range'));
+    await dateRangeField!.get('select').setValue('all');
+    await flushPromises();
+
+    expect(api.fetchConcerts).toHaveBeenCalledTimes(2);
+    const secondCallParams = api.fetchConcerts.mock.calls[1]?.[1];
+    expect(secondCallParams).toEqual(
+      expect.objectContaining({
+        q: 'Flume',
+        pageSize: 100,
+      }),
+    );
+    expect(secondCallParams).not.toHaveProperty('startsBefore');
+  });
+
+  it('shows a truncated-results note when server total exceeds loaded concerts and resets multiple filters in one fetch', async () => {
+    vi.useFakeTimers();
+    try {
+      window.history.replaceState(
+        {},
+        '',
+        '/concerts?city=Durham&region=nc&q=Flume&dateRange=7&sort=featured',
+      );
+      api.fetchConcerts.mockResolvedValue({
+        data: [buildConcert()],
+        total: 150,
+        page: 1,
+        pageSize: 100,
+      });
+
+      const wrapper = mount(ConcertsPage, {
+        global: { stubs: defaultStubs },
+      });
+      await flushPromises();
+
+      expect(wrapper.text()).toContain(
+        'Showing first 1 of 150 matching concerts — refine filters to narrow results',
+      );
+      expect(api.fetchConcerts).toHaveBeenCalledTimes(1);
+
+      const resetBtn = wrapper
+        .findAll('button')
+        .find((btn) => btn.text().includes('Reset filters'));
+      await resetBtn!.trigger('click');
+      await flushPromises();
+      vi.advanceTimersByTime(300);
+      await flushPromises();
+
+      expect(api.fetchConcerts).toHaveBeenCalledTimes(2);
+      expect(window.location.search).toBe('');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 function buildConcert(overrides: Partial<ConcertApiItem> = {}): ConcertApiItem {

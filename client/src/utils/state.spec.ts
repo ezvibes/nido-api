@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeStateCode } from './state';
+import { normalizeRegionSlug, normalizeStateCode } from './state';
 
 describe('client normalizeStateCode', () => {
   it('defaults to NC when value is null, undefined, or empty', () => {
@@ -25,5 +25,27 @@ describe('client normalizeStateCode', () => {
   it('preserves uppercase 2-letter codes', () => {
     expect(normalizeStateCode('ca')).toBe('CA');
     expect(normalizeStateCode('CA')).toBe('CA');
+  });
+});
+
+describe('client normalizeRegionSlug', () => {
+  it('returns empty string for null, undefined, or whitespace inputs', () => {
+    expect(normalizeRegionSlug(null)).toBe('');
+    expect(normalizeRegionSlug(undefined)).toBe('');
+    expect(normalizeRegionSlug('')).toBe('');
+    expect(normalizeRegionSlug('   ')).toBe('');
+  });
+
+  it('normalizes full US state names and codes to lowercase state slugs', () => {
+    expect(normalizeRegionSlug('North Carolina')).toBe('nc');
+    expect(normalizeRegionSlug('  north-carolina  ')).toBe('nc');
+    expect(normalizeRegionSlug('NC')).toBe('nc');
+    expect(normalizeRegionSlug('nc')).toBe('nc');
+    expect(normalizeRegionSlug('New York')).toBe('ny');
+  });
+
+  it('preserves non-state region names as lowercase hyphenated slugs', () => {
+    expect(normalizeRegionSlug('Triangle')).toBe('triangle');
+    expect(normalizeRegionSlug('Research Triangle')).toBe('research-triangle');
   });
 });

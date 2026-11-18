@@ -911,12 +911,21 @@ describe('ConcertService', () => {
       qb.getRawAndEntities.mockResolvedValue({ entities: [], raw: [] });
 
       await service.findAll({
+        q: 'bluegrass',
         city: ' Chapel Hill ',
         region: ' North Carolina ',
         page: 1,
         pageSize: 20,
       });
 
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('concert.genre ILIKE :q_0'),
+        { q_0: '%bluegrass%' },
+      );
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('venue.city ILIKE :q_0'),
+        { q_0: '%bluegrass%' },
+      );
       expect(qb.andWhere).toHaveBeenCalledWith(
         '(venue.citySlug = :citySlug OR venue.city ILIKE :cityName)',
         {
@@ -925,10 +934,64 @@ describe('ConcertService', () => {
         },
       );
       expect(qb.andWhere).toHaveBeenCalledWith(
-        '(venue.regionSlug = :regionSlug OR venue.region ILIKE :regionName)',
+        '(venue.regionSlug = :regionSlug OR venue.regionSlug = :rawSlug OR venue.region ILIKE :regionName OR venue.region ILIKE :altRegionName)',
         {
-          regionSlug: 'north-carolina',
+          regionSlug: 'nc',
+          rawSlug: 'north-carolina',
           regionName: 'North Carolina',
+          altRegionName: 'NC',
+        },
+      );
+    });
+
+    it('tokenizes multi-word free-text q queries with AND semantics and resolves 2-letter region codes to full state names', async () => {
+      const qb = createQueryBuilderMock();
+      concertRepository.createQueryBuilder.mockReturnValue(qb);
+      qb.getCount.mockResolvedValue(0);
+      qb.getRawAndEntities.mockResolvedValue({ entities: [], raw: [] });
+
+      await service.findAll({
+        q: 'bluegrass raleigh',
+        region: 'nc',
+        page: 1,
+        pageSize: 20,
+      });
+
+      const firstTokenSql = qb.andWhere.mock.calls.find(
+        ([sql, params]) =>
+          typeof sql === 'string' &&
+          sql.includes(':q_0') &&
+          params?.q_0 === '%bluegrass%',
+      )?.[0] as string;
+      expect(firstTokenSql).toContain('concert.title ILIKE :q_0');
+      expect(firstTokenSql).toContain('concert.genre ILIKE :q_0');
+      expect(firstTokenSql).toContain('concert.description ILIKE :q_0');
+      expect(firstTokenSql).toContain('venue.name ILIKE :q_0');
+      expect(firstTokenSql).toContain('venue.city ILIKE :q_0');
+      expect(firstTokenSql).toContain('venue.region ILIKE :q_0');
+      expect(firstTokenSql).toContain('band.name ILIKE :q_0');
+
+      const secondTokenSql = qb.andWhere.mock.calls.find(
+        ([sql, params]) =>
+          typeof sql === 'string' &&
+          sql.includes(':q_1') &&
+          params?.q_1 === '%raleigh%',
+      )?.[0] as string;
+      expect(secondTokenSql).toContain('concert.title ILIKE :q_1');
+      expect(secondTokenSql).toContain('concert.genre ILIKE :q_1');
+      expect(secondTokenSql).toContain('concert.description ILIKE :q_1');
+      expect(secondTokenSql).toContain('venue.name ILIKE :q_1');
+      expect(secondTokenSql).toContain('venue.city ILIKE :q_1');
+      expect(secondTokenSql).toContain('venue.region ILIKE :q_1');
+      expect(secondTokenSql).toContain('band.name ILIKE :q_1');
+
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        '(venue.regionSlug = :regionSlug OR venue.regionSlug = :rawSlug OR venue.region ILIKE :regionName OR venue.region ILIKE :altRegionName)',
+        {
+          regionSlug: 'nc',
+          rawSlug: 'nc',
+          regionName: 'nc',
+          altRegionName: 'North Carolina',
         },
       );
     });

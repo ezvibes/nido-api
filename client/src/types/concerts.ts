@@ -3,7 +3,9 @@ export interface ConcertVenue {
   name: string;
   address?: string | null;
   city?: string;
+  citySlug?: string;
   region?: string;
+  regionSlug?: string;
   postalCode?: string | null;
   capacity?: number | null;
   verificationState?: string | null;

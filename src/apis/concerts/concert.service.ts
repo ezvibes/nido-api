@@ -27,6 +27,14 @@ import {
   ListAdminConcertsDto,
 } from './dto/list-admin-concerts.dto';
 import { UpdateAdminConcertDto } from './dto/update-admin-concert.dto';
+import { US_STATE_NAME_TO_CODE } from '../../ingestion/utils/state-code.util';
+
+const US_STATE_CODE_TO_NAME: Record<string, string> = Object.fromEntries(
+  Object.entries(US_STATE_NAME_TO_CODE).map(([name, code]) => [
+    code,
+    name.replace(/\b\w+/g, (word) => word[0] + word.slice(1).toLowerCase()),
+  ]),
+);
 
 export interface ConcertEngagement {
   upvoteCount: number;
@@ -243,18 +251,29 @@ export class ConcertService {
       .leftJoinAndSelect('concert.sets', 'set')
       .leftJoinAndSelect('set.band', 'setBand');
 
-    if (query.q) {
-      qb.andWhere(
-        `(
-          concert.title ILIKE :q
-          OR concert.description ILIKE :q
-          OR venue.name ILIKE :q
-          OR band.name ILIKE :q
-        )`,
-        {
-          q: `%${query.q}%`,
-        },
-      );
+    if (query.q?.trim()) {
+      const searchTokens = query.q
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 6);
+      searchTokens.forEach((token, i) => {
+        const paramKey = `q_${i}`;
+        qb.andWhere(
+          `(
+            concert.title ILIKE :${paramKey}
+            OR concert.genre ILIKE :${paramKey}
+            OR concert.description ILIKE :${paramKey}
+            OR venue.name ILIKE :${paramKey}
+            OR venue.city ILIKE :${paramKey}
+            OR venue.region ILIKE :${paramKey}
+            OR band.name ILIKE :${paramKey}
+          )`,
+          {
+            [paramKey]: `%${token}%`,
+          },
+        );
+      });
     }
 
     if (query.genre) {
@@ -278,15 +297,23 @@ export class ConcertService {
 
     if (query.region?.trim()) {
       const regionName = query.region.trim();
-      const regionSlug = regionName
+      const rawSlug = regionName
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '');
+      const matchedCode =
+        US_STATE_NAME_TO_CODE[rawSlug.replace(/-/g, ' ').toUpperCase()];
+      const regionSlug = matchedCode ? matchedCode.toLowerCase() : rawSlug;
+      const altRegionName = matchedCode
+        ? matchedCode
+        : (US_STATE_CODE_TO_NAME[rawSlug.toUpperCase()] ?? regionName);
       qb.andWhere(
-        '(venue.regionSlug = :regionSlug OR venue.region ILIKE :regionName)',
+        '(venue.regionSlug = :regionSlug OR venue.regionSlug = :rawSlug OR venue.region ILIKE :regionName OR venue.region ILIKE :altRegionName)',
         {
           regionSlug,
+          rawSlug,
           regionName,
+          altRegionName,
         },
       );
     }
