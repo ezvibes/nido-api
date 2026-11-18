@@ -55,6 +55,17 @@
         <p class="concerts-page__results-subtitle">
           {{ isLoadingConcerts ? 'Loading upcoming concerts…' : sortSummary }}
         </p>
+        <p
+          v-if="
+            !isLoadingConcerts &&
+            serverTotal !== null &&
+            persistedConcerts.length < serverTotal
+          "
+          class="concerts-page__results-note"
+        >
+          Showing first {{ persistedConcerts.length }} of
+          {{ serverTotal }} matching concerts — refine filters to narrow results
+        </p>
       </div>
       <button class="button-secondary" type="button" @click="handleResetFilters">
         Reset filters
@@ -129,11 +140,21 @@ useDocumentMeta(() => {
 });
 
 const persistedConcerts = ref<ConcertListItem[]>([]);
+const serverTotal = ref<number | null>(null);
 const upvotingConcertIds = ref(new Set<string>());
 const hasLoadedPersistedConcerts = ref(false);
 const isLoadingConcerts = ref(false);
 const concertsLoadError = ref('');
 let latestConcertsRequest = 0;
+let isResettingFilters = false;
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+const clearSearchDebounceTimer = () => {
+  if (searchDebounceTimer !== null) {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = null;
+  }
+};
 const {
   searchText,
   city,
@@ -213,10 +234,22 @@ const handleCityChange = (nextCity: string) => {
 };
 
 const handleResetFilters = () => {
-  const hadServerLocationFilter = Boolean(city.value || region.value);
-  clearFilters();
+  clearSearchDebounceTimer();
+  const hadServerFilter = Boolean(
+    city.value.trim() ||
+      region.value.trim() ||
+      searchText.value.trim() ||
+      dateRange.value !== '30' ||
+      sort.value !== 'soonest',
+  );
+  isResettingFilters = true;
+  try {
+    clearFilters();
+  } finally {
+    isResettingFilters = false;
+  }
   syncFiltersToUrl();
-  if (hadServerLocationFilter) {
+  if (hadServerFilter) {
     void loadPersistedConcerts();
   }
 };
@@ -284,12 +317,23 @@ const loadPersistedConcerts = async () => {
       return;
     }
 
+    const nowDate = new Date();
+    const startsBefore =
+      dateRange.value === 'all'
+        ? undefined
+        : new Date(
+            nowDate.getTime() +
+              Number.parseInt(dateRange.value, 10) * 24 * 60 * 60 * 1000,
+          ).toISOString();
+
     const response = await fetchConcerts(token, {
       sort: sort.value,
-      startsAfter: new Date().toISOString(),
+      startsAfter: nowDate.toISOString(),
+      ...(startsBefore ? { startsBefore } : {}),
       pageSize: 100,
       ...(city.value.trim() ? { city: city.value.trim() } : {}),
       ...(region.value.trim() ? { region: region.value.trim() } : {}),
+      ...(searchText.value.trim() ? { q: searchText.value.trim() } : {}),
     });
 
     if (requestId !== latestConcertsRequest) {
@@ -297,6 +341,8 @@ const loadPersistedConcerts = async () => {
     }
 
     const concerts = Array.isArray(response?.data) ? response.data : [];
+    serverTotal.value =
+      typeof response?.total === 'number' ? response.total : null;
     persistedConcerts.value = concerts.map((concert) =>
       mapConcertToListItem(concert, {
         sourceLabel: 'Concerts DB',
@@ -310,6 +356,7 @@ const loadPersistedConcerts = async () => {
     }
 
     persistedConcerts.value = [];
+    serverTotal.value = null;
     hasLoadedPersistedConcerts.value = true;
     concertsLoadError.value =
       'Unable to load upcoming concerts right now. Please try again.';
@@ -380,20 +427,47 @@ watch([searchText, sort, dateRange, city, region], () => {
   syncFiltersToUrl();
 });
 
-watch(sort, (nextSort) => {
-  if (
-    (nextSort === 'featured' || nextSort === 'trending_week') &&
-    hasLoadedPersistedConcerts.value
-  ) {
-    void loadPersistedConcerts();
-  }
-});
+watch(
+  sort,
+  () => {
+    if (hasLoadedPersistedConcerts.value && !isResettingFilters) {
+      void loadPersistedConcerts();
+    }
+  },
+  { flush: 'sync' },
+);
+
+watch(
+  dateRange,
+  () => {
+    if (hasLoadedPersistedConcerts.value && !isResettingFilters) {
+      void loadPersistedConcerts();
+    }
+  },
+  { flush: 'sync' },
+);
+
+watch(
+  searchText,
+  () => {
+    if (!hasLoadedPersistedConcerts.value || isResettingFilters) {
+      return;
+    }
+    clearSearchDebounceTimer();
+    searchDebounceTimer = setTimeout(() => {
+      searchDebounceTimer = null;
+      void loadPersistedConcerts();
+    }, 250);
+  },
+  { flush: 'sync' },
+);
 
 onMounted(() => {
   window.addEventListener('concerts:changed', handleConcertsChanged);
 });
 
 onBeforeUnmount(() => {
+  clearSearchDebounceTimer();
   window.removeEventListener('concerts:changed', handleConcertsChanged);
 });
 </script>
@@ -493,6 +567,12 @@ onBeforeUnmount(() => {
 }
 
 .concerts-page__results-subtitle {
+  color: var(--text-light);
+}
+
+.concerts-page__results-note {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
   color: var(--text-light);
 }
 

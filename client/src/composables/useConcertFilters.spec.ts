@@ -78,6 +78,57 @@ describe('useConcertFilters', () => {
     expect(region.value).toBe('');
     expect(filteredConcerts.value).toHaveLength(2);
   });
+
+  it('matches region across state codes, full state names, and regionSlug', async () => {
+    const concerts = ref([
+      {
+        ...buildConcert('nc-with-slug', 'Sylvan Esso'),
+        venue: {
+          id: 'v-1',
+          name: 'Lincoln Theatre',
+          city: 'Raleigh',
+          citySlug: 'raleigh',
+          region: 'North Carolina',
+          regionSlug: 'nc',
+        },
+      },
+      {
+        ...buildConcert('nc-without-slug', 'Mandolin Orange'),
+        venue: {
+          id: 'v-2',
+          name: "Cat's Cradle",
+          city: 'Carrboro',
+          region: 'North Carolina',
+        },
+      },
+      {
+        ...buildConcert('va-show', 'Turnover'),
+        venue: {
+          id: 'v-3',
+          name: 'The National',
+          city: 'Richmond',
+          region: 'Virginia',
+          regionSlug: 'va',
+        },
+      },
+    ]);
+
+    const { region, filteredConcerts } = useConcertFilters(concerts);
+
+    region.value = 'nc';
+    await nextTick();
+    expect(filteredConcerts.value.map((c) => c.id)).toEqual([
+      'nc-with-slug',
+      'nc-without-slug',
+    ]);
+
+    region.value = 'North Carolina';
+    await nextTick();
+    expect(filteredConcerts.value.map((c) => c.id)).toEqual([
+      'nc-with-slug',
+      'nc-without-slug',
+    ]);
+  });
 });
 
 function buildConcert(id: string, bandName: string): ConcertListItem {

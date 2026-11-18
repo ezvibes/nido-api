@@ -1,5 +1,6 @@
 import { computed, ref, unref, type Ref } from 'vue';
 import type { ConcertListItem } from '../types/concerts';
+import { normalizeRegionSlug } from '../utils/state';
 
 export type DateRangeOption = '7' | '30' | 'all';
 export type SortOption = 'soonest' | 'featured' | 'trending_week';
@@ -48,15 +49,19 @@ export function useConcertFilters(
     if (activeCityToken) {
       result = result.filter(
         (concert) =>
+          normalizeLocationToken(concert.venue?.citySlug) ===
+            activeCityToken ||
           normalizeLocationToken(concert.venue?.city) === activeCityToken,
       );
     }
 
-    const activeRegionToken = normalizeLocationToken(region.value);
+    const activeRegionToken = normalizeRegionSlug(region.value);
     if (activeRegionToken) {
       result = result.filter(
         (concert) =>
-          normalizeLocationToken(concert.venue?.region) === activeRegionToken,
+          normalizeRegionSlug(concert.venue?.regionSlug) ===
+            activeRegionToken ||
+          normalizeRegionSlug(concert.venue?.region) === activeRegionToken,
       );
     }
 

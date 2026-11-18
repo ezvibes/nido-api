@@ -76,3 +76,25 @@ export function normalizeStateCode(
 
   return fallback;
 }
+
+/**
+ * Normalizes a region name, slug, or 2-letter US state code into a canonical lowercase slug
+ * (e.g., 'North Carolina' -> 'nc', 'NC' -> 'nc', 'Triangle' -> 'triangle').
+ */
+export function normalizeRegionSlug(value?: string | null): string {
+  const trimmed = (value || '').trim();
+  if (!trimmed) return '';
+
+  const slug = trimmed
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  if (!slug) return '';
+
+  const upper = slug.replace(/-/g, ' ').toUpperCase();
+  if (US_STATE_NAME_TO_CODE[upper]) {
+    return US_STATE_NAME_TO_CODE[upper].toLowerCase();
+  }
+
+  return slug;
+}
