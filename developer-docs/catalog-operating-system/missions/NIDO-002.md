@@ -47,7 +47,7 @@
 | --- | --- | --- |
 | Shareable `/concerts/:id` detail route and public `GET /concerts/:id` contract | Unit tests in `concert.service.spec.ts`, `concert.controller.spec.ts`, `ConcertDetailPage.spec.ts` | Implemented on `main` (`323f91c`, [#204](https://github.com/ezvibes/nido-api/issues/204)) |
 | Baseline discovery and indexing audit (`NIDO-002.1`) | Capability matrix, top 5 ranked problems, and `NIDO-002.2` slice sequence | Merged on `main` (`bdf2aa9`, PR #213, [Audit report](../nido-002-1-discovery-and-indexing-audit.md)) |
-| Search & social metadata (`title`, `og:*`, `schema.org/Event` JSON-LD, `robots.txt`, `sitemap.xml`) | Automated unit tests + live dev HTML/Rich Results inspection | Implemented across PR #215 (`NIDO-002.2a`) and [#216](https://github.com/ezvibes/nido-api/issues/216) (`NIDO-002.2b`) |
+| Search & social metadata (`title`, `og:*`, `schema.org/Event` JSON-LD, `robots.txt`, `sitemap.xml`) | Automated unit tests + live dev HTML/Rich Results inspection + post-deploy Hosting smoke test (`curl -fsSi https://nido-api-9ed65.web.app/sitemap.xml`) | Implemented across PR #215 (`NIDO-002.2a`) and [#216](https://github.com/ezvibes/nido-api/issues/216) (`NIDO-002.2b`, verified in `.github/workflows/deploy-dev.yml` and `scripts/smoke-test-api.mjs`) |
 | Public newsletter signup & poster submission conversion paths + city filter URLs | Unit tests (`NewsletterSignupBanner.spec.ts`, `ConcertsPage.spec.ts`, `beehiiv.service.spec.ts`) + browser verification | Implemented in [#216](https://github.com/ezvibes/nido-api/issues/216) (`NIDO-002.2c/d`) |
 
 ## Handoff

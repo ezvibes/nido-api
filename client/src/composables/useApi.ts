@@ -1172,10 +1172,12 @@ export async function subscribeToNewsletter(payload: {
   utmSource?: string;
   utmMedium?: string;
   utmCampaign?: string;
-}): Promise<{ subscribed: boolean; status: string }> {
+  website?: string;
+}): Promise<{ subscribed: boolean; status: string; subscriptionId?: string }> {
   const response = await apiClient.post<{
     subscribed: boolean;
     status: string;
+    subscriptionId?: string;
   }>('/api/newsletter/subscribe', payload);
   return response.data;
 }

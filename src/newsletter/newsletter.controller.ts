@@ -1,12 +1,17 @@
 import {
-  Controller,
-  Post,
-  Get,
-  Param,
+  BadRequestException,
   Body,
-  UseGuards,
+  Controller,
+  Get,
   HttpCode,
+  HttpException,
+  HttpStatus,
+  Param,
+  Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -29,9 +34,14 @@ import { NewsletterFeedbackDiffDto } from './dto/newsletter-feedback-diff.dto';
 import { SubscribeNewsletterDto } from './dto/subscribe-newsletter.dto';
 import { SchedulerOrAdminGuard } from '../auth/guards/scheduler-or-admin.guard';
 
+const SUBSCRIBE_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const SUBSCRIBE_RATE_LIMIT_MAX_ATTEMPTS = 5;
+
 @Controller(['api/newsletter', 'newsletter'])
 @ApiTags('Newsletter')
 export class NewsletterController {
+  private readonly subscribeAttemptsByIp = new Map<string, number[]>();
+
   constructor(
     private readonly newsletterService: NewsletterService,
     private readonly beehiivService: BeehiivService,
@@ -193,7 +203,51 @@ export class NewsletterController {
   @ApiOkResponse({
     description: 'Subscription confirmation status.',
   })
-  async subscribe(@Body() dto: SubscribeNewsletterDto) {
+  async subscribe(
+    @Body() dto: SubscribeNewsletterDto,
+    @Req() req?: Request,
+  ) {
+    if (dto.website && dto.website.trim().length > 0) {
+      throw new BadRequestException('Invalid subscription request.');
+    }
+
+    const clientIp = this.extractClientIp(req);
+    this.enforceSubscribeRateLimit(clientIp);
+
     return this.beehiivService.subscribeEmail(dto);
+  }
+
+  resetSubscribeRateLimits(): void {
+    this.subscribeAttemptsByIp.clear();
+  }
+
+  private extractClientIp(req?: Request): string {
+    const forwarded = req?.headers?.['x-forwarded-for'];
+    if (typeof forwarded === 'string' && forwarded.trim()) {
+      return forwarded.split(',')[0]!.trim();
+    }
+    if (Array.isArray(forwarded) && forwarded[0]) {
+      return forwarded[0].trim();
+    }
+    return req?.ip || req?.socket?.remoteAddress || 'anonymous';
+  }
+
+  private enforceSubscribeRateLimit(ip: string): void {
+    const now = Date.now();
+    const cutoff = now - SUBSCRIBE_RATE_LIMIT_WINDOW_MS;
+    const recent = (this.subscribeAttemptsByIp.get(ip) ?? []).filter(
+      (ts) => ts > cutoff,
+    );
+
+    if (recent.length >= SUBSCRIBE_RATE_LIMIT_MAX_ATTEMPTS) {
+      this.subscribeAttemptsByIp.set(ip, recent);
+      throw new HttpException(
+        'Too many subscription attempts. Please try again later.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    recent.push(now);
+    this.subscribeAttemptsByIp.set(ip, recent);
   }
 }

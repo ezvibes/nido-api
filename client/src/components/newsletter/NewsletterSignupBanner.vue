@@ -43,6 +43,15 @@
         :disabled="submitting"
         data-testid="newsletter-email-input"
       />
+      <input
+        v-model="website"
+        type="text"
+        name="website"
+        tabindex="-1"
+        autocomplete="off"
+        aria-hidden="true"
+        class="sr-only"
+      />
       <button
         type="submit"
         class="newsletter-banner__btn"
@@ -79,6 +88,7 @@ const props = withDefaults(
 );
 
 const email = ref('');
+const website = ref('');
 const submitting = ref(false);
 const submitted = ref(false);
 const errorMessage = ref('');
@@ -96,6 +106,7 @@ const handleSubmit = async () => {
         utmSource: props.utmSource,
         utmMedium: 'organic',
         utmCampaign: props.utmCampaign,
+        ...(website.value.trim() ? { website: website.value.trim() } : {}),
       });
     }
     submitted.value = true;

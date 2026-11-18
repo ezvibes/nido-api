@@ -36,4 +36,12 @@ export class SubscribeNewsletterDto {
   @IsString()
   @MaxLength(120)
   utmCampaign?: string;
+
+  @ApiPropertyOptional({
+    description: 'Honeypot field for automated bot filtering (must be empty).',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  website?: string;
 }

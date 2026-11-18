@@ -375,4 +375,6 @@ jobs:
             node .github/scripts/deploy-firebase-hosting.mjs
 
       - name: Verify Firebase Hosting
-        run: curl -fsSI "https://${FIREBASE_PROJECT_ID}.web.app" >/dev/null
+        run: |
+          curl -fsSI "https://${FIREBASE_PROJECT_ID}.web.app" >/dev/null
+          curl -fsS --retry 3 --retry-delay 3 "https://${FIREBASE_PROJECT_ID}.web.app/sitemap.xml" | grep -q '<urlset'

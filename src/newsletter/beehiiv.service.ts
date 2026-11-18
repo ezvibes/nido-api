@@ -62,7 +62,8 @@ export interface BeehiivPostDetails {
 
 export interface BeehiivSubscriptionResponse {
   subscribed: boolean;
-  status: 'active';
+  status: string;
+  subscriptionId: string;
 }
 
 @Injectable()
@@ -316,7 +317,7 @@ export class BeehiivService {
   }
 
   /**
-   * Subscribes a public listener email to the Beehiiv publication, or queues locally when credentials are not configured.
+   * Subscribes a public listener email to the Beehiiv publication, failing closed with ServiceUnavailableException when credentials are not configured.
    */
   async subscribeEmail(payload: {
     email: string;
@@ -369,9 +370,23 @@ export class BeehiivService {
         );
       }
 
+      const payloadData = (await response.json()) as {
+        data?: { id?: string; status?: string };
+      };
+      const subscriptionId = payloadData?.data?.id?.trim();
+      if (!subscriptionId) {
+        this.logger.error(
+          'Beehiiv subscription response did not include a confirmed data.id.',
+        );
+        throw new InternalServerErrorException(
+          'Beehiiv did not return a confirmed subscription ID.',
+        );
+      }
+
       return {
         subscribed: true,
-        status: 'active',
+        status: payloadData.data?.status || 'active',
+        subscriptionId,
       };
     } catch (err) {
       if (err instanceof InternalServerErrorException) {
