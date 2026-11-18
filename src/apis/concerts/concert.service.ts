@@ -123,8 +123,15 @@ export class ConcertService {
   async generatePublicSitemapXml(
     baseUrl = this.configService.get<string>('PUBLIC_WEB_ORIGIN') ||
       'https://nido-api-9ed65.web.app',
+    options?: { page?: number; pageSize?: number },
   ): Promise<string> {
     const normalizedBase = baseUrl.replace(/\/+$/, '');
+    const page = Math.max(1, Math.floor(Number(options?.page) || 1));
+    const pageSize = Math.min(
+      50000,
+      Math.max(1, Math.floor(Number(options?.pageSize) || 1000)),
+    );
+
     const concerts = await this.concertRepository
       .createQueryBuilder('concert')
       .select(['concert.id', 'concert.updatedAt', 'concert.startsAt'])
@@ -134,8 +141,10 @@ export class ConcertService {
       .andWhere('concert.isAdminApproved = :isAdminApproved', {
         isAdminApproved: true,
       })
-      .orderBy('concert.startsAt', 'DESC')
-      .take(1000)
+      .orderBy('concert.startsAt', 'ASC')
+      .addOrderBy('concert.id', 'ASC')
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
       .getMany();
 
     const escapeXml = (val: string) =>
@@ -146,9 +155,16 @@ export class ConcertService {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&apos;');
 
+    const rootUrls =
+      page === 1
+        ? [
+            `  <url>\n    <loc>${escapeXml(`${normalizedBase}/`)}</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>`,
+            `  <url>\n    <loc>${escapeXml(`${normalizedBase}/concerts`)}</loc>\n    <changefreq>hourly</changefreq>\n    <priority>0.9</priority>\n  </url>`,
+          ]
+        : [];
+
     const urls = [
-      `  <url>\n    <loc>${escapeXml(`${normalizedBase}/`)}</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>`,
-      `  <url>\n    <loc>${escapeXml(`${normalizedBase}/concerts`)}</loc>\n    <changefreq>hourly</changefreq>\n    <priority>0.9</priority>\n  </url>`,
+      ...rootUrls,
       ...concerts.map((concert) => {
         const lastModSource = concert.updatedAt || concert.startsAt;
         const lastMod =
@@ -165,6 +181,50 @@ export class ConcertService {
       '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
       ...urls,
       '</urlset>',
+    ].join('\n');
+  }
+
+  async generatePublicSitemapIndexXml(
+    baseUrl = this.configService.get<string>('PUBLIC_WEB_ORIGIN') ||
+      'https://nido-api-9ed65.web.app',
+    pageSize = 1000,
+  ): Promise<string> {
+    const normalizedBase = baseUrl.replace(/\/+$/, '');
+    const safePageSize = Math.min(
+      50000,
+      Math.max(1, Math.floor(Number(pageSize) || 1000)),
+    );
+
+    const totalApproved = await this.concertRepository
+      .createQueryBuilder('concert')
+      .where('concert.catalogStatus = :activeCatalogStatus', {
+        activeCatalogStatus: ConcertCatalogStatus.ACTIVE,
+      })
+      .andWhere('concert.isAdminApproved = :isAdminApproved', {
+        isAdminApproved: true,
+      })
+      .getCount();
+
+    const totalPages = Math.max(1, Math.ceil(totalApproved / safePageSize));
+    const escapeXml = (val: string) =>
+      val
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+
+    const sitemaps = Array.from({ length: totalPages }, (_, idx) => {
+      const pageNum = idx + 1;
+      const loc = `${normalizedBase}/sitemap.xml?page=${pageNum}`;
+      return `  <sitemap>\n    <loc>${escapeXml(loc)}</loc>\n  </sitemap>`;
+    });
+
+    return [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      ...sitemaps,
+      '</sitemapindex>',
     ].join('\n');
   }
 

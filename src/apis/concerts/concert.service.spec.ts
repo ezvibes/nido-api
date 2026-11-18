@@ -933,7 +933,7 @@ describe('ConcertService', () => {
       );
     });
 
-    it('generates XML sitemap containing only active, admin-approved concerts', async () => {
+    it('generates XML sitemap containing only active, admin-approved concerts with canonical ASC ordering', async () => {
       const qb = createQueryBuilderMock();
       concertRepository.createQueryBuilder.mockReturnValue(qb);
       qb.getMany.mockResolvedValue([
@@ -956,6 +956,10 @@ describe('ConcertService', () => {
         'concert.isAdminApproved = :isAdminApproved',
         { isAdminApproved: true },
       );
+      expect(qb.orderBy).toHaveBeenCalledWith('concert.startsAt', 'ASC');
+      expect(qb.addOrderBy).toHaveBeenCalledWith('concert.id', 'ASC');
+      expect(qb.skip).toHaveBeenCalledWith(0);
+      expect(qb.take).toHaveBeenCalledWith(1000);
       expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
       expect(xml).toContain('<loc>https://nido-api-9ed65.web.app/</loc>');
       expect(xml).toContain(
@@ -965,6 +969,65 @@ describe('ConcertService', () => {
         '<loc>https://nido-api-9ed65.web.app/concerts/concert-abc</loc>',
       );
       expect(xml).toContain('<lastmod>2026-09-01T12:00:00.000Z</lastmod>');
+    });
+
+    it('paginates sitemap XML beyond page 1 and omits root URLs on subsequent pages', async () => {
+      const qb = createQueryBuilderMock();
+      concertRepository.createQueryBuilder.mockReturnValue(qb);
+      qb.getMany.mockResolvedValue([
+        {
+          id: 'concert-page-2',
+          startsAt: new Date('2027-01-10T20:00:00.000Z'),
+          updatedAt: new Date('2026-12-01T00:00:00.000Z'),
+        },
+      ]);
+
+      const xml = await service.generatePublicSitemapXml(
+        'https://nido-api-9ed65.web.app',
+        { page: 2, pageSize: 1000 },
+      );
+
+      expect(qb.skip).toHaveBeenCalledWith(1000);
+      expect(qb.take).toHaveBeenCalledWith(1000);
+      expect(xml).not.toContain('<loc>https://nido-api-9ed65.web.app/</loc>');
+      expect(xml).not.toContain(
+        '<loc>https://nido-api-9ed65.web.app/concerts</loc>',
+      );
+      expect(xml).toContain(
+        '<loc>https://nido-api-9ed65.web.app/concerts/concert-page-2</loc>',
+      );
+    });
+
+    it('generates a sitemap index partitioning 2,500 approved concerts across 3 pages', async () => {
+      const qb = createQueryBuilderMock();
+      concertRepository.createQueryBuilder.mockReturnValue(qb);
+      qb.getCount.mockResolvedValue(2500);
+
+      const indexXml = await service.generatePublicSitemapIndexXml(
+        'https://nido-api-9ed65.web.app/',
+        1000,
+      );
+
+      expect(qb.where).toHaveBeenCalledWith(
+        'concert.catalogStatus = :activeCatalogStatus',
+        { activeCatalogStatus: ConcertCatalogStatus.ACTIVE },
+      );
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'concert.isAdminApproved = :isAdminApproved',
+        { isAdminApproved: true },
+      );
+      expect(indexXml).toContain(
+        '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      );
+      expect(indexXml).toContain(
+        '<loc>https://nido-api-9ed65.web.app/sitemap.xml?page=1</loc>',
+      );
+      expect(indexXml).toContain(
+        '<loc>https://nido-api-9ed65.web.app/sitemap.xml?page=2</loc>',
+      );
+      expect(indexXml).toContain(
+        '<loc>https://nido-api-9ed65.web.app/sitemap.xml?page=3</loc>',
+      );
     });
   });
 });
