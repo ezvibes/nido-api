@@ -350,6 +350,7 @@ import {
   uploadIngestionImage,
 } from '../../composables/useApi';
 import { useAuth } from '../../composables/useAuth';
+import { trackDiscoveryEvent } from '../../utils/analytics';
 import { normalizeStateCode } from '../../utils/state';
 import GenreCombobox from '../GenreCombobox.vue';
 
@@ -995,6 +996,10 @@ const handleSubmit = async () => {
   message.value = '';
   job.value = null;
 
+  void trackDiscoveryEvent('concert_submission_started', {
+    source_surface: 'ingestion_upload_panel',
+  });
+
   try {
     const token = await user.value.getIdToken();
     uploadResult.value = await uploadIngestionImage(token, {
@@ -1009,6 +1014,12 @@ const handleSubmit = async () => {
       bandId: bandId.value || undefined,
       ...(ticketUrl.value.trim() ? { ticketUrl: ticketUrl.value.trim() } : {}),
       source: 'flyer_upload',
+    });
+    void trackDiscoveryEvent('concert_submission_completed', {
+      source_surface: 'ingestion_upload_panel',
+      has_venue: Boolean(venueId.value),
+      has_band: Boolean(bandId.value),
+      has_genre: Boolean(genre.value),
     });
     job.value = await createIngestionJob(
       token,

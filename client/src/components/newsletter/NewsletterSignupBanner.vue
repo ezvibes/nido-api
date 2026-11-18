@@ -75,6 +75,10 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { subscribeToNewsletter } from '../../composables/useApi';
+import {
+  resolveNewsletterAttribution,
+  trackDiscoveryEvent,
+} from '../../utils/analytics';
 
 const props = withDefaults(
   defineProps<{
@@ -99,21 +103,37 @@ const handleSubmit = async () => {
 
   submitting.value = true;
   errorMessage.value = '';
+  const attribution = resolveNewsletterAttribution({
+    utmSource: props.utmSource,
+    utmCampaign: props.utmCampaign,
+  });
+  void trackDiscoveryEvent('newsletter_subscribe_attempt', {
+    source_surface: attribution.utmSource,
+    campaign: attribution.utmCampaign,
+  });
   try {
     if (typeof subscribeToNewsletter === 'function') {
       await subscribeToNewsletter({
         email: trimmed,
-        utmSource: props.utmSource,
-        utmMedium: 'organic',
-        utmCampaign: props.utmCampaign,
+        utmSource: attribution.utmSource,
+        utmMedium: attribution.utmMedium,
+        utmCampaign: attribution.utmCampaign,
         ...(website.value.trim() ? { website: website.value.trim() } : {}),
       });
     }
     submitted.value = true;
     email.value = '';
+    void trackDiscoveryEvent('newsletter_subscribe_success', {
+      source_surface: attribution.utmSource,
+      campaign: attribution.utmCampaign,
+    });
   } catch {
     errorMessage.value =
       'Unable to subscribe right now. Please check your email and try again.';
+    void trackDiscoveryEvent('newsletter_subscribe_error', {
+      source_surface: attribution.utmSource,
+      campaign: attribution.utmCampaign,
+    });
   } finally {
     submitting.value = false;
   }
