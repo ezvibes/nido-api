@@ -5,11 +5,18 @@ import {
   Put,
   Delete,
   Param,
+  ParseUUIDPipe,
   Query,
   Body,
+  Req,
   UseGuards,
   HttpCode,
 } from '@nestjs/common';
+import type { Request } from 'express';
+import {
+  extractClientIp,
+  SlidingWindowIpRateLimiter,
+} from '../../common/rate-limit/ip-rate-limiter';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -29,14 +36,28 @@ import { AdminEmailGuard } from '../../auth/guards/admin-email.guard';
 @Controller('venues')
 @ApiTags('Venues')
 export class VenueController {
+  private readonly publicReadRateLimiter = new SlidingWindowIpRateLimiter({
+    windowMs: 60 * 1000,
+    maxAttempts: 120,
+    message: 'Too many venue discovery requests. Please try again later.',
+  });
+
   constructor(private readonly venueService: VenueService) {}
+
+  resetPublicRateLimits(): void {
+    this.publicReadRateLimiter.reset();
+  }
 
   @Get()
   @ApiOperation({
     summary: 'List all venues, optionally filtered by city or region slug',
   })
   @ApiOkResponse({ description: 'List of venues', type: [VenueResponseDto] })
-  async findAll(@Query() query: ListVenuesDto): Promise<Venue[]> {
+  async findAll(
+    @Query() query: ListVenuesDto,
+    @Req() req?: Request,
+  ): Promise<Venue[]> {
+    this.publicReadRateLimiter.enforce(extractClientIp(req));
     if (query.citySlug && !query.regionSlug && !query.verificationState) {
       return this.venueService.findByCity(query.citySlug);
     }
@@ -46,7 +67,11 @@ export class VenueController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a venue by ID' })
   @ApiOkResponse({ description: 'Venue details', type: VenueResponseDto })
-  async findOne(@Param('id') id: string): Promise<Venue> {
+  async findOne(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() req?: Request,
+  ): Promise<Venue> {
+    this.publicReadRateLimiter.enforce(extractClientIp(req));
     return this.venueService.findOne(id);
   }
 

@@ -17,19 +17,29 @@ import {
   Header,
   HttpCode,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import type { DecodedIdToken } from 'firebase-admin/auth';
+import {
+  extractClientIp,
+  SlidingWindowIpRateLimiter,
+} from '../../common/rate-limit/ip-rate-limiter';
 import { FirebaseAuthGuard } from '../../auth/firebase-auth/firebase-auth.guard';
 import { OptionalFirebaseAuthGuard } from '../../auth/firebase-auth/optional-firebase-auth.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { ConcertService } from './concert.service';
 import { CreateConcertDto } from './dto/create-concert.dto';
 import { UpdateConcertDto } from './dto/update-concert.dto';
-import { ListConcertsDto } from './dto/list-concerts.dto';
+import {
+  concertSortOptions,
+  ListConcertsDto,
+} from './dto/list-concerts.dto';
 import { UserService } from '../users/user.service';
 import {
   ConcertEngagementResponseDto,
@@ -38,13 +48,26 @@ import {
 } from './dto/concert-response.dto';
 import { ConcertGenresResponseDto } from './dto/concert-genres-response.dto';
 
+const PUBLIC_READ_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS = 120;
+
 @Controller('concerts')
 @ApiTags('Concerts')
 export class ConcertController {
+  private readonly publicReadRateLimiter = new SlidingWindowIpRateLimiter({
+    windowMs: PUBLIC_READ_RATE_LIMIT_WINDOW_MS,
+    maxAttempts: PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS,
+    message: 'Too many discovery requests. Please try again later.',
+  });
+
   constructor(
     private readonly concertService: ConcertService,
     private readonly userService: UserService,
   ) {}
+
+  resetPublicRateLimits(): void {
+    this.publicReadRateLimiter.reset();
+  }
 
   private async ensureOwner(decodedToken: DecodedIdToken) {
     return this.userService.syncFromToken(decodedToken);
@@ -62,6 +85,16 @@ export class ConcertController {
   @ApiQuery({ name: 'city', required: false, example: 'raleigh' })
   @ApiQuery({ name: 'region', required: false, example: 'nc' })
   @ApiQuery({
+    name: 'venueId',
+    required: false,
+    example: '74c3bcf1-f13e-40d6-bf25-3c27954f5f1e',
+  })
+  @ApiQuery({
+    name: 'bandId',
+    required: false,
+    example: 'a91f4d62-4e82-47d2-b78c-1f542d4f0a21',
+  })
+  @ApiQuery({
     name: 'startsAfter',
     required: false,
     example: '2026-06-01T00:00:00.000Z',
@@ -74,7 +107,7 @@ export class ConcertController {
   @ApiQuery({
     name: 'sort',
     required: false,
-    enum: ['soonest', 'featured', 'top_picks', 'trending_week'],
+    enum: concertSortOptions,
     example: 'soonest',
   })
   @ApiQuery({ name: 'page', required: false, example: 1 })
@@ -83,7 +116,9 @@ export class ConcertController {
   async listConcerts(
     @CurrentUser() user: DecodedIdToken | undefined,
     @Query() query: ListConcertsDto,
+    @Req() req?: Request,
   ) {
+    this.publicReadRateLimiter.enforce(extractClientIp(req));
     const currentUser = user
       ? await this.userService.findExistingFromToken(user)
       : null;
@@ -103,6 +138,16 @@ export class ConcertController {
   @ApiQuery({ name: 'city', required: false, example: 'raleigh' })
   @ApiQuery({ name: 'region', required: false, example: 'nc' })
   @ApiQuery({
+    name: 'venueId',
+    required: false,
+    example: '74c3bcf1-f13e-40d6-bf25-3c27954f5f1e',
+  })
+  @ApiQuery({
+    name: 'bandId',
+    required: false,
+    example: 'a91f4d62-4e82-47d2-b78c-1f542d4f0a21',
+  })
+  @ApiQuery({
     name: 'startsAfter',
     required: false,
     example: '2026-06-01T00:00:00.000Z',
@@ -115,7 +160,7 @@ export class ConcertController {
   @ApiQuery({
     name: 'sort',
     required: false,
-    enum: ['soonest', 'featured', 'top_picks', 'trending_week'],
+    enum: concertSortOptions,
     example: 'soonest',
   })
   @ApiQuery({ name: 'page', required: false, example: 1 })
@@ -182,7 +227,8 @@ export class ConcertController {
       'Returns active controlled genre options for upload, admin, discovery, newsletter, and future OCR selectors. The legacy genres array is preserved for existing clients; options includes stable slugs for new clients. Public endpoint; does not require authentication and does not synchronize or look up a user. Example: GET /concerts/meta/genres.',
   })
   @ApiOkResponse({ type: ConcertGenresResponseDto })
-  async getAvailableGenres() {
+  async getAvailableGenres(@Req() req?: Request) {
+    this.publicReadRateLimiter.enforce(extractClientIp(req));
     const options = await this.concertService.findAvailableGenres();
     return {
       genres: options.map((genre) => genre.name),
@@ -197,7 +243,11 @@ export class ConcertController {
     summary: 'Public XML sitemap of active, admin-approved concerts',
   })
   @ApiQuery({ name: 'page', required: false, example: 1 })
-  async getPublicSitemap(@Query('page') page?: string): Promise<string> {
+  async getPublicSitemap(
+    @Query('page') page?: string,
+    @Req() req?: Request,
+  ): Promise<string> {
+    this.publicReadRateLimiter.enforce(extractClientIp(req));
     const parsedPage = page ? Number.parseInt(page, 10) : 1;
     return this.concertService.generatePublicSitemapXml(undefined, {
       page: Number.isNaN(parsedPage) ? 1 : parsedPage,
@@ -211,7 +261,8 @@ export class ConcertController {
     summary:
       'Public XML sitemap index partitioning active, admin-approved concerts across 1,000-URL pages',
   })
-  async getPublicSitemapIndex(): Promise<string> {
+  async getPublicSitemapIndex(@Req() req?: Request): Promise<string> {
+    this.publicReadRateLimiter.enforce(extractClientIp(req));
     return this.concertService.generatePublicSitemapIndexXml();
   }
 
@@ -224,8 +275,10 @@ export class ConcertController {
   @ApiOkResponse({ type: ConcertResponseDto })
   async getConcert(
     @CurrentUser() user: DecodedIdToken | undefined,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() req?: Request,
   ) {
+    this.publicReadRateLimiter.enforce(extractClientIp(req));
     const currentUser = user
       ? await this.userService.findExistingFromToken(user)
       : null;
@@ -267,7 +320,17 @@ export class ConcertController {
 @Controller()
 @ApiTags('Concerts')
 export class SitemapController {
+  private readonly publicReadRateLimiter = new SlidingWindowIpRateLimiter({
+    windowMs: PUBLIC_READ_RATE_LIMIT_WINDOW_MS,
+    maxAttempts: PUBLIC_READ_RATE_LIMIT_MAX_REQUESTS,
+    message: 'Too many sitemap requests. Please try again later.',
+  });
+
   constructor(private readonly concertService: ConcertService) {}
+
+  resetPublicRateLimits(): void {
+    this.publicReadRateLimiter.reset();
+  }
 
   @Get('sitemap.xml')
   @Header('Content-Type', 'application/xml; charset=utf-8')
@@ -276,7 +339,11 @@ export class SitemapController {
     summary: 'Root XML sitemap of active, admin-approved concerts',
   })
   @ApiQuery({ name: 'page', required: false, example: 1 })
-  async getRootSitemap(@Query('page') page?: string): Promise<string> {
+  async getRootSitemap(
+    @Query('page') page?: string,
+    @Req() req?: Request,
+  ): Promise<string> {
+    this.publicReadRateLimiter.enforce(extractClientIp(req));
     const parsedPage = page ? Number.parseInt(page, 10) : 1;
     return this.concertService.generatePublicSitemapXml(undefined, {
       page: Number.isNaN(parsedPage) ? 1 : parsedPage,
@@ -290,7 +357,8 @@ export class SitemapController {
     summary:
       'Root XML sitemap index partitioning active, admin-approved concerts across 1,000-URL pages',
   })
-  async getRootSitemapIndex(): Promise<string> {
+  async getRootSitemapIndex(@Req() req?: Request): Promise<string> {
+    this.publicReadRateLimiter.enforce(extractClientIp(req));
     return this.concertService.generatePublicSitemapIndexXml();
   }
 }

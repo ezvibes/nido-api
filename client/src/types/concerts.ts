@@ -60,8 +60,8 @@ export interface ConcertApiItem {
   trendingWeekUpvotes?: number;
   syncSource?: {
     source: 'google_calendar';
-    calendarId: string;
-    calendarEventId: string;
+    calendarId?: string;
+    calendarEventId?: string;
     lastSyncedAt?: string | null;
     needsGuidance?: boolean;
   } | null;

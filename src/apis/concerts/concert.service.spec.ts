@@ -1093,4 +1093,89 @@ describe('ConcertService', () => {
       );
     });
   });
+
+  describe('NIDO-002.4 venue/artist schedules and public metadata boundary', () => {
+    it('filters GET /concerts by venueId and bandId using subquery lineup matching', async () => {
+      const qb = createQueryBuilderMock();
+      concertRepository.createQueryBuilder.mockReturnValue(qb);
+      qb.getCount.mockResolvedValue(0);
+      qb.getRawAndEntities.mockResolvedValue({ entities: [], raw: [] });
+
+      await service.findAll({
+        venueId: '74c3bcf1-f13e-40d6-bf25-3c27954f5f1e',
+        bandId: 'a91f4d62-4e82-47d2-b78c-1f542d4f0a21',
+        page: 1,
+        pageSize: 20,
+      });
+
+      expect(qb.andWhere).toHaveBeenCalledWith('concert.venueId = :venueId', {
+        venueId: '74c3bcf1-f13e-40d6-bf25-3c27954f5f1e',
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('concert_band_lineups'),
+        {
+          bandId: 'a91f4d62-4e82-47d2-b78c-1f542d4f0a21',
+        },
+      );
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('concert_sets'),
+        {
+          bandId: 'a91f4d62-4e82-47d2-b78c-1f542d4f0a21',
+        },
+      );
+    });
+
+    it('strips adminApprovedByUserId and internal syncSource calendar fields from public GET /concerts responses', async () => {
+      const qb = createQueryBuilderMock();
+      concertRepository.createQueryBuilder.mockReturnValue(qb);
+      qb.getCount.mockResolvedValue(1);
+      qb.getRawAndEntities.mockResolvedValue({
+        entities: [
+          {
+            id: 'concert-public-1',
+            title: 'Public Synced Show',
+            genre: 'Bluegrass',
+            startsAt: new Date('2026-08-20T23:00:00.000Z'),
+            updatedAt: new Date('2026-08-01T12:00:00.000Z'),
+            catalogStatus: ConcertCatalogStatus.ACTIVE,
+            editorialLockedAt: new Date('2026-08-01T10:00:00.000Z'),
+            version: 4,
+            isAdminApproved: true,
+            adminApprovedAt: new Date('2026-08-01T11:00:00.000Z'),
+            adminApprovedByUserId: 42,
+            venue: null,
+            lineup: [],
+            sets: [],
+          },
+        ],
+        raw: [
+          {
+            concert_id: 'concert-public-1',
+            upvote_count: '2',
+            upvoted_by_me_count: '0',
+            trending_week_upvotes: '1',
+            sync_calendar_id: 'ezvibesinc@gmail.com',
+            sync_calendar_event_id: 'gcal-evt-secret-123',
+            sync_last_synced_at: '2026-08-01T11:30:00.000Z',
+            sync_needs_guidance: true,
+          },
+        ],
+      });
+
+      const response = await service.findAll({ page: 1, pageSize: 20 });
+      const item = response.data[0] as Record<string, unknown>;
+
+      expect(item).not.toHaveProperty('catalogStatus');
+      expect(item).not.toHaveProperty('editorialLockedAt');
+      expect(item).not.toHaveProperty('version');
+      expect(item).not.toHaveProperty('adminApprovedByUserId');
+      expect(item.syncSource).toEqual({
+        source: 'google_calendar',
+        lastSyncedAt: new Date('2026-08-01T11:30:00.000Z'),
+      });
+      expect(item.syncSource).not.toHaveProperty('calendarId');
+      expect(item.syncSource).not.toHaveProperty('calendarEventId');
+      expect(item.syncSource).not.toHaveProperty('needsGuidance');
+    });
+  });
 });
