@@ -34,3 +34,4 @@ export * from './extraction.contract';
 export * from './worker-payload.contract';
 export * from './newsletter.contract';
 export * from './gemini-schema.adapter';
+export * from './mcp-discovery.contract';

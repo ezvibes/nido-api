@@ -14,6 +14,15 @@ import {
   toCuratedNewsletterCard,
   toGeminiJsonSchema,
   GEMINI_SCHEMA_ADAPTER_VERSION,
+  MCP_DISCOVERY_POLICY,
+  MCP_DISCOVERY_CANDIDATE_TOOLS,
+  SearchConcertsMcpToolInputSchema,
+  GetConcertDetailsMcpToolInputSchema,
+  GetVenueScheduleMcpToolInputSchema,
+  GetArtistShowsMcpToolInputSchema,
+  assertMcpPublicationGate,
+  sanitizeMcpConcertSummary,
+  McpPublicationGateViolationError,
 } from '../../src/contracts';
 
 describe('Centralized Runtime Contract Matrix', () => {
@@ -575,6 +584,189 @@ describe('Centralized Runtime Contract Matrix', () => {
 
     it('reports the correct version', () => {
       expect(GEMINI_SCHEMA_ADAPTER_VERSION).toBe('1.0.0');
+    });
+  });
+
+  describe('NIDO-002.5: Minimal Read-Only MCP Candidate Contract & Security Boundary', () => {
+    describe('Tool Input Schemas & Pagination Bounds', () => {
+      it('validates search_concerts with default pagination and capped limit', () => {
+        const defaultParsed = SearchConcertsMcpToolInputSchema.parse({});
+        expect(defaultParsed.page).toBe(1);
+        expect(defaultParsed.limit).toBe(
+          MCP_DISCOVERY_POLICY.DEFAULT_PAGE_SIZE,
+        );
+
+        const customParsed = SearchConcertsMcpToolInputSchema.parse({
+          query: 'indie',
+          city: 'raleigh',
+          limit: 50,
+          page: 2,
+        });
+        expect(customParsed.city).toBe('raleigh');
+        expect(customParsed.limit).toBe(50);
+
+        // Rejects limits above the max pagination cap
+        expect(() =>
+          SearchConcertsMcpToolInputSchema.parse({ limit: 51 }),
+        ).toThrow(/Limit capped at 50/);
+
+        // Rejects negative or zero pages
+        expect(() =>
+          SearchConcertsMcpToolInputSchema.parse({ page: 0 }),
+        ).toThrow(/Page must be at least 1/);
+      });
+
+      it('validates get_concert_details with strict UUID check', () => {
+        const validId = '123e4567-e89b-12d3-a456-426614174000';
+        const parsed = GetConcertDetailsMcpToolInputSchema.parse({
+          concertId: validId,
+        });
+        expect(parsed.concertId).toBe(validId);
+
+        expect(() =>
+          GetConcertDetailsMcpToolInputSchema.parse({
+            concertId: 'not-a-uuid',
+          }),
+        ).toThrow(/concertId must be a valid UUID/);
+      });
+
+      it('validates get_venue_schedule with UUID and date bounds', () => {
+        const validVenueId = '223e4567-e89b-12d3-a456-426614174111';
+        const parsed = GetVenueScheduleMcpToolInputSchema.parse({
+          venueId: validVenueId,
+          startsAfter: '2026-11-20T20:00:00Z',
+          limit: 25,
+        });
+        expect(parsed.venueId).toBe(validVenueId);
+        expect(parsed.limit).toBe(25);
+
+        expect(() =>
+          GetVenueScheduleMcpToolInputSchema.parse({ venueId: 'invalid' }),
+        ).toThrow(/venueId must be a valid UUID/);
+
+        expect(() =>
+          GetVenueScheduleMcpToolInputSchema.parse({
+            venueId: validVenueId,
+            limit: 51,
+          }),
+        ).toThrow(/Limit capped at 50/);
+      });
+
+      it('validates get_artist_shows requiring at least bandId or bandSlug', () => {
+        const withId = GetArtistShowsMcpToolInputSchema.parse({
+          bandId: '323e4567-e89b-12d3-a456-426614174222',
+        });
+        expect(withId.bandId).toBe('323e4567-e89b-12d3-a456-426614174222');
+
+        const withSlug = GetArtistShowsMcpToolInputSchema.parse({
+          bandSlug: 'wednesday',
+        });
+        expect(withSlug.bandSlug).toBe('wednesday');
+
+        expect(() => GetArtistShowsMcpToolInputSchema.parse({})).toThrow(
+          /Either bandId or bandSlug must be provided/,
+        );
+      });
+    });
+
+    describe('Security Gate & Non-Leakage Sanitization Invariants', () => {
+      it('assertMcpPublicationGate strictly enforces catalogStatus active and isAdminApproved true', () => {
+        expect(() =>
+          assertMcpPublicationGate({
+            catalogStatus: 'active',
+            isAdminApproved: true,
+          }),
+        ).not.toThrow();
+
+        // Rejects unapproved concert
+        expect(() =>
+          assertMcpPublicationGate({
+            catalogStatus: 'active',
+            isAdminApproved: false,
+          }),
+        ).toThrow(McpPublicationGateViolationError);
+
+        // Rejects hidden concert
+        expect(() =>
+          assertMcpPublicationGate({
+            catalogStatus: 'hidden',
+            isAdminApproved: true,
+          }),
+        ).toThrow(McpPublicationGateViolationError);
+
+        // Rejects archived concert
+        expect(() =>
+          assertMcpPublicationGate({
+            catalogStatus: 'archived',
+            isAdminApproved: true,
+          }),
+        ).toThrow(McpPublicationGateViolationError);
+      });
+
+      it('sanitizeMcpConcertSummary enforces zero private/admin/pending leakage', () => {
+        const rawConcertWithSensitiveMetadata = {
+          id: '423e4567-e89b-12d3-a456-426614174333',
+          title: 'Direct Shot Live at Cradle',
+          catalogStatus: 'active',
+          isAdminApproved: true,
+          // Internal sensitive fields that must NEVER leak to assistant tools:
+          adminApprovedByUserId: 'usr_secret_reviewer_99',
+          editorialLockedAt: new Date(),
+          version: 4,
+          syncSource: {
+            source: 'google_calendar',
+            calendarId: 'private-cal-internal@example.com',
+            calendarEventId: 'evt_secret_gcal_12345',
+            needsGuidance: false,
+          },
+          ingestionUploadId: 'upl_raw_poster_001',
+          startsAt: '2026-12-05T21:00:00.000Z',
+          venue: {
+            id: '523e4567-e89b-12d3-a456-426614174444',
+            name: "Cat's Cradle",
+            city: 'Carrboro',
+            region: 'NC',
+          },
+          genre: 'Garage Rock',
+        };
+
+        const sanitized = sanitizeMcpConcertSummary(
+          rawConcertWithSensitiveMetadata,
+        );
+
+        expect(sanitized.id).toBe(rawConcertWithSensitiveMetadata.id);
+        expect(sanitized.title).toBe(rawConcertWithSensitiveMetadata.title);
+        expect(sanitized.venue.name).toBe("Cat's Cradle");
+        expect(sanitized.genre).toBe('Garage Rock');
+
+        // Zero leakage verification
+        expect((sanitized as any).adminApprovedByUserId).toBeUndefined();
+        expect((sanitized as any).editorialLockedAt).toBeUndefined();
+        expect((sanitized as any).version).toBeUndefined();
+        expect((sanitized as any).syncSource).toBeUndefined();
+        expect((sanitized as any).calendarId).toBeUndefined();
+        expect((sanitized as any).ingestionUploadId).toBeUndefined();
+      });
+    });
+
+    describe('Candidate Tool Registry', () => {
+      it('declares exactly the four candidate read-only tools with metadata', () => {
+        expect(MCP_DISCOVERY_CANDIDATE_TOOLS).toHaveLength(4);
+        const names = MCP_DISCOVERY_CANDIDATE_TOOLS.map((t) => t.name);
+        expect(names).toEqual([
+          'search_concerts',
+          'get_concert_details',
+          'get_venue_schedule',
+          'get_artist_shows',
+        ]);
+
+        for (const tool of MCP_DISCOVERY_CANDIDATE_TOOLS) {
+          expect(tool.readOnly).toBe(true);
+          expect(typeof tool.description).toBe('string');
+          expect(tool.description.length).toBeGreaterThan(10);
+          expect(tool.inputSchema).toBeDefined();
+        }
+      });
     });
   });
 });
