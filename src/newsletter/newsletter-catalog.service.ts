@@ -123,6 +123,17 @@ export class NewsletterCatalogService {
   async findApprovedConcerts(
     query: ApprovedNewsletterConcertQuery,
   ): Promise<NewsletterCatalogConcert[]> {
+    const concerts = await this.findApprovedConcertEntities(query);
+    return concerts.map((concert) => this.toNewsletterSource(concert));
+  }
+
+  /**
+   * Returns canonical active, admin-approved Concert entities with venue and
+   * lineup/band relations loaded for downstream editorial brief generation.
+   */
+  async findApprovedConcertEntities(
+    query: ApprovedNewsletterConcertQuery,
+  ): Promise<Concert[]> {
     this.validateQuery(query);
 
     const resultScope = query.limit ? `up to ${query.limit}` : 'all';
@@ -130,14 +141,12 @@ export class NewsletterCatalogService {
       `Fetching ${resultScope} active approved concerts between ${query.start.toISOString()} and ${query.end.toISOString()}...`,
     );
 
-    const concerts = await this.concertRepository.find({
+    return this.concertRepository.find({
       where: this.buildWhere(query),
       relations: ['venue', 'lineup', 'lineup.band'],
       order: { startsAt: 'ASC' },
       take: query.limit,
     });
-
-    return concerts.map((concert) => this.toNewsletterSource(concert));
   }
 
   private validateQuery(query: ApprovedNewsletterConcertQuery): void {

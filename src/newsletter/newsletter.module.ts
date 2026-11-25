@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Concert } from '../apis/concerts/entities/concert.entity';
 import { ConcertBandLineup } from '../apis/concerts/entities/concert-band-lineup.entity';
 import { Band } from '../apis/bands/entities/band.entity';
+import { ConcertUpload } from '../ingestion/entities/concert-upload.entity';
 import { NewsletterController } from './newsletter.controller';
 import { NewsletterService } from './newsletter.service';
 import { NewsletterCatalogService } from './newsletter-catalog.service';
@@ -15,12 +16,19 @@ import { NewsletterCoBillService } from './newsletter-co-bill.service';
 import { NewsletterDistributionAuditorService } from './newsletter-distribution-auditor.service';
 import { NewsletterLineupHarvesterService } from './newsletter-lineup-harvester.service';
 import { NewsletterFeedbackLoopService } from './newsletter-feedback-loop.service';
+import { WeeklyContentBriefService } from './weekly-content-brief.service';
 import { AgentSession } from '../apis/agents/entities/agent-session.entity';
 import { TypeOrmSessionService } from '../apis/agents/session/typeorm-session.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Concert, ConcertBandLineup, AgentSession, Band]),
+    TypeOrmModule.forFeature([
+      Concert,
+      ConcertBandLineup,
+      AgentSession,
+      Band,
+      ConcertUpload,
+    ]),
     AuthModule,
   ],
   controllers: [NewsletterController],
@@ -35,6 +43,7 @@ import { TypeOrmSessionService } from '../apis/agents/session/typeorm-session.se
     NewsletterDistributionAuditorService,
     NewsletterLineupHarvesterService,
     NewsletterFeedbackLoopService,
+    WeeklyContentBriefService,
     TypeOrmSessionService,
   ],
   exports: [
@@ -48,6 +57,7 @@ import { TypeOrmSessionService } from '../apis/agents/session/typeorm-session.se
     NewsletterDistributionAuditorService,
     NewsletterLineupHarvesterService,
     NewsletterFeedbackLoopService,
+    WeeklyContentBriefService,
     TypeOrmSessionService,
   ],
 })
