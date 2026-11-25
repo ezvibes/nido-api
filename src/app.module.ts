@@ -13,6 +13,7 @@ import { HealthModule } from './health/health.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
 import { GcpLoggingModule } from './common/logging/gcp-logging.module';
 import { AgentModule } from './apis/agents/agent.module';
+import { InstagramModule } from './instagram/instagram.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { AgentModule } from './apis/agents/agent.module';
     HealthModule,
     NewsletterModule,
     AgentModule,
+    InstagramModule,
     GcpLoggingModule,
   ],
   controllers: [],
