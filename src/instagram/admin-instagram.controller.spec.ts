@@ -18,11 +18,7 @@ describe('AdminInstagramController', () => {
       instagramUserId: '17841400000001',
       username: 'ezvibesnc',
       accountType: 'BUSINESS',
-      scopes: [
-        'instagram_basic',
-        'pages_show_list',
-        'pages_read_engagement',
-      ],
+      scopes: ['instagram_basic', 'pages_show_list', 'pages_read_engagement'],
       tokenExpiresAt: '2026-12-25T00:00:00.000Z',
       lastRefreshedAt: '2026-11-25T00:00:00.000Z',
       connectedAt: '2026-11-25T00:00:00.000Z',
@@ -41,11 +37,7 @@ describe('AdminInstagramController', () => {
       instagramUserId: '17841400000001',
       username: 'ezvibesnc',
       accountType: 'BUSINESS',
-      scopes: [
-        'instagram_basic',
-        'pages_show_list',
-        'pages_read_engagement',
-      ],
+      scopes: ['instagram_basic', 'pages_show_list', 'pages_read_engagement'],
       tokenExpiresAt: '2026-12-25T00:00:00.000Z',
       lastRefreshedAt: '2026-11-25T00:00:00.000Z',
       connectedAt: '2026-11-25T00:00:00.000Z',
@@ -102,12 +94,27 @@ describe('AdminInstagramController', () => {
     controller = module.get<AdminInstagramController>(AdminInstagramController);
   });
 
-  it('enforces FirebaseAuthGuard and AdminEmailGuard at controller level', () => {
-    const guards = Reflect.getMetadata(
+  it('enforces FirebaseAuthGuard and AdminEmailGuard on admin endpoints while allowing signed-state oauth/callback redirects', () => {
+    const protectedMethods: Array<keyof AdminInstagramController> = [
+      'getStatus',
+      'startOAuth',
+      'disconnect',
+      'listMedia',
+      'getMediaInsights',
+    ];
+    for (const method of protectedMethods) {
+      const guards = Reflect.getMetadata(
+        GUARDS_METADATA,
+        AdminInstagramController.prototype[method],
+      );
+      expect(guards).toEqual([FirebaseAuthGuard, AdminEmailGuard]);
+    }
+
+    const callbackGuards = Reflect.getMetadata(
       GUARDS_METADATA,
-      AdminInstagramController,
+      AdminInstagramController.prototype.oauthCallback,
     );
-    expect(guards).toEqual([FirebaseAuthGuard, AdminEmailGuard]);
+    expect(callbackGuards).toBeUndefined();
   });
 
   it('delegates status, oauth/start, oauth/callback, disconnect, media, and insights', async () => {

@@ -32,8 +32,6 @@ import { InstagramMediaService } from './instagram-media.service';
 
 @Controller('admin/instagram')
 @ApiTags('Admin Instagram')
-@UseGuards(FirebaseAuthGuard, AdminEmailGuard)
-@ApiBearerAuth()
 export class AdminInstagramController {
   constructor(
     private readonly instagramAuthService: InstagramAuthService,
@@ -41,6 +39,8 @@ export class AdminInstagramController {
   ) {}
 
   @Get('status')
+  @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get sanitized Instagram Business connection status (Admin only)',
   })
@@ -49,20 +49,20 @@ export class AdminInstagramController {
   }
 
   @Get('oauth/start')
+  @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary:
       'Generate Instagram Business Login OAuth URL with signed CSRF state (Admin only)',
   })
-  startOAuth(
-    @CurrentUser() user?: DecodedIdToken,
-  ): InstagramAuthorizeResult {
+  startOAuth(@CurrentUser() user?: DecodedIdToken): InstagramAuthorizeResult {
     return this.instagramAuthService.buildAuthorizeUrl(user?.email);
   }
 
   @Get('oauth/callback')
   @ApiOperation({
     summary:
-      'Handle Instagram Business Login OAuth callback and persist encrypted long-lived token (Admin only)',
+      'Handle Meta OAuth browser redirect callback (authenticated via signed CSRF state) and persist encrypted long-lived token',
   })
   @ApiQuery({ name: 'code', required: true, type: String })
   @ApiQuery({ name: 'state', required: true, type: String })
@@ -79,6 +79,8 @@ export class AdminInstagramController {
   }
 
   @Post('disconnect')
+  @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -89,6 +91,8 @@ export class AdminInstagramController {
   }
 
   @Get('media')
+  @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary:
       'List own Instagram Business media items, bounded to limit <= 25 (Admin only)',
@@ -102,13 +106,13 @@ export class AdminInstagramController {
   }
 
   @Get('media/:id/insights')
+  @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary:
       'Fetch read-only insights for an Instagram media item (Admin only)',
   })
-  async getMediaInsights(
-    @Param('id') id: string,
-  ): Promise<InstagramInsights> {
+  async getMediaInsights(@Param('id') id: string): Promise<InstagramInsights> {
     return this.instagramMediaService.getMediaInsights(id);
   }
 }
