@@ -14,12 +14,15 @@ describe('AdminInstagramController', () => {
     getStatus: jest.fn(async () => ({
       connected: true,
       status: 'connected',
+      authMethod: 'facebook_login',
       instagramUserId: '17841400000001',
       username: 'ezvibesnc',
       accountType: 'BUSINESS',
       scopes: [
-        'instagram_business_basic',
-        'instagram_business_manage_insights',
+        'instagram_basic',
+        'instagram_manage_insights',
+        'pages_show_list',
+        'pages_read_engagement',
       ],
       tokenExpiresAt: '2026-12-25T00:00:00.000Z',
       lastRefreshedAt: '2026-11-25T00:00:00.000Z',
@@ -28,19 +31,22 @@ describe('AdminInstagramController', () => {
     })),
     buildAuthorizeUrl: jest.fn(() => ({
       authorizeUrl:
-        'https://api.instagram.com/oauth/authorize?client_id=123&state=abc',
+        'https://www.facebook.com/v21.0/dialog/oauth?client_id=123&state=abc',
       state: 'abc',
       expiresAt: '2026-11-25T00:10:00.000Z',
     })),
     handleOAuthCallback: jest.fn(async () => ({
       connected: true,
       status: 'connected',
+      authMethod: 'facebook_login',
       instagramUserId: '17841400000001',
       username: 'ezvibesnc',
       accountType: 'BUSINESS',
       scopes: [
-        'instagram_business_basic',
-        'instagram_business_manage_insights',
+        'instagram_basic',
+        'instagram_manage_insights',
+        'pages_show_list',
+        'pages_read_engagement',
       ],
       tokenExpiresAt: '2026-12-25T00:00:00.000Z',
       lastRefreshedAt: '2026-11-25T00:00:00.000Z',
@@ -50,10 +56,11 @@ describe('AdminInstagramController', () => {
     disconnect: jest.fn(async () => ({
       connected: false,
       status: 'revoked',
+      authMethod: 'facebook_login',
       instagramUserId: '17841400000001',
       username: 'ezvibesnc',
       accountType: 'BUSINESS',
-      scopes: ['instagram_business_basic'],
+      scopes: ['instagram_basic'],
       tokenExpiresAt: '2026-12-25T00:00:00.000Z',
       lastRefreshedAt: '2026-11-25T00:00:00.000Z',
       connectedAt: '2026-11-25T00:00:00.000Z',
@@ -111,7 +118,7 @@ describe('AdminInstagramController', () => {
     expect((status as any).accessToken).toBeUndefined();
 
     const start = controller.startOAuth({ email: 'admin@example.com' } as any);
-    expect(start.authorizeUrl).toContain('api.instagram.com/oauth/authorize');
+    expect(start.authorizeUrl).toContain('facebook.com/v21.0/dialog/oauth');
     expect(mockAuthService.buildAuthorizeUrl).toHaveBeenCalledWith(
       'admin@example.com',
     );
@@ -135,9 +142,9 @@ describe('AdminInstagramController', () => {
   });
 
   it('rejects oauth/callback when code or state is missing', async () => {
-    await expect(controller.oauthCallback(undefined, 'state-1')).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(
+      controller.oauthCallback(undefined, 'state-1'),
+    ).rejects.toThrow(BadRequestException);
     await expect(controller.oauthCallback('code-1', undefined)).rejects.toThrow(
       BadRequestException,
     );

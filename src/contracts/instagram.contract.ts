@@ -1,9 +1,18 @@
 import { z } from 'zod';
 
 export const INSTAGRAM_REQUIRED_SCOPES = [
-  'instagram_business_basic',
-  'instagram_business_manage_insights',
+  'instagram_basic',
+  'instagram_manage_insights',
+  'pages_show_list',
+  'pages_read_engagement',
 ] as const;
+
+export const InstagramAuthMethodSchema = z.enum([
+  'facebook_login',
+  'instagram_login',
+]);
+
+export type InstagramAuthMethod = z.infer<typeof InstagramAuthMethodSchema>;
 
 export const InstagramConnectionStateSchema = z.enum([
   'connected',
@@ -23,6 +32,7 @@ export type InstagramConnectionState = z.infer<
 export const InstagramConnectionStatusSchema = z.object({
   connected: z.boolean(),
   status: InstagramConnectionStateSchema,
+  authMethod: InstagramAuthMethodSchema.default('facebook_login'),
   instagramUserId: z.string().min(1).nullable(),
   username: z.string().min(1).nullable(),
   accountType: z.string().min(1).nullable(),

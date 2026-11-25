@@ -8,6 +8,7 @@ export class CreateInstagramConnections1760000023000 implements MigrationInterfa
       CREATE TABLE IF NOT EXISTS "instagram_connections" (
         "id" uuid NOT NULL DEFAULT gen_random_uuid(),
         "instagram_user_id" varchar(128) NOT NULL,
+        "auth_method" varchar(32) NOT NULL DEFAULT 'facebook_login',
         "username" varchar(128) NULL,
         "account_type" varchar(64) NULL,
         "scopes" jsonb NOT NULL DEFAULT '[]'::jsonb,

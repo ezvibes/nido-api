@@ -13,7 +13,7 @@ import {
 } from '../contracts/instagram.contract';
 import { InstagramAuthService } from './instagram-auth.service';
 
-const INSTAGRAM_GRAPH_BASE_URL = 'https://graph.instagram.com';
+const FACEBOOK_GRAPH_BASE_URL = 'https://graph.facebook.com/v21.0';
 const MAX_MEDIA_LIMIT = 25;
 const DEFAULT_MEDIA_LIMIT = 10;
 
@@ -63,13 +63,15 @@ export class InstagramMediaService {
   /**
    * Lists the connected Instagram Business account's own media, bounded to <= 25 items.
    */
-  async listOwnMedia(limit = DEFAULT_MEDIA_LIMIT): Promise<InstagramMediaItem[]> {
+  async listOwnMedia(
+    limit = DEFAULT_MEDIA_LIMIT,
+  ): Promise<InstagramMediaItem[]> {
     const numericLimit = Number(limit);
     const boundedLimit = Number.isFinite(numericLimit)
       ? Math.min(Math.max(Math.trunc(numericLimit), 1), MAX_MEDIA_LIMIT)
       : DEFAULT_MEDIA_LIMIT;
 
-    const { accessToken } =
+    const { accessToken, instagramUserId } =
       await this.instagramAuthService.getValidAccessToken();
 
     const params = new URLSearchParams({
@@ -79,8 +81,10 @@ export class InstagramMediaService {
       access_token: accessToken,
     });
 
-    const response = await this.fetchGraphJson<{ data?: Array<Record<string, any>> }>(
-      `${INSTAGRAM_GRAPH_BASE_URL}/me/media?${params.toString()}`,
+    const response = await this.fetchGraphJson<{
+      data?: Array<Record<string, any>>;
+    }>(
+      `${FACEBOOK_GRAPH_BASE_URL}/${encodeURIComponent(instagramUserId)}/media?${params.toString()}`,
       'list own media',
     );
 
@@ -94,8 +98,7 @@ export class InstagramMediaService {
         thumbnailUrl: item.thumbnail_url ?? null,
         permalink: item.permalink ?? null,
         timestamp: item.timestamp ?? null,
-        likeCount:
-          typeof item.like_count === 'number' ? item.like_count : null,
+        likeCount: typeof item.like_count === 'number' ? item.like_count : null,
         commentsCount:
           typeof item.comments_count === 'number' ? item.comments_count : null,
       }),
@@ -112,7 +115,7 @@ export class InstagramMediaService {
       throw new BadRequestException('Media ID is required.');
     }
 
-    const { accessToken } =
+    const { accessToken, instagramUserId } =
       await this.instagramAuthService.getValidAccessToken();
 
     const mediaParams = new URLSearchParams({
@@ -124,7 +127,7 @@ export class InstagramMediaService {
       id?: string;
       media_type?: string;
     }>(
-      `${INSTAGRAM_GRAPH_BASE_URL}/${encodeURIComponent(trimmedId)}?${mediaParams.toString()}`,
+      `${FACEBOOK_GRAPH_BASE_URL}/${encodeURIComponent(trimmedId)}?${mediaParams.toString()}`,
       'fetch media metadata',
     );
 
@@ -133,7 +136,7 @@ export class InstagramMediaService {
       access_token: accessToken,
     });
 
-    const insightsUrl = `${INSTAGRAM_GRAPH_BASE_URL}/${encodeURIComponent(trimmedId)}/insights?${insightsParams.toString()}`;
+    const insightsUrl = `${FACEBOOK_GRAPH_BASE_URL}/${encodeURIComponent(trimmedId)}/insights?${insightsParams.toString()}`;
 
     const metricsResult: Record<
       keyof typeof METRIC_TO_FIELD_MAP,
@@ -179,7 +182,11 @@ export class InstagramMediaService {
           continue;
         }
         const rawValue = entry?.values?.[0]?.value;
-        if (typeof rawValue === 'number' && Number.isFinite(rawValue) && rawValue >= 0) {
+        if (
+          typeof rawValue === 'number' &&
+          Number.isFinite(rawValue) &&
+          rawValue >= 0
+        ) {
           metricsResult[name] = rawValue;
         }
       }
@@ -226,7 +233,10 @@ export class InstagramMediaService {
     );
   }
 
-  private async safeFetch(url: string, contextLabel: string): Promise<Response> {
+  private async safeFetch(
+    url: string,
+    contextLabel: string,
+  ): Promise<Response> {
     try {
       return await globalThis.fetch(url, { method: 'GET' });
     } catch {

@@ -7,6 +7,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { InstagramAuthMethod } from '../../contracts/instagram.contract';
+
 export type InstagramConnectionEntityStatus =
   | 'connected'
   | 'revoked'
@@ -24,6 +26,14 @@ export class InstagramConnection {
     unique: true,
   })
   instagramUserId: string;
+
+  @Column({
+    name: 'auth_method',
+    type: 'varchar',
+    length: 32,
+    default: 'facebook_login',
+  })
+  authMethod: InstagramAuthMethod;
 
   @Column({ type: 'varchar', length: 128, nullable: true })
   username?: string | null;

@@ -9,7 +9,7 @@ describe('InstagramMediaService', () => {
 
   const mockAuthService = {
     getValidAccessToken: jest.fn(async () => ({
-      accessToken: 'IG_VALID_SECRET_TOKEN',
+      accessToken: 'FB_VALID_SECRET_TOKEN',
       instagramUserId: '17841400000001',
       connectionId: 'conn-uuid-1',
     })),
@@ -36,7 +36,7 @@ describe('InstagramMediaService', () => {
   });
 
   describe('listOwnMedia', () => {
-    it('bounds limit to <= 25 and normalizes media items', async () => {
+    it('queries graph.facebook.com/v21.0/{igUserId}/media, bounds limit to <= 25, and normalizes items', async () => {
       fetchSpy.mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -57,7 +57,11 @@ describe('InstagramMediaService', () => {
       } as Response);
 
       const items = await service.listOwnMedia(100);
-      expect(String(fetchSpy.mock.calls[0][0])).toContain('limit=25');
+      const calledUrl = String(fetchSpy.mock.calls[0][0]);
+      expect(calledUrl).toContain(
+        'https://graph.facebook.com/v21.0/17841400000001/media?',
+      );
+      expect(calledUrl).toContain('limit=25');
       expect(items).toEqual([
         {
           id: 'media-1',
@@ -87,7 +91,7 @@ describe('InstagramMediaService', () => {
   });
 
   describe('getMediaInsights', () => {
-    it('normalizes supported and missing metrics to unavailable', async () => {
+    it('queries graph.facebook.com/v21.0/{mediaId}/insights and normalizes missing metrics to unavailable', async () => {
       fetchSpy
         .mockResolvedValueOnce({
           ok: true,
@@ -109,6 +113,12 @@ describe('InstagramMediaService', () => {
         } as Response);
 
       const insights = await service.getMediaInsights('media-1');
+      expect(String(fetchSpy.mock.calls[0][0])).toContain(
+        'https://graph.facebook.com/v21.0/media-1?',
+      );
+      expect(String(fetchSpy.mock.calls[1][0])).toContain(
+        'https://graph.facebook.com/v21.0/media-1/insights?',
+      );
       expect(insights.mediaId).toBe('media-1');
       expect(insights.mediaType).toBe('IMAGE');
       expect(insights.reach).toBe(1200);
@@ -136,7 +146,8 @@ describe('InstagramMediaService', () => {
           json: async () => ({
             error: {
               code: 100,
-              message: 'Unsupported get request. Metric plays is not supported.',
+              message:
+                'Unsupported get request. Metric plays is not supported.',
             },
           }),
         } as Response);
@@ -157,7 +168,9 @@ describe('InstagramMediaService', () => {
         .mockResolvedValueOnce({
           ok: false,
           status: 401,
-          json: async () => ({ error: { message: 'Invalid OAuth access token.' } }),
+          json: async () => ({
+            error: { message: 'Invalid OAuth access token.' },
+          }),
         } as Response);
 
       await expect(service.getMediaInsights('media-1')).rejects.toThrow(

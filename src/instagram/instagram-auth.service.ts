@@ -21,12 +21,10 @@ import {
   encryptInstagramToken,
 } from './utils/instagram-token-crypto.util';
 
-const INSTAGRAM_OAUTH_AUTHORIZE_URL =
-  'https://api.instagram.com/oauth/authorize';
-const INSTAGRAM_OAUTH_TOKEN_URL =
-  'https://api.instagram.com/oauth/access_token';
-const INSTAGRAM_GRAPH_BASE_URL = 'https://graph.instagram.com';
+const FACEBOOK_OAUTH_DIALOG_URL = 'https://www.facebook.com/v21.0/dialog/oauth';
+const FACEBOOK_GRAPH_BASE_URL = 'https://graph.facebook.com/v21.0';
 const DEFAULT_STATE_TTL_SECONDS = 600;
+const SIXTY_DAYS_SECONDS = 60 * 24 * 60 * 60;
 
 export interface OAuthStatePayload {
   nonce: string;
@@ -68,9 +66,10 @@ export class InstagramAuthService {
       ...(adminEmail ? { email: adminEmail.trim().toLowerCase() } : {}),
     };
 
-    const encodedPayload = Buffer.from(JSON.stringify(payload), 'utf8').toString(
-      'base64url',
-    );
+    const encodedPayload = Buffer.from(
+      JSON.stringify(payload),
+      'utf8',
+    ).toString('base64url');
     const signature = this.signStatePayload(encodedPayload, secret);
 
     return {
@@ -115,7 +114,11 @@ export class InstagramAuthService {
     }
 
     const nowSec = Math.floor(Date.now() / 1000);
-    if (!payload.exp || typeof payload.exp !== 'number' || payload.exp < nowSec) {
+    if (
+      !payload.exp ||
+      typeof payload.exp !== 'number' ||
+      payload.exp < nowSec
+    ) {
       throw new UnauthorizedException('OAuth state has expired.');
     }
 
@@ -123,7 +126,7 @@ export class InstagramAuthService {
   }
 
   /**
-   * Builds the Meta Instagram Business Login OAuth authorization URL.
+   * Builds the Meta Facebook Login OAuth authorization URL for Instagram Graph API.
    */
   buildAuthorizeUrl(adminEmail?: string): InstagramAuthorizeResult {
     const appId = this.getRequiredConfig('META_APP_ID');
@@ -139,7 +142,7 @@ export class InstagramAuthService {
     });
 
     return {
-      authorizeUrl: `${INSTAGRAM_OAUTH_AUTHORIZE_URL}?${params.toString()}`,
+      authorizeUrl: `${FACEBOOK_OAUTH_DIALOG_URL}?${params.toString()}`,
       state,
       expiresAt,
     };
@@ -147,7 +150,8 @@ export class InstagramAuthService {
 
   /**
    * Handles the OAuth callback: verifies state, exchanges code -> short-lived token
-   * -> long-lived token, fetches /me profile, encrypts token, and persists connection.
+   * -> long-lived token, resolves linked Instagram Business Account via /me/accounts,
+   * encrypts token, and persists connection.
    */
   async handleOAuthCallback(
     code: string,
@@ -161,37 +165,40 @@ export class InstagramAuthService {
     const appId = this.getRequiredConfig('META_APP_ID');
     const appSecret = this.getRequiredConfig('META_APP_SECRET');
     const redirectUri = this.getRequiredConfig('META_INSTAGRAM_REDIRECT_URI');
-    const encryptionKey = this.getRequiredConfig('INSTAGRAM_TOKEN_ENCRYPTION_KEY');
+    const encryptionKey = this.getRequiredConfig(
+      'INSTAGRAM_TOKEN_ENCRYPTION_KEY',
+    );
 
-    // 1. Exchange authorization code for short-lived token
-    const shortLivedBody = new URLSearchParams({
+    // 1. Exchange authorization code for short-lived Facebook User access token
+    const shortLivedParams = new URLSearchParams({
       client_id: appId,
-      client_secret: appSecret,
-      grant_type: 'authorization_code',
       redirect_uri: redirectUri,
+      client_secret: appSecret,
       code: code.trim(),
     });
 
     const shortLivedRes = await this.fetchJson<{
       access_token?: string;
-      user_id?: string | number;
-    }>(INSTAGRAM_OAUTH_TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: shortLivedBody.toString(),
-    }, 'short-lived token exchange');
+      token_type?: string;
+      expires_in?: number;
+    }>(
+      `${FACEBOOK_GRAPH_BASE_URL}/oauth/access_token?${shortLivedParams.toString()}`,
+      { method: 'GET' },
+      'short-lived token exchange',
+    );
 
     if (!shortLivedRes.access_token) {
       throw new BadRequestException(
-        'Instagram token exchange did not return an access token.',
+        'Facebook token exchange did not return an access token.',
       );
     }
 
-    // 2. Exchange short-lived token for long-lived token (60 days)
+    // 2. Exchange short-lived token for long-lived User token (~60 days)
     const longLivedParams = new URLSearchParams({
-      grant_type: 'ig_exchange_token',
+      grant_type: 'fb_exchange_token',
+      client_id: appId,
       client_secret: appSecret,
-      access_token: shortLivedRes.access_token,
+      fb_exchange_token: shortLivedRes.access_token,
     });
 
     const longLivedRes = await this.fetchJson<{
@@ -199,44 +206,54 @@ export class InstagramAuthService {
       token_type?: string;
       expires_in?: number;
     }>(
-      `${INSTAGRAM_GRAPH_BASE_URL}/access_token?${longLivedParams.toString()}`,
+      `${FACEBOOK_GRAPH_BASE_URL}/oauth/access_token?${longLivedParams.toString()}`,
       { method: 'GET' },
       'long-lived token exchange',
     );
 
     if (!longLivedRes.access_token) {
       throw new BadRequestException(
-        'Instagram long-lived token exchange did not return an access token.',
+        'Facebook long-lived token exchange did not return an access token.',
       );
     }
 
-    // 3. Fetch /me profile metadata
-    const profileParams = new URLSearchParams({
-      fields: 'user_id,username,account_type',
+    // 3. Resolve linked Instagram Business Account via Facebook Pages (/me/accounts)
+    const accountsParams = new URLSearchParams({
+      fields:
+        'id,name,instagram_business_account{id,username,name,profile_picture_url}',
       access_token: longLivedRes.access_token,
     });
 
-    const profileRes = await this.fetchJson<{
-      id?: string;
-      user_id?: string;
-      username?: string;
-      account_type?: string;
+    const accountsRes = await this.fetchJson<{
+      data?: Array<{
+        id?: string;
+        name?: string;
+        instagram_business_account?: {
+          id?: string;
+          username?: string;
+          name?: string;
+          profile_picture_url?: string;
+        };
+      }>;
     }>(
-      `${INSTAGRAM_GRAPH_BASE_URL}/me?${profileParams.toString()}`,
+      `${FACEBOOK_GRAPH_BASE_URL}/me/accounts?${accountsParams.toString()}`,
       { method: 'GET' },
-      'Instagram profile fetch',
+      'Facebook Pages / Instagram Business Account lookup',
     );
 
-    const instagramUserId = String(
-      profileRes.user_id ?? profileRes.id ?? shortLivedRes.user_id ?? '',
-    ).trim();
+    const pages = Array.isArray(accountsRes.data) ? accountsRes.data : [];
+    const linkedPage = pages.find(
+      (page) => page.instagram_business_account?.id,
+    );
+    const igAccount = linkedPage?.instagram_business_account;
 
-    if (!instagramUserId) {
+    if (!igAccount?.id) {
       throw new BadRequestException(
-        'Instagram profile response did not include a user ID.',
+        'No Instagram Business Account is linked to any of your Facebook Pages. Please link an Instagram Business Account to a Facebook Page and try again.',
       );
     }
 
+    const instagramUserId = String(igAccount.id).trim();
     const encryptedToken = encryptInstagramToken(
       longLivedRes.access_token,
       encryptionKey,
@@ -246,7 +263,7 @@ export class InstagramAuthService {
     const expiresInSec =
       typeof longLivedRes.expires_in === 'number' && longLivedRes.expires_in > 0
         ? longLivedRes.expires_in
-        : 60 * 24 * 60 * 60;
+        : SIXTY_DAYS_SECONDS;
     const tokenExpiresAt = new Date(now.getTime() + expiresInSec * 1000);
 
     let connection = await this.connectionRepo.findOne({
@@ -259,9 +276,9 @@ export class InstagramAuthService {
       });
     }
 
-    connection.username = profileRes.username ?? connection.username ?? null;
-    connection.accountType =
-      profileRes.account_type ?? connection.accountType ?? null;
+    connection.authMethod = 'facebook_login';
+    connection.username = igAccount.username ?? connection.username ?? null;
+    connection.accountType = 'BUSINESS';
     connection.scopes = [...INSTAGRAM_REQUIRED_SCOPES];
     connection.accessTokenEncrypted = encryptedToken;
     connection.tokenExpiresAt = tokenExpiresAt;
@@ -273,19 +290,23 @@ export class InstagramAuthService {
 
     const saved = await this.connectionRepo.save(connection);
     this.logger.log(
-      `Connected Instagram Business account ${saved.instagramUserId} (@${saved.username ?? 'unknown'})`,
+      `Connected Instagram Business account ${saved.instagramUserId} (@${saved.username ?? 'unknown'}) via facebook_login`,
     );
 
     return this.toSanitizedStatus(saved);
   }
 
   /**
-   * Refreshes the long-lived Instagram access token for the active connection.
+   * Refreshes the long-lived access token for the active connection via fb_exchange_token.
    */
   async refreshAccessToken(
     connectionId?: string,
   ): Promise<InstagramConnectionStatus> {
-    const encryptionKey = this.getRequiredConfig('INSTAGRAM_TOKEN_ENCRYPTION_KEY');
+    const appId = this.getRequiredConfig('META_APP_ID');
+    const appSecret = this.getRequiredConfig('META_APP_SECRET');
+    const encryptionKey = this.getRequiredConfig(
+      'INSTAGRAM_TOKEN_ENCRYPTION_KEY',
+    );
     const connection = await this.findActiveConnection(connectionId);
 
     if (!connection.accessTokenEncrypted) {
@@ -300,8 +321,10 @@ export class InstagramAuthService {
     );
 
     const params = new URLSearchParams({
-      grant_type: 'ig_refresh_token',
-      access_token: currentToken,
+      grant_type: 'fb_exchange_token',
+      client_id: appId,
+      client_secret: appSecret,
+      fb_exchange_token: currentToken,
     });
 
     const refreshed = await this.fetchJson<{
@@ -309,14 +332,14 @@ export class InstagramAuthService {
       token_type?: string;
       expires_in?: number;
     }>(
-      `${INSTAGRAM_GRAPH_BASE_URL}/refresh_access_token?${params.toString()}`,
+      `${FACEBOOK_GRAPH_BASE_URL}/oauth/access_token?${params.toString()}`,
       { method: 'GET' },
       'long-lived token refresh',
     );
 
     if (!refreshed.access_token) {
       throw new BadRequestException(
-        'Instagram token refresh did not return an access token.',
+        'Facebook token refresh did not return an access token.',
       );
     }
 
@@ -324,7 +347,7 @@ export class InstagramAuthService {
     const expiresInSec =
       typeof refreshed.expires_in === 'number' && refreshed.expires_in > 0
         ? refreshed.expires_in
-        : 60 * 24 * 60 * 60;
+        : SIXTY_DAYS_SECONDS;
 
     connection.accessTokenEncrypted = encryptInstagramToken(
       refreshed.access_token,
@@ -351,6 +374,7 @@ export class InstagramAuthService {
       return InstagramConnectionStatusSchema.parse({
         connected: false,
         status: 'disconnected',
+        authMethod: 'facebook_login',
         instagramUserId: null,
         username: null,
         accountType: null,
@@ -385,7 +409,9 @@ export class InstagramAuthService {
       await this.connectionRepo.save(conn);
     }
 
-    this.logger.log('Disconnected Instagram Business connection and cleared token ciphertext.');
+    this.logger.log(
+      'Disconnected Instagram Business connection and cleared token ciphertext.',
+    );
     return this.toSanitizedStatus(connections[0]);
   }
 
@@ -398,7 +424,9 @@ export class InstagramAuthService {
     instagramUserId: string;
     connectionId: string;
   }> {
-    const encryptionKey = this.getRequiredConfig('INSTAGRAM_TOKEN_ENCRYPTION_KEY');
+    const encryptionKey = this.getRequiredConfig(
+      'INSTAGRAM_TOKEN_ENCRYPTION_KEY',
+    );
     const connection = await this.findActiveConnection();
 
     if (!connection.accessTokenEncrypted) {
@@ -470,6 +498,7 @@ export class InstagramAuthService {
         effectiveStatus === 'connected' &&
         Boolean(connection.accessTokenEncrypted),
       status: effectiveStatus,
+      authMethod: connection.authMethod ?? 'facebook_login',
       instagramUserId: connection.instagramUserId,
       username: connection.username ?? null,
       accountType: connection.accountType ?? null,
