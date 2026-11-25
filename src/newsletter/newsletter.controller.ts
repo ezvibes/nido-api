@@ -6,10 +6,12 @@ import {
   HttpCode,
   Param,
   Post,
+  Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import {
   extractClientIp,
   SlidingWindowIpRateLimiter,
@@ -19,6 +21,7 @@ import {
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { NewsletterService } from './newsletter.service';
@@ -26,6 +29,7 @@ import { BeehiivService, BeehiivDraftResponse } from './beehiiv.service';
 import { NewsletterDistributionAuditorService } from './newsletter-distribution-auditor.service';
 import { NewsletterLineupHarvesterService } from './newsletter-lineup-harvester.service';
 import { NewsletterFeedbackLoopService } from './newsletter-feedback-loop.service';
+import { WeeklyContentBriefService } from './weekly-content-brief.service';
 import { GenerateNewsletterDto } from './dto/generate-newsletter.dto';
 import { GenerateNewsletterResponseDto } from './dto/generate-newsletter-response.dto';
 import { NewsletterSourcePreviewResponseDto } from './dto/newsletter-source-preview-response.dto';
@@ -35,6 +39,9 @@ import { HarvestLineupDto } from './dto/harvest-lineup.dto';
 import { NewsletterFeedbackDiffDto } from './dto/newsletter-feedback-diff.dto';
 import { SubscribeNewsletterDto } from './dto/subscribe-newsletter.dto';
 import { SchedulerOrAdminGuard } from '../auth/guards/scheduler-or-admin.guard';
+import { FirebaseAuthGuard } from '../auth/firebase-auth/firebase-auth.guard';
+import { AdminEmailGuard } from '../auth/guards/admin-email.guard';
+import type { WeeklyContentBrief } from '../contracts/content-brief.contract';
 
 const SUBSCRIBE_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const SUBSCRIBE_RATE_LIMIT_MAX_ATTEMPTS = 5;
@@ -54,7 +61,58 @@ export class NewsletterController {
     private readonly auditorService: NewsletterDistributionAuditorService,
     private readonly harvesterService: NewsletterLineupHarvesterService,
     private readonly feedbackService: NewsletterFeedbackLoopService,
+    private readonly weeklyContentBriefService: WeeklyContentBriefService,
   ) {}
+
+  @Get('weekly-brief')
+  @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Generate a structured weekly content brief from active, admin-approved upcoming concerts (Admin only)',
+  })
+  @ApiQuery({ name: 'daysAhead', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'campaignTheme', required: false, type: String })
+  @ApiQuery({
+    name: 'format',
+    required: false,
+    enum: ['json', 'markdown'],
+  })
+  @ApiOkResponse({
+    description:
+      'Weekly content brief in JSON or Markdown format for Muse and editorial review.',
+  })
+  async getWeeklyBrief(
+    @Query('daysAhead') daysAheadRaw?: string,
+    @Query('limit') limitRaw?: string,
+    @Query('campaignTheme') campaignTheme?: string,
+    @Query('format') format?: string,
+    @Res({ passthrough: true }) res?: Response,
+  ): Promise<WeeklyContentBrief | string> {
+    const daysAhead = this.parseOptionalInt(daysAheadRaw, 'daysAhead');
+    const limit = this.parseOptionalInt(limitRaw, 'limit');
+    const normalizedFormat = (format ?? 'json').trim().toLowerCase();
+
+    if (normalizedFormat !== 'json' && normalizedFormat !== 'markdown') {
+      throw new BadRequestException(
+        'format must be either "json" or "markdown".',
+      );
+    }
+
+    const brief = await this.weeklyContentBriefService.generateBrief({
+      daysAhead,
+      limit,
+      campaignTheme,
+    });
+
+    if (normalizedFormat === 'markdown') {
+      res?.type('text/markdown; charset=utf-8');
+      return this.weeklyContentBriefService.formatAsMarkdown(brief);
+    }
+
+    return brief;
+  }
 
   @Post('generate-weekly')
   @UseGuards(SchedulerOrAdminGuard)
@@ -170,7 +228,8 @@ export class NewsletterController {
       'Run ground-truth diff between original draft and published Beehiiv post (Admin & Scheduler)',
   })
   @ApiOkResponse({
-    description: 'Editorial diff report detailing retained, added, and cut shows and voice calibrations.',
+    description:
+      'Editorial diff report detailing retained, added, and cut shows and voice calibrations.',
   })
   async diffDraftVsPublished(@Body() dto: NewsletterFeedbackDiffDto) {
     const post = await this.beehiivService.getPost(
@@ -209,10 +268,7 @@ export class NewsletterController {
   @ApiOkResponse({
     description: 'Subscription confirmation status.',
   })
-  async subscribe(
-    @Body() dto: SubscribeNewsletterDto,
-    @Req() req?: Request,
-  ) {
+  async subscribe(@Body() dto: SubscribeNewsletterDto, @Req() req?: Request) {
     if (dto.website && dto.website.trim().length > 0) {
       throw new BadRequestException('Invalid subscription request.');
     }
@@ -225,5 +281,19 @@ export class NewsletterController {
 
   resetSubscribeRateLimits(): void {
     this.subscribeRateLimiter.reset();
+  }
+
+  private parseOptionalInt(
+    raw: string | undefined,
+    fieldName: string,
+  ): number | undefined {
+    if (raw === undefined || raw.trim() === '') {
+      return undefined;
+    }
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed)) {
+      throw new BadRequestException(`${fieldName} must be an integer.`);
+    }
+    return parsed;
   }
 }

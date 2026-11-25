@@ -5,6 +5,7 @@ import { BeehiivService } from './beehiiv.service';
 import { NewsletterDistributionAuditorService } from './newsletter-distribution-auditor.service';
 import { NewsletterLineupHarvesterService } from './newsletter-lineup-harvester.service';
 import { NewsletterFeedbackLoopService } from './newsletter-feedback-loop.service';
+import { WeeklyContentBriefService } from './weekly-content-brief.service';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth/auth.service';
 
@@ -36,6 +37,11 @@ describe('NewsletterController', () => {
   const mockFeedbackService = {
     diffDraftVsPublished: jest.fn(),
     calculateEngagementAffinities: jest.fn(),
+  };
+
+  const mockWeeklyContentBriefService = {
+    generateBrief: jest.fn(),
+    formatAsMarkdown: jest.fn(),
   };
 
   const mockAuthService = {
@@ -71,6 +77,10 @@ describe('NewsletterController', () => {
         {
           provide: NewsletterFeedbackLoopService,
           useValue: mockFeedbackService,
+        },
+        {
+          provide: WeeklyContentBriefService,
+          useValue: mockWeeklyContentBriefService,
         },
         {
           provide: AuthService,
@@ -236,7 +246,9 @@ describe('NewsletterController', () => {
       expect(mockHarvesterService.extractSupportActs).toHaveBeenCalledWith(
         dto.rawText,
       );
-      expect(mockHarvesterService.processDiscoveredArtists).toHaveBeenCalledWith(
+      expect(
+        mockHarvesterService.processDiscoveredArtists,
+      ).toHaveBeenCalledWith(
         ['Big Something', 'The Fritz'],
         'support_act',
         undefined,
@@ -266,7 +278,9 @@ describe('NewsletterController', () => {
       expect(mockHarvesterService.parseFestivalLineup).toHaveBeenCalledWith(
         dto.rawText,
       );
-      expect(mockHarvesterService.processDiscoveredArtists).toHaveBeenCalledWith(
+      expect(
+        mockHarvesterService.processDiscoveredArtists,
+      ).toHaveBeenCalledWith(
         ['Bela Fleck', 'Billy Strings', 'Sierra Hull'],
         'festival_lineup',
         'MerleFest',

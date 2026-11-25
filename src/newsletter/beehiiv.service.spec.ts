@@ -280,6 +280,7 @@ describe('BeehiivService', () => {
         {} as any,
         {} as any,
         {} as any,
+        {} as any,
       );
 
       await expect(
@@ -291,18 +292,16 @@ describe('BeehiivService', () => {
       expect(mockSubscribe).not.toHaveBeenCalled();
 
       for (let i = 0; i < 5; i += 1) {
-        await controller.subscribe(
-          { email: `fan${i}@example.com` },
-          { ip: '203.0.113.55' } as any,
-        );
+        await controller.subscribe({ email: `fan${i}@example.com` }, {
+          ip: '203.0.113.55',
+        } as any);
       }
       expect(mockSubscribe).toHaveBeenCalledTimes(5);
 
       await expect(
-        controller.subscribe(
-          { email: 'fan6@example.com' },
-          { ip: '203.0.113.55' } as any,
-        ),
+        controller.subscribe({ email: 'fan6@example.com' }, {
+          ip: '203.0.113.55',
+        } as any),
       ).rejects.toMatchObject({
         status: HttpStatus.TOO_MANY_REQUESTS,
       });
