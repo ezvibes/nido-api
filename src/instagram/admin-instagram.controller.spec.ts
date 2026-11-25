@@ -20,7 +20,6 @@ describe('AdminInstagramController', () => {
       accountType: 'BUSINESS',
       scopes: [
         'instagram_basic',
-        'instagram_manage_insights',
         'pages_show_list',
         'pages_read_engagement',
       ],
@@ -44,7 +43,6 @@ describe('AdminInstagramController', () => {
       accountType: 'BUSINESS',
       scopes: [
         'instagram_basic',
-        'instagram_manage_insights',
         'pages_show_list',
         'pages_read_engagement',
       ],

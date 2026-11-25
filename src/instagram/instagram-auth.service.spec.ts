@@ -142,7 +142,7 @@ describe('InstagramAuthService', () => {
       );
       expect(parsed.searchParams.get('response_type')).toBe('code');
       expect(parsed.searchParams.get('scope')).toBe(
-        'instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement',
+        'instagram_basic,pages_show_list,pages_read_engagement',
       );
       expect(parsed.searchParams.get('state')).toBe(result.state);
     });
@@ -212,7 +212,6 @@ describe('InstagramAuthService', () => {
       expect(status.accountType).toBe('BUSINESS');
       expect(status.scopes).toEqual([
         'instagram_basic',
-        'instagram_manage_insights',
         'pages_show_list',
         'pages_read_engagement',
       ]);
@@ -289,7 +288,6 @@ describe('InstagramAuthService', () => {
         accountType: 'BUSINESS',
         scopes: [
           'instagram_basic',
-          'instagram_manage_insights',
           'pages_show_list',
           'pages_read_engagement',
         ],

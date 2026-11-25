@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 export const INSTAGRAM_REQUIRED_SCOPES = [
   'instagram_basic',
-  'instagram_manage_insights',
   'pages_show_list',
   'pages_read_engagement',
 ] as const;
