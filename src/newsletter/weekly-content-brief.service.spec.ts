@@ -24,6 +24,7 @@ import { NewsletterLineupHarvesterService } from './newsletter-lineup-harvester.
 import { NewsletterController } from './newsletter.controller';
 import { NewsletterService } from './newsletter.service';
 import { WeeklyContentBriefService } from './weekly-content-brief.service';
+import { SocialConceptGeneratorService } from './social-concept-generator.service';
 
 describe('WeeklyContentBriefService', () => {
   const findApprovedConcertEntities = jest.fn();
@@ -276,6 +277,7 @@ describe('NewsletterController GET /newsletter/weekly-brief', () => {
         { provide: NewsletterLineupHarvesterService, useValue: {} },
         { provide: NewsletterFeedbackLoopService, useValue: {} },
         { provide: WeeklyContentBriefService, useValue: mockBriefService },
+        { provide: SocialConceptGeneratorService, useValue: {} },
         { provide: AuthService, useValue: { verifyIdToken: jest.fn() } },
         {
           provide: ConfigService,

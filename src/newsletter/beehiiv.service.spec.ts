@@ -281,6 +281,7 @@ describe('BeehiivService', () => {
         {} as any,
         {} as any,
         {} as any,
+        {} as any,
       );
 
       await expect(
