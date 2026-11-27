@@ -7,10 +7,14 @@ import { IngestionModule } from '../../ingestion/ingestion.module';
 import { NewsletterModule } from '../../newsletter/newsletter.module';
 import { AgentSession } from './entities/agent-session.entity';
 import { AgentMemory } from './entities/agent-memory.entity';
+import { AgentRun } from './entities/agent-run.entity';
+import { AgentRunEvent } from './entities/agent-run-event.entity';
+import { AgentApprovalRequest } from './entities/agent-approval-request.entity';
 import { IngestionJob } from '../../ingestion/entities/ingestion-job.entity';
 import { IngestionCandidate } from '../../ingestion/entities/ingestion-candidate.entity';
 import { AgentSupervisorService } from './agent-supervisor.service';
 import { AgentSupervisorController } from './agent-supervisor.controller';
+import { AgentOpsPersistenceService } from './agent-ops-persistence.service';
 
 @Global()
 @Module({
@@ -23,12 +27,15 @@ import { AgentSupervisorController } from './agent-supervisor.controller';
     TypeOrmModule.forFeature([
       AgentSession,
       AgentMemory,
+      AgentRun,
+      AgentRunEvent,
+      AgentApprovalRequest,
       IngestionJob,
       IngestionCandidate,
     ]),
   ],
   controllers: [AgentSupervisorController],
-  providers: [AgentSupervisorService],
-  exports: [AgentSupervisorService],
+  providers: [AgentSupervisorService, AgentOpsPersistenceService],
+  exports: [AgentSupervisorService, AgentOpsPersistenceService],
 })
 export class AgentModule {}
