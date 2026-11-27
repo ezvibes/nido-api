@@ -127,7 +127,8 @@ export class NewsletterService {
       model: modelName,
       description:
         "Nido's live music curation and editorial agent. Prepares the weekly top picks newsletter.",
-      instruction: systemInstruction,
+      // Function provider disables ADK session-state interpolation so literal Beehiiv merge tags like {{ referral_program }} do not throw.
+      instruction: () => systemInstruction,
       tools: this.toolRegistry.getTools(),
     });
 
@@ -575,17 +576,24 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
           this.isWithinRange(event, timeMin, timeMax),
         );
 
-        return events.map((event) => ({
-          title: event.summary || 'Untitled show',
-          date: event.start?.dateTime || event.start?.date || 'Unknown Date',
-          venue: event.location || 'Unknown Venue',
-          description: event.description || '',
-          isTopPick: false,
-          topPickScore: 0,
-          isHighlightArtist: false,
-          isPartnerArtist: false,
-          source: sourceName,
-        }));
+        return events.map((event) => {
+          const parsedStart = this.parseIcalDate(
+            event.start?.dateTime || event.start?.date,
+          );
+          return {
+            title: event.summary || 'Untitled show',
+            date: parsedStart
+              ? parsedStart.toISOString()
+              : event.start?.dateTime || event.start?.date || 'Unknown Date',
+            venue: event.location || 'Unknown Venue',
+            description: event.description || '',
+            isTopPick: false,
+            topPickScore: 0,
+            isHighlightArtist: false,
+            isPartnerArtist: false,
+            source: sourceName,
+          };
+        });
       } catch {
         // Fall back
       }
@@ -627,7 +635,9 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
   }
 
   private parseIcalEvents(text: string): GoogleCalendarEvent[] {
-    const lines = text.split(/\r?\n/);
+    // Unfold RFC 5545 folded continuation lines before property extraction
+    const unfolded = text.replace(/\r?\n[ \t]/g, '');
+    const lines = unfolded.split(/\r?\n/);
     const events: GoogleCalendarEvent[] = [];
     let current: GoogleCalendarEvent | null = null;
 
@@ -638,18 +648,67 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
         if (current) events.push(current);
         current = null;
       } else if (current) {
-        if (line.startsWith('SUMMARY:'))
-          current.summary = line.replace('SUMMARY:', '');
-        if (line.startsWith('LOCATION:'))
-          current.location = line.replace('LOCATION:', '');
-        if (line.startsWith('DESCRIPTION:'))
-          current.description = line.replace('DESCRIPTION:', '');
-        if (line.startsWith('DTSTART:'))
-          current.start = { dateTime: line.replace('DTSTART:', '') };
+        const summary = this.extractIcalPropValue(line, 'SUMMARY');
+        if (summary !== null) {
+          current.summary = this.unescapeIcalText(summary);
+          continue;
+        }
+        const location = this.extractIcalPropValue(line, 'LOCATION');
+        if (location !== null) {
+          current.location = this.unescapeIcalText(location);
+          continue;
+        }
+        const description = this.extractIcalPropValue(line, 'DESCRIPTION');
+        if (description !== null) {
+          current.description = this.unescapeIcalText(description);
+          continue;
+        }
+        const dtStart = this.extractIcalPropValue(line, 'DTSTART');
+        if (dtStart !== null) {
+          current.start = { dateTime: dtStart.trim() };
+        }
       }
     }
 
     return events;
+  }
+
+  private extractIcalPropValue(line: string, propName: string): string | null {
+    const match = line.match(new RegExp(`^${propName}(?:;[^:]*)?:(.*)$`, 'i'));
+    return match ? (match[1] ?? '') : null;
+  }
+
+  private unescapeIcalText(value: string): string {
+    return value
+      .replace(/\\n/gi, '\n')
+      .replace(/\\,/g, ',')
+      .replace(/\\;/g, ';')
+      .replace(/\\\\/g, '\\');
+  }
+
+  private parseIcalDate(rawValue?: string): Date | null {
+    const trimmed = rawValue?.trim();
+    if (!trimmed) return null;
+
+    const dateOnly = trimmed.match(/^(\d{4})(\d{2})(\d{2})$/);
+    if (dateOnly) {
+      const parsed = new Date(
+        `${dateOnly[1]}-${dateOnly[2]}-${dateOnly[3]}T12:00:00.000Z`,
+      );
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    const dateTime = trimmed.match(
+      /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/i,
+    );
+    if (dateTime) {
+      const iso = `${dateTime[1]}-${dateTime[2]}-${dateTime[3]}T${dateTime[4]}:${dateTime[5]}:${dateTime[6]}${dateTime[7] ? 'Z' : ''}`;
+      const parsed = new Date(iso);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
   private isWithinRange(
@@ -659,8 +718,8 @@ ${params.autoPushToBeehiiv ? `Once the draft is ready, please stage it to Beehii
   ): boolean {
     if (!min || !max) return true;
     const startStr = event.start?.dateTime || event.start?.date;
-    if (!startStr) return true;
-    const date = new Date(startStr);
+    const date = this.parseIcalDate(startStr);
+    if (!date) return false;
     return date >= new Date(min) && date <= new Date(max);
   }
 

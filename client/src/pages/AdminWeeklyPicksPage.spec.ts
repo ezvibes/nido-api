@@ -229,4 +229,20 @@ describe('AdminWeeklyPicksPage', () => {
       'https://app.beehiiv.com/posts/post_beehiiv_test_123/edit',
     );
   });
+
+  it('displays generation errors clearly inside the preview panel when draft generation fails', async () => {
+    api.generateNewsletter.mockRejectedValue(
+      new Error('Gemini generation failed: Context variable not found: `referral_program`.'),
+    );
+
+    const wrapper = mount(AdminWeeklyPicksPage);
+    await flushPromises();
+
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    expect(
+      wrapper.get('.preview-panel .error-banner').text(),
+    ).toContain('Context variable not found');
+  });
 });
