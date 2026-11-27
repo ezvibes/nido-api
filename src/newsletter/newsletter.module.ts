@@ -17,6 +17,7 @@ import { NewsletterDistributionAuditorService } from './newsletter-distribution-
 import { NewsletterLineupHarvesterService } from './newsletter-lineup-harvester.service';
 import { NewsletterFeedbackLoopService } from './newsletter-feedback-loop.service';
 import { WeeklyContentBriefService } from './weekly-content-brief.service';
+import { SocialConceptGeneratorService } from './social-concept-generator.service';
 import { AgentSession } from '../apis/agents/entities/agent-session.entity';
 import { TypeOrmSessionService } from '../apis/agents/session/typeorm-session.service';
 
@@ -44,6 +45,7 @@ import { TypeOrmSessionService } from '../apis/agents/session/typeorm-session.se
     NewsletterLineupHarvesterService,
     NewsletterFeedbackLoopService,
     WeeklyContentBriefService,
+    SocialConceptGeneratorService,
     TypeOrmSessionService,
   ],
   exports: [
@@ -58,6 +60,7 @@ import { TypeOrmSessionService } from '../apis/agents/session/typeorm-session.se
     NewsletterLineupHarvesterService,
     NewsletterFeedbackLoopService,
     WeeklyContentBriefService,
+    SocialConceptGeneratorService,
     TypeOrmSessionService,
   ],
 })

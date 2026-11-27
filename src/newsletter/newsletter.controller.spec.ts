@@ -6,6 +6,7 @@ import { NewsletterDistributionAuditorService } from './newsletter-distribution-
 import { NewsletterLineupHarvesterService } from './newsletter-lineup-harvester.service';
 import { NewsletterFeedbackLoopService } from './newsletter-feedback-loop.service';
 import { WeeklyContentBriefService } from './weekly-content-brief.service';
+import { SocialConceptGeneratorService } from './social-concept-generator.service';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth/auth.service';
 
@@ -41,6 +42,12 @@ describe('NewsletterController', () => {
 
   const mockWeeklyContentBriefService = {
     generateBrief: jest.fn(),
+    formatAsMarkdown: jest.fn(),
+  };
+
+  const mockSocialConceptGeneratorService = {
+    generateWeeklyConcepts: jest.fn(),
+    generateFromBrief: jest.fn(),
     formatAsMarkdown: jest.fn(),
   };
 
@@ -81,6 +88,10 @@ describe('NewsletterController', () => {
         {
           provide: WeeklyContentBriefService,
           useValue: mockWeeklyContentBriefService,
+        },
+        {
+          provide: SocialConceptGeneratorService,
+          useValue: mockSocialConceptGeneratorService,
         },
         {
           provide: AuthService,

@@ -30,6 +30,7 @@ import { NewsletterDistributionAuditorService } from './newsletter-distribution-
 import { NewsletterLineupHarvesterService } from './newsletter-lineup-harvester.service';
 import { NewsletterFeedbackLoopService } from './newsletter-feedback-loop.service';
 import { WeeklyContentBriefService } from './weekly-content-brief.service';
+import { SocialConceptGeneratorService } from './social-concept-generator.service';
 import { GenerateNewsletterDto } from './dto/generate-newsletter.dto';
 import { GenerateNewsletterResponseDto } from './dto/generate-newsletter-response.dto';
 import { NewsletterSourcePreviewResponseDto } from './dto/newsletter-source-preview-response.dto';
@@ -41,7 +42,11 @@ import { SubscribeNewsletterDto } from './dto/subscribe-newsletter.dto';
 import { SchedulerOrAdminGuard } from '../auth/guards/scheduler-or-admin.guard';
 import { FirebaseAuthGuard } from '../auth/firebase-auth/firebase-auth.guard';
 import { AdminEmailGuard } from '../auth/guards/admin-email.guard';
-import type { WeeklyContentBrief } from '../contracts/content-brief.contract';
+import {
+  WeeklyContentBriefSchema,
+  type WeeklyContentBrief,
+} from '../contracts/content-brief.contract';
+import type { WeeklySocialConceptsBatch } from '../contracts/social-concept.contract';
 
 const SUBSCRIBE_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const SUBSCRIBE_RATE_LIMIT_MAX_ATTEMPTS = 5;
@@ -62,6 +67,7 @@ export class NewsletterController {
     private readonly harvesterService: NewsletterLineupHarvesterService,
     private readonly feedbackService: NewsletterFeedbackLoopService,
     private readonly weeklyContentBriefService: WeeklyContentBriefService,
+    private readonly socialConceptGeneratorService: SocialConceptGeneratorService,
   ) {}
 
   @Get('weekly-brief')
@@ -112,6 +118,105 @@ export class NewsletterController {
     }
 
     return brief;
+  }
+
+  @Get('social-concepts')
+  @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Generate 3 weekly social concepts grounded in the weekly content brief (Admin only)',
+  })
+  @ApiQuery({ name: 'daysAhead', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'campaignTheme', required: false, type: String })
+  @ApiQuery({
+    name: 'format',
+    required: false,
+    enum: ['json', 'markdown'],
+  })
+  @ApiOkResponse({
+    description:
+      'Weekly social concepts batch in JSON or Markdown format for Muse handoff.',
+  })
+  async getSocialConcepts(
+    @Query('daysAhead') daysAheadRaw?: string,
+    @Query('limit') limitRaw?: string,
+    @Query('campaignTheme') campaignTheme?: string,
+    @Query('format') format?: string,
+    @Res({ passthrough: true }) res?: Response,
+  ): Promise<WeeklySocialConceptsBatch | string> {
+    const daysAhead = this.parseOptionalInt(daysAheadRaw, 'daysAhead');
+    const limit = this.parseOptionalInt(limitRaw, 'limit');
+    const normalizedFormat = (format ?? 'json').trim().toLowerCase();
+
+    if (normalizedFormat !== 'json' && normalizedFormat !== 'markdown') {
+      throw new BadRequestException(
+        'format must be either "json" or "markdown".',
+      );
+    }
+
+    const batch =
+      await this.socialConceptGeneratorService.generateWeeklyConcepts({
+        daysAhead,
+        limit,
+        campaignTheme,
+      });
+
+    if (normalizedFormat === 'markdown') {
+      res?.type('text/markdown; charset=utf-8');
+      return this.socialConceptGeneratorService.formatAsMarkdown(batch);
+    }
+
+    return batch;
+  }
+
+  @Post('social-concepts/from-brief')
+  @UseGuards(FirebaseAuthGuard, AdminEmailGuard)
+  @ApiBearerAuth()
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Generate 3 weekly social concepts from a provided WeeklyContentBrief payload (Admin only)',
+  })
+  @ApiQuery({
+    name: 'format',
+    required: false,
+    enum: ['json', 'markdown'],
+  })
+  @ApiOkResponse({
+    description:
+      'Weekly social concepts batch generated strictly from the supplied brief.',
+  })
+  generateSocialConceptsFromBrief(
+    @Body() body: unknown,
+    @Query('format') format?: string,
+    @Res({ passthrough: true }) res?: Response,
+  ): WeeklySocialConceptsBatch | string {
+    const normalizedFormat = (format ?? 'json').trim().toLowerCase();
+    if (normalizedFormat !== 'json' && normalizedFormat !== 'markdown') {
+      throw new BadRequestException(
+        'format must be either "json" or "markdown".',
+      );
+    }
+
+    const parsed = WeeklyContentBriefSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        `Invalid WeeklyContentBrief payload: ${parsed.error.issues.map((i) => i.message).join('; ')}`,
+      );
+    }
+
+    const batch = this.socialConceptGeneratorService.generateFromBrief(
+      parsed.data,
+    );
+
+    if (normalizedFormat === 'markdown') {
+      res?.type('text/markdown; charset=utf-8');
+      return this.socialConceptGeneratorService.formatAsMarkdown(batch);
+    }
+
+    return batch;
   }
 
   @Post('generate-weekly')

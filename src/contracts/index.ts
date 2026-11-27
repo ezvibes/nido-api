@@ -34,4 +34,5 @@ export * from './extraction.contract';
 export * from './worker-payload.contract';
 export * from './newsletter.contract';
 export * from './content-brief.contract';
+export * from './social-concept.contract';
 export * from './gemini-schema.adapter';
