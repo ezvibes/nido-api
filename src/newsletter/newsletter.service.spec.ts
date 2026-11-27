@@ -345,5 +345,86 @@ describe('NewsletterService', () => {
       expect(preview.totalCount).toBe(1);
       expect(generated.concertsCount).toBe(preview.totalCount);
     });
+
+    it('parses parameterized iCal DTSTART values and excludes events outside date range or without start dates', async () => {
+      const icalFeed = [
+        'BEGIN:VCALENDAR',
+        'BEGIN:VEVENT',
+        'SUMMARY:Big Something\\, Live',
+        'LOCATION:Lincoln Theatre\\, Raleigh\\, NC',
+        'DESCRIPTION:Doors at 7pm\\nSet 1 starts',
+        '  sharp',
+        'DTSTART;VALUE=DATE:20261205',
+        'END:VEVENT',
+        'BEGIN:VEVENT',
+        'SUMMARY:Old 2025 Show',
+        'LOCATION:Cat\'s Cradle',
+        'DTSTART;VALUE=DATE:20250822',
+        'END:VEVENT',
+        'BEGIN:VEVENT',
+        'SUMMARY:Future 2027 Show',
+        'LOCATION:The Pour House',
+        'DTSTART;TZID=America/New_York:20270115T200000',
+        'END:VEVENT',
+        'BEGIN:VEVENT',
+        'SUMMARY:Undated Noise Event',
+        'LOCATION:Unknown',
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ].join('\r\n');
+
+      const preview = await service.previewNewsletterSources({
+        startDate: '2026-12-01T00:00:00.000Z',
+        endDate: '2026-12-31T23:59:59.999Z',
+        rawCalendarData: icalFeed,
+        useDatabase: false,
+      });
+
+      expect(preview.calendarEvents).toHaveLength(1);
+      expect(preview.calendarEvents[0]).toEqual(
+        expect.objectContaining({
+          title: 'Big Something, Live',
+          venue: 'Lincoln Theatre, Raleigh, NC',
+          description: 'Doors at 7pm\nSet 1 starts sharp',
+          date: '2026-12-05T12:00:00.000Z',
+        }),
+      );
+    });
+  });
+
+  describe('ADK instruction merge-tag safety', () => {
+    it('passes a function InstructionProvider so ADK disables state injection on {{ referral_program }} merge tags', async () => {
+      const { Agent, Runner } = jest.requireMock('@google/adk') as {
+        Agent: typeof import('@google/adk').Agent;
+        Runner: jest.Mock;
+      };
+
+      mockConcertRepository.find.mockResolvedValue([]);
+      mockRunAsync.mockImplementation(async function* () {
+        yield {
+          content: {
+            parts: [{ text: '# Draft\n\n{{ referral_program }}' }],
+          },
+        };
+      });
+
+      await service.generateNewsletter({
+        startDate: '2026-12-01T00:00:00.000Z',
+        endDate: '2026-12-31T23:59:59.999Z',
+        useDatabase: false,
+      });
+
+      const runnerConfig = Runner.mock.calls[0]?.[0] as {
+        agent: InstanceType<typeof Agent>;
+      };
+      expect(runnerConfig?.agent).toBeDefined();
+      expect(typeof runnerConfig.agent.instruction).toBe('function');
+
+      const resolved = await runnerConfig.agent.canonicalInstruction({
+        state: {},
+      } as never);
+      expect(resolved.requireStateInjection).toBe(false);
+      expect(resolved.instruction).toContain('{{ referral_program }}');
+    });
   });
 });

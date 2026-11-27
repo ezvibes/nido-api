@@ -413,6 +413,7 @@ async function handlePushToBeehiiv() {
           </a>
         </div>
         <div v-if="beehiivError" class="error-banner mb-3">{{ beehiivError }}</div>
+        <div v-if="error && !result && !loading" class="error-banner mb-3">{{ error }}</div>
 
         <div v-if="loading" class="preview-placeholder loading-placeholder">
           <div class="music-loader">
@@ -899,11 +900,13 @@ textarea.form-control {
 
 .meta-concerts-list {
   list-style: none;
-  padding: 0;
+  padding: 0 0.25rem 0 0;
   margin: 0;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  max-height: 440px;
+  overflow-y: auto;
 }
 
 .meta-concert-item {
