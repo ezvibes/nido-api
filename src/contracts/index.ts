@@ -36,3 +36,4 @@ export * from './newsletter.contract';
 export * from './content-brief.contract';
 export * from './social-concept.contract';
 export * from './gemini-schema.adapter';
+export * from './agent-ops.contract';
